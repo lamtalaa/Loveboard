@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Loveboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="auth-gate" class="auth-gate">
+      <div class="auth-card">
+        <h1>Welcome to Loveboard</h1>
+        <p>Select who you are and enter your shared passphrase.</p>
+        <form id="auth-form">
+          <label for="user-select">I am</label>
+          <select id="user-select" required>
+            <option value="">Pick one</option>
+            <option value="Yassine">Yassine</option>
+            <option value="Nihal">Nihal</option>
+          </select>
+          <label for="passcode-input">Passphrase</label>
+          <input id="passcode-input" type="password" required />
+          <button type="submit">Enter Loveboard</button>
+          <p id="auth-error" class="error-text"></p>
+        </form>
+      </div>
+    </div>
+
+    <main class="app" aria-hidden="true">
+      <header class="board-header">
+        <div>
+          <p class="tagline">Yassine ❤️ Nihal</p>
+          <div class="avatars" aria-label="User avatars">
+            <span class="avatar" data-user="Y">Y</span>
+            <span class="avatar" data-user="N">N</span>
+          </div>
+        </div>
+        <div class="header-actions">
+          <label class="surprise-toggle">
+            <input type="checkbox" id="surprise-toggle" />
+            <span>Surprise Mode</span>
+          </label>
+        </div>
+      </header>
+
+      <section class="moods" aria-live="polite">
+        <div class="mood" id="yassine-mood">
+          <span class="user-label">Yassine</span>
+          <button class="mood-btn" data-user="Yassine">💗</button>
+        </div>
+        <div class="mood" id="nihal-mood">
+          <span class="user-label">Nihal</span>
+          <button class="mood-btn" data-user="Nihal">💗</button>
+        </div>
+      </section>
+
+      <section id="board" class="board" aria-live="polite"></section>
+
+      <section id="memory-lane" class="memory-lane" aria-live="polite">
+        <h2>Memory Lane</h2>
+        <div class="timeline" id="timeline"></div>
+      </section>
+
+      <button id="create-btn" class="create-btn">Create Postcard</button>
+    </main>
+
+    <dialog id="postcard-modal" class="modal">
+      <form method="dialog" class="modal-content" id="postcard-form">
+        <header>
+          <h2>New Postcard</h2>
+          <button type="button" id="close-modal" aria-label="Close">×</button>
+        </header>
+        <label for="message-input">Short message (150 chars)</label>
+        <textarea id="message-input" maxlength="150" placeholder="Write something sweet..."></textarea>
+
+        <label for="photo-input">Photo</label>
+        <input id="photo-input" type="file" accept="image/*" />
+
+        <div class="doodle-block">
+          <div class="doodle-header">
+            <span>Doodle</span>
+            <button type="button" id="clear-doodle">Clear</button>
+          </div>
+          <canvas id="doodle-canvas" width="320" height="200" aria-label="Doodle"></canvas>
+        </div>
+
+        <div class="audio-block">
+          <div class="audio-header">
+            <span>Audio (15s)</span>
+            <button type="button" id="record-audio">Start</button>
+          </div>
+          <audio id="audio-preview" controls></audio>
+        </div>
+
+        <button type="submit" class="primary">Send postcard</button>
+      </form>
+    </dialog>
+
+    <template id="postcard-template">
+      <article class="postcard surprise">
+        <div class="postcard-front">
+          <img alt="Postcard visual" />
+          <div class="audio-chip" hidden>
+            <span>🎧 Listen</span>
+          </div>
+        </div>
+        <div class="postcard-back">
+          <p class="note"></p>
+          <span class="meta"></span>
+        </div>
+      </article>
+    </template>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script type="module" src="supabase.js"></script>
+    <script type="module" src="script.js"></script>
+  </body>
+</html>
