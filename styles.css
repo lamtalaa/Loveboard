@@ -154,7 +154,7 @@ button:disabled {
 .postcard.visual-card {
   padding: 0;
   min-height: auto;
-  aspect-ratio: var(--card-aspect, auto);
+  height: var(--card-height, auto);
 }
 
 .delete-card {
@@ -208,7 +208,7 @@ button:disabled {
   width: 100%;
   height: 100%;
   border-radius: 12px;
-  object-fit: contain;
+  object-fit: cover;
   display: block;
 }
 
