@@ -13,11 +13,28 @@
     />
     <link rel="stylesheet" href="styles.css" />
     <script>
-      window.__SUPABASE_URL__ = window.__SUPABASE_URL__ || '{{SUPABASE_URL}}';
-      window.__SUPABASE_ANON_KEY__ = window.__SUPABASE_ANON_KEY__ || '{{SUPABASE_ANON_KEY}}';
-      window.__PASSCODE_YASSINE__ = window.__PASSCODE_YASSINE__ || '{{PASSCODE_YASSINE}}';
-      window.__PASSCODE_NIHAL__ = window.__PASSCODE_NIHAL__ || '{{PASSCODE_NIHAL}}';
-      window.__VAPID_PUBLIC_KEY__ = window.__VAPID_PUBLIC_KEY__ || '{{VAPID_PUBLIC_KEY}}';
+      const cfg = {
+        supabaseUrl: '{{SUPABASE_URL}}',
+        supabaseAnon: '{{SUPABASE_ANON_KEY}}',
+        passY: '{{PASSCODE_YASSINE}}',
+        passN: '{{PASSCODE_NIHAL}}',
+        vapid: '{{VAPID_PUBLIC_KEY}}'
+      };
+      if (cfg.supabaseUrl && !cfg.supabaseUrl.includes('{{')) {
+        window.__SUPABASE_URL__ = cfg.supabaseUrl;
+      }
+      if (cfg.supabaseAnon && !cfg.supabaseAnon.includes('{{')) {
+        window.__SUPABASE_ANON_KEY__ = cfg.supabaseAnon;
+      }
+      if (cfg.passY && !cfg.passY.includes('{{')) {
+        window.__PASSCODE_YASSINE__ = cfg.passY;
+      }
+      if (cfg.passN && !cfg.passN.includes('{{')) {
+        window.__PASSCODE_NIHAL__ = cfg.passN;
+      }
+      if (cfg.vapid && !cfg.vapid.includes('{{')) {
+        window.__VAPID_PUBLIC_KEY__ = cfg.vapid;
+      }
     </script>
   </head>
 
