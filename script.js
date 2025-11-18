@@ -5,7 +5,13 @@ const USER_PASSCODES = {
   Nihal: 'ilovey'
 };
 
-const MOOD_STICKERS = ['💗', '💛', '🫶', '💙', '💖'];
+const MOOD_STICKERS = [
+  { emoji: '💗', label: 'Overflowing love' },
+  { emoji: '💛', label: 'Sunny and grateful' },
+  { emoji: '🫶', label: 'Need a hug' },
+  { emoji: '💙', label: 'Calm and reflective' },
+  { emoji: '💖', label: 'Playful sparkles' }
+];
 const BUCKET = 'loveboard-assets';
 const LONG_PRESS_DURATION = 600;
 const AUTH_KEY = 'loveboard-user';
@@ -279,9 +285,10 @@ async function loadMoods() {
 
 function setMood(user, emoji) {
   const btn = document.querySelector(`.mood-btn[data-user="${user}"]`);
-  if (btn) {
-    btn.textContent = emoji;
-  }
+  if (!btn) return;
+  const mood = MOOD_STICKERS.find((m) => m.emoji === emoji);
+  btn.dataset.mood = emoji;
+  btn.innerHTML = `${emoji} <span>${mood ? mood.label : ''}</span>`;
 }
 
 function openMoodPicker(anchorBtn) {
@@ -290,10 +297,10 @@ function openMoodPicker(anchorBtn) {
   closeMoodMenus();
   const menu = document.createElement('div');
   menu.className = 'mood-menu';
-  MOOD_STICKERS.forEach((emoji) => {
+  MOOD_STICKERS.forEach(({ emoji, label }) => {
     const option = document.createElement('button');
     option.type = 'button';
-    option.textContent = emoji;
+    option.innerHTML = `${emoji}<small>${label}</small>`;
     option.addEventListener('click', async () => {
       await saveMood(emoji);
       closeMoodMenus();
