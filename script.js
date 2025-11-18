@@ -171,6 +171,7 @@ function renderBoard() {
     node.style.removeProperty('--card-height');
     node.style.removeProperty('width');
     node.style.removeProperty('margin');
+    node.style.setProperty('--tilt', getTilt(card.id));
     node.querySelector('.note').textContent = card.message || 'No message, just vibes.';
     node.querySelector('.meta').textContent = `${card.user} · ${formatDate(card.created_at)}`;
 
@@ -671,6 +672,15 @@ function sizeCardToImage(node, img) {
   if (!shouldScale) {
     node.style.margin = '0 auto';
   }
+}
+
+function getTilt(id = '') {
+  const tilts = [-3, -1.5, 0, 1.5, 3];
+  let hash = 0;
+  for (let i = 0; i < id.length; i += 1) {
+    hash = (hash + id.charCodeAt(i) * 7) % 97;
+  }
+  return `${tilts[hash % tilts.length]}deg`;
 }
 
 function showToast(message, mode = 'info') {
