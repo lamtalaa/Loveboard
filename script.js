@@ -9,6 +9,7 @@ const MOOD_STICKERS = ['💗', '💛', '🫶', '💙', '💖'];
 const BUCKET = 'loveboard-assets';
 const LONG_PRESS_DURATION = 600;
 const AUTH_KEY = 'loveboard-user';
+const DEFAULT_NOTE_IMG = './assets/default-note.svg';
 const storedSurprise = localStorage.getItem('loveboard-surprise');
 const initialSurprise = storedSurprise === null ? true : storedSurprise === 'true';
 if (storedSurprise === null) {
@@ -29,10 +30,6 @@ const state = {
   audioBlob: null,
   longPressTimer: null,
   started: false,
-  playback: {
-    audio: null,
-    chip: null
-  },
   activeOptions: new Set(['message']),
   moodMenuListener: null
 };
@@ -168,33 +165,49 @@ function renderBoard() {
       node.classList.add('own');
     }
     node.style.setProperty('--tilt', getTilt(card.id));
+    node.querySelectorAll('.meta').forEach((metaEl) => {
+      metaEl.textContent = `${card.user} · ${formatDate(card.created_at)}`;
+    });
     node.querySelector('.note').textContent = card.message || 'No message, just vibes.';
-    node.querySelector('.meta').textContent = `${card.user} · ${formatDate(card.created_at)}`;
 
-    const img = node.querySelector('img');
-    const audioChip = node.querySelector('.audio-chip');
+    const visual = node.querySelector('.visual');
+    const defaultVisual = node.querySelector('.default-visual');
+    const audioPanel = node.querySelector('.audio-only');
+    const audioPlayer = node.querySelector('.audio-player');
     const deleteBtn = node.querySelector('.delete-card');
 
-    img.hidden = true;
-    audioChip.hidden = true;
+    visual.hidden = true;
+    defaultVisual.hidden = true;
+    audioPanel.hidden = true;
+    node.classList.remove('audio-mode');
+
+    const isVisual = card.type === 'image' || card.type === 'doodle';
+    const isAudio = card.type === 'audio';
 
     let needsMeasure = true;
-    if (card.asset_url) {
-      if (card.type === 'image' || card.type === 'doodle') {
-        img.hidden = false;
-        img.src = card.asset_url;
-        img.alt = `${card.type} from ${card.user}`;
-        const measure = () => measureCardHeight(node);
-        if (img.complete) {
-          measure();
-        } else {
-          img.addEventListener('load', measure, { once: true });
-        }
-        needsMeasure = false;
-      } else if (card.type === 'audio') {
-        audioChip.hidden = false;
-        audioChip.onclick = () => playAudio(card.asset_url, audioChip);
+    if (isAudio) {
+      node.classList.add('audio-mode');
+      audioPanel.hidden = false;
+      if (card.asset_url) {
+        audioPlayer.src = card.asset_url;
+        audioPlayer.load();
       }
+      needsMeasure = false;
+      requestAnimationFrame(() => measureCardHeight(node));
+    } else if (isVisual && card.asset_url) {
+      visual.hidden = false;
+      visual.src = card.asset_url;
+      visual.alt = `${card.type} from ${card.user}`;
+      const triggerMeasure = () => requestAnimationFrame(() => measureCardHeight(node));
+      if (visual.complete) {
+        triggerMeasure();
+      } else {
+        visual.addEventListener('load', triggerMeasure, { once: true });
+      }
+      needsMeasure = false;
+    } else {
+      defaultVisual.hidden = false;
+      defaultVisual.src = DEFAULT_NOTE_IMG;
     }
 
     if (state.surprise) {
@@ -203,10 +216,12 @@ function renderBoard() {
       node.classList.remove('surprise');
     }
 
-    node.addEventListener('click', () => {
-      node.classList.toggle('flipped');
-      node.classList.add('revealed');
-    });
+    if (!isAudio) {
+      node.addEventListener('click', () => {
+        node.classList.toggle('flipped');
+        node.classList.add('revealed');
+      });
+    }
 
     if (card.user === state.user && deleteBtn) {
       deleteBtn.hidden = false;
@@ -451,7 +466,7 @@ function getSupportedMime() {
 async function handlePostcardSubmit(event) {
   event.preventDefault();
   if (!state.user) return;
-  const message = state.activeOptions.has('message') ? ui.messageInput.value.trim() : '';
+  let message = state.activeOptions.has('message') ? ui.messageInput.value.trim() : '';
   const photo = state.activeOptions.has('photo') ? ui.photoInput.files[0] : null;
   const doodleBlob = state.activeOptions.has('doodle') && state.doodleDirty
     ? await canvasToBlob(ui.doodleCanvas)
@@ -471,6 +486,7 @@ async function handlePostcardSubmit(event) {
     } else if (audioBlob) {
       assetUrl = await uploadAsset(audioBlob, 'audio', 'webm');
       type = 'audio';
+      message = '';
     }
   } catch (err) {
     console.error('upload failed', err);
@@ -481,6 +497,13 @@ async function handlePostcardSubmit(event) {
 
   if (!message && !assetUrl) {
     alert('Add a short note or attach something lovely.');
+    setSendingState(false);
+    return;
+  }
+
+  if ((type === 'image' || type === 'doodle') && !message) {
+    showToast('Add a sweet note to go with your visual.', 'error');
+    setSendingState(false);
     return;
   }
 
@@ -534,34 +557,6 @@ function canvasToBlob(canvas) {
   return new Promise((resolve) => {
     canvas.toBlob((blob) => resolve(blob), 'image/png');
   });
-}
-
-function playAudio(url, chip) {
-  stopPlayback();
-  const audio = new Audio(url);
-  state.playback.audio = audio;
-  state.playback.chip = chip;
-  chip.classList.add('playing');
-  chip.querySelector('span').textContent = 'Playing…';
-  audio.play().catch((err) => {
-    console.error(err);
-    showToast('Audio failed to play.', 'error');
-    stopPlayback();
-  });
-  audio.onended = stopPlayback;
-}
-
-function stopPlayback() {
-  if (state.playback.audio) {
-    state.playback.audio.pause();
-  }
-  if (state.playback.chip) {
-    state.playback.chip.classList.remove('playing');
-    const label = state.playback.chip.querySelector('span');
-    if (label) label.textContent = '🎧 Listen';
-  }
-  state.playback.audio = null;
-  state.playback.chip = null;
 }
 
 function setupLongPressHearts() {
@@ -673,6 +668,13 @@ function scheduleCardMeasurement(node) {
 
 function measureCardHeight(node) {
   if (!node) return;
+  if (node.classList.contains('audio-mode')) {
+    const audioPanel = node.querySelector('.audio-only');
+    if (!audioPanel) return;
+    const height = Math.max(audioPanel.getBoundingClientRect().height, 180);
+    node.style.setProperty('--card-height', `${height}px`);
+    return;
+  }
   const front = node.querySelector('.postcard-front');
   const back = node.querySelector('.postcard-back');
   if (!front || !back) return;
@@ -805,13 +807,24 @@ function updateTimerLabel(value) {
 function toggleOption(btn) {
   const option = btn.dataset.option;
   if (!option) return;
-  if (state.activeOptions.has(option)) {
-    state.activeOptions.delete(option);
-    btn.classList.remove('active');
-    clearOption(option);
+  if (option === 'audio') {
+    if (state.activeOptions.has('audio')) {
+      state.activeOptions.delete('audio');
+      clearOption('audio');
+    } else {
+      state.activeOptions = new Set(['audio']);
+    }
   } else {
-    state.activeOptions.add(option);
-    btn.classList.add('active');
+    state.activeOptions.delete('audio');
+    if (state.activeOptions.has(option)) {
+      state.activeOptions.delete(option);
+      clearOption(option);
+    } else {
+      state.activeOptions.add(option);
+    }
+  }
+  if (!state.activeOptions.size) {
+    state.activeOptions.add('message');
   }
   updateOptionVisibility();
   updateSendButtonState();

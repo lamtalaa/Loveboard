@@ -127,13 +127,16 @@
       <article class="postcard surprise">
         <button class="delete-card" type="button" aria-label="Delete postcard">✕</button>
         <div class="postcard-front">
-          <img alt="Postcard visual" />
-          <div class="audio-chip" hidden>
-            <span>🎧 Listen</span>
-          </div>
+          <img class="visual" alt="Postcard visual" />
+          <img class="default-visual" src="./assets/default-note.svg" alt="Default Paper" />
         </div>
         <div class="postcard-back">
           <p class="note"></p>
+          <span class="meta"></span>
+        </div>
+        <div class="audio-only" hidden>
+          <p class="audio-label">A little voice note</p>
+          <audio class="audio-player" controls></audio>
           <span class="meta"></span>
         </div>
       </article>
