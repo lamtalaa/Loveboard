@@ -1,8 +1,8 @@
 import { supabase } from './supabase.js';
 
 const USER_PASSCODES = {
-  Yassine: window.__PASSCODE_YASSINE__,
-  Nihal: window.__PASSCODE_NIHAL__
+  Yassine: 'iloven',
+  Nihal: 'ilovey'
 };
 
 const MOOD_STICKERS = ['💗', '💛', '🫶', '💙', '💖'];
