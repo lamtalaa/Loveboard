@@ -361,6 +361,27 @@ body {
   pointer-events: none;
 }
 
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 80px;
+  transform: translateX(-50%);
+  background: rgba(70, 50, 60, 0.9);
+  color: #fff9f4;
+  padding: 0.85rem 1.2rem;
+  border-radius: 999px;
+  font-size: 1rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  z-index: 40;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
 @keyframes float {
   0% {
     transform: translate(-50%, 0) scale(0.8);

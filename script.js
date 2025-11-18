@@ -41,7 +41,8 @@ const ui = {
   recordAudio: document.getElementById('record-audio'),
   audioPreview: document.getElementById('audio-preview'),
   moodButtons: document.querySelectorAll('.mood-btn'),
-  surpriseToggle: document.getElementById('surprise-toggle')
+  surpriseToggle: document.getElementById('surprise-toggle'),
+  toast: document.getElementById('toast')
 };
 
 const template = document.getElementById('postcard-template');
@@ -94,6 +95,7 @@ async function loadPostcards() {
     .order('created_at', { ascending: false });
   if (error) {
     console.error('postcards load', error);
+    showToast(`Couldn't load postcards: ${error.message}`, 'error');
     return;
   }
   state.postcards = data || [];
@@ -179,6 +181,7 @@ async function loadMoods() {
     .eq('date', today);
   if (error) {
     console.error('moods load', error);
+    showToast(`Couldn't load moods: ${error.message}`, 'error');
     return;
   }
   (data || []).forEach((entry) => setMood(entry.user, entry.emoji));
@@ -233,6 +236,7 @@ async function saveMood(emoji) {
   );
   if (error) {
     console.error('mood save', error);
+    showToast(`Couldn't save mood: ${error.message}`, 'error');
     return;
   }
   setMood(state.user, emoji);
@@ -307,7 +311,8 @@ async function toggleRecording() {
   }
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-    const mediaRecorder = new MediaRecorder(stream);
+    const mimeType = getSupportedMime();
+    const mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
     state.recording.recorder = mediaRecorder;
     state.recording.chunks = [];
     state.audioBlob = null;
@@ -323,7 +328,7 @@ async function toggleRecording() {
     };
     mediaRecorder.onstop = () => {
       clearTimeout(stopTimer);
-      const blob = new Blob(state.recording.chunks, { type: 'audio/webm' });
+      const blob = new Blob(state.recording.chunks, { type: mediaRecorder.mimeType || 'audio/webm' });
       state.audioBlob = blob;
       ui.audioPreview.src = URL.createObjectURL(blob);
       ui.audioPreview.dataset.ready = 'true';
@@ -331,10 +336,23 @@ async function toggleRecording() {
       stream.getTracks().forEach((track) => track.stop());
       state.recording.recorder = null;
     };
+    mediaRecorder.onerror = (evt) => {
+      console.error('MediaRecorder error', evt.error || evt);
+      showToast('Recording failed. Please try again.', 'error');
+      ui.recordAudio.textContent = 'Start';
+      stream.getTracks().forEach((track) => track.stop());
+    };
   } catch (err) {
     console.error('recording failed', err);
     ui.recordAudio.disabled = true;
+    showToast('Audio recording not supported here.', 'error');
   }
+}
+
+function getSupportedMime() {
+  if (!window.MediaRecorder || !MediaRecorder.isTypeSupported) return '';
+  const preferred = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'];
+  return preferred.find((type) => MediaRecorder.isTypeSupported(type)) || '';
 }
 
 async function handlePostcardSubmit(event) {
@@ -360,6 +378,7 @@ async function handlePostcardSubmit(event) {
     }
   } catch (err) {
     console.error('upload failed', err);
+    showToast('Upload failed. Please try again.', 'error');
     return;
   }
 
@@ -380,6 +399,7 @@ async function handlePostcardSubmit(event) {
     .single();
   if (error) {
     console.error('postcard save', error);
+    showToast(`Couldn't save postcard: ${error.message}`, 'error');
     return;
   }
   if (data) {
@@ -444,6 +464,7 @@ async function sendHeart() {
   });
   if (error) {
     console.error('heart send', error);
+    showToast('Heart failed to send.', 'error');
   } else {
     spawnHeart('💗');
   }
@@ -492,6 +513,17 @@ function gentlePulse(selector) {
     ],
     { duration: 600 }
   );
+}
+
+function showToast(message, mode = 'info') {
+  if (!ui.toast) return;
+  ui.toast.textContent = message;
+  ui.toast.dataset.mode = mode;
+  ui.toast.classList.add('show');
+  clearTimeout(ui.toast._timer);
+  ui.toast._timer = setTimeout(() => {
+    ui.toast.classList.remove('show');
+  }, 2600);
 }
 
 function formatDate(value) {
