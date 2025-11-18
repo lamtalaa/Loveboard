@@ -358,6 +358,13 @@ body {
   color: #fff;
 }
 
+.record-timer {
+  font-size: 0.95rem;
+  color: rgba(70, 50, 60, 0.8);
+  min-width: 3rem;
+  text-align: right;
+}
+
 #auth-gate {
   position: fixed;
   inset: 0;

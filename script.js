@@ -18,7 +18,8 @@ const state = {
   doodleCtx: null,
   recording: {
     recorder: null,
-    chunks: []
+    chunks: [],
+    timer: null
   },
   audioBlob: null,
   longPressTimer: null,
@@ -47,6 +48,7 @@ const ui = {
   recordAudio: document.getElementById('record-audio'),
   audioPreview: document.getElementById('audio-preview'),
   audioStatus: document.getElementById('audio-status'),
+  recordTimer: document.getElementById('record-timer'),
   moodButtons: document.querySelectorAll('.mood-btn'),
   surpriseToggle: document.getElementById('surprise-toggle'),
   logoutBtn: document.getElementById('logout-btn'),
@@ -349,6 +351,7 @@ async function toggleRecording() {
     ui.recordAudio.textContent = 'Stop';
     ui.recordAudio.classList.add('recording');
     setAudioStatus('Recording...');
+    startTimer(15);
     const stopTimer = setTimeout(() => {
       if (mediaRecorder.state === 'recording') {
         mediaRecorder.stop();
@@ -366,6 +369,7 @@ async function toggleRecording() {
       ui.recordAudio.textContent = 'Start';
       ui.recordAudio.classList.remove('recording');
       setAudioStatus('Recording saved');
+      stopTimerDisplay();
       stream.getTracks().forEach((track) => track.stop());
       state.recording.recorder = null;
     };
@@ -375,6 +379,7 @@ async function toggleRecording() {
       ui.recordAudio.textContent = 'Start';
       ui.recordAudio.classList.remove('recording');
       setAudioStatus('');
+      stopTimerDisplay();
       stream.getTracks().forEach((track) => track.stop());
     };
   } catch (err) {
@@ -383,6 +388,7 @@ async function toggleRecording() {
     showToast('Audio recording not supported here.', 'error');
     ui.recordAudio.classList.remove('recording');
     setAudioStatus('');
+    stopTimerDisplay();
   }
 }
 
@@ -452,6 +458,7 @@ async function handlePostcardSubmit(event) {
   ui.audioPreview.removeAttribute('data-ready');
   state.audioBlob = null;
   setAudioStatus('');
+  stopTimerDisplay();
 }
 
 async function uploadAsset(fileOrBlob, folder, extension) {
@@ -599,6 +606,33 @@ function showToast(message, mode = 'info') {
 function setAudioStatus(text) {
   if (!ui.audioStatus) return;
   ui.audioStatus.textContent = text;
+}
+
+function startTimer(seconds) {
+  let remaining = seconds;
+  updateTimerLabel(remaining);
+  clearInterval(state.recording.timer);
+  state.recording.timer = setInterval(() => {
+    remaining -= 1;
+    if (remaining <= 0) {
+      updateTimerLabel(0);
+      stopTimerDisplay();
+      return;
+    }
+    updateTimerLabel(remaining);
+  }, 1000);
+}
+
+function stopTimerDisplay() {
+  clearInterval(state.recording.timer);
+  updateTimerLabel(15);
+}
+
+function updateTimerLabel(value) {
+  if (!ui.recordTimer) return;
+  const seconds = Math.max(0, value);
+  const label = `0:${seconds.toString().padStart(2, '0')}`;
+  ui.recordTimer.textContent = label;
 }
 
 function formatDate(value) {
