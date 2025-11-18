@@ -245,17 +245,12 @@ function openMoodPicker(anchorBtn) {
     menu.appendChild(option);
   });
   anchorBtn.parentElement.appendChild(menu);
-  document.addEventListener('click', handleMoodClickAway, { once: true });
-}
-
-function handleMoodClickAway(evt) {
-  if (!evt.target.closest('.mood')) {
-    closeMoodMenus();
-  }
+  attachMoodClickAway();
 }
 
 function closeMoodMenus() {
   document.querySelectorAll('.mood-menu').forEach((menu) => menu.remove());
+  detachMoodClickAway();
 }
 
 async function saveMood(emoji) {
@@ -619,6 +614,22 @@ function showToast(message, mode = 'info') {
 function setAudioStatus(text) {
   if (!ui.audioStatus) return;
   ui.audioStatus.textContent = text;
+}
+
+function attachMoodClickAway() {
+  if (state.moodMenuListener) return;
+  state.moodMenuListener = (evt) => {
+    if (!evt.target.closest('.mood')) {
+      closeMoodMenus();
+    }
+  };
+  document.addEventListener('pointerdown', state.moodMenuListener);
+}
+
+function detachMoodClickAway() {
+  if (!state.moodMenuListener) return;
+  document.removeEventListener('pointerdown', state.moodMenuListener);
+  state.moodMenuListener = null;
 }
 
 function startTimer(seconds) {
