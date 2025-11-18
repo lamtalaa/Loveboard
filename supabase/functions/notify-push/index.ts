@@ -27,14 +27,22 @@ type Payload = {
   body?: string;
 };
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
+};
+
 serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
   if (req.method !== 'POST') {
-    return new Response('Only POST', { status: 405 });
+    return new Response('Only POST', { status: 405, headers: corsHeaders });
   }
 
   const payload = (await req.json()) as Payload;
   if (!payload?.targetUser || !payload?.title || !payload?.body) {
-    return new Response('Missing fields', { status: 400 });
+    return new Response('Missing fields', { status: 400, headers: corsHeaders });
   }
 
   const { data: subs, error } = await supabase
@@ -44,11 +52,11 @@ serve(async (req) => {
 
   if (error) {
     console.error('Subscription fetch error', error);
-    return new Response('Fetch failed', { status: 500 });
+    return new Response('Fetch failed', { status: 500, headers: corsHeaders });
   }
 
   if (!subs || subs.length === 0) {
-    return new Response('No subscriptions', { status: 200 });
+    return new Response('No subscriptions', { status: 200, headers: corsHeaders });
   }
 
   const sendPromises = subs.map(async (row) => {
@@ -63,5 +71,5 @@ serve(async (req) => {
   });
 
   await Promise.all(sendPromises);
-  return new Response('ok', { status: 200 });
+  return new Response('ok', { status: 200, headers: corsHeaders });
 });

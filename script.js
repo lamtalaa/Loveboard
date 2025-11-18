@@ -56,7 +56,6 @@ const ui = {
   passInput: document.getElementById('passcode-input'),
   authSubmit: document.getElementById('auth-submit'),
   board: document.getElementById('board'),
-  timeline: document.getElementById('timeline'),
   modal: document.getElementById('postcard-modal'),
   postcardForm: document.getElementById('postcard-form'),
   createBtn: document.getElementById('create-btn'),
@@ -161,7 +160,6 @@ async function loadPostcards() {
   }
   state.postcards = data || [];
   renderBoard();
-  renderTimeline();
 }
 
 function renderBoard() {
@@ -252,29 +250,6 @@ function renderBoard() {
     if (needsMeasure) {
       scheduleCardMeasurement(node);
     }
-  });
-}
-
-function renderTimeline() {
-  ui.timeline.innerHTML = '';
-  if (!state.postcards.length) {
-    ui.timeline.innerHTML = '<p class="empty-state">Memories will appear here.</p>';
-    return;
-  }
-  const sorted = [...state.postcards].sort(
-    (a, b) => new Date(a.created_at) - new Date(b.created_at)
-  );
-  sorted.forEach((card) => {
-    const row = document.createElement('div');
-    row.className = 'timeline-item';
-    row.innerHTML = `
-      <span class="timeline-marker"></span>
-      <div class="timeline-card">
-        <strong>${formatDate(card.created_at)}</strong>
-        <p>${card.message || `${card.user} sent a ${card.type}.`}</p>
-      </div>
-    `;
-    ui.timeline.appendChild(row);
   });
 }
 
@@ -565,7 +540,6 @@ async function handlePostcardSubmit(event) {
   if (data) {
     upsertPostcard(data);
     renderBoard();
-    renderTimeline();
     gentlePulse(`[data-id="${data.id}"]`);
     const target = getOtherUser();
     if (target) {
@@ -653,7 +627,6 @@ function subscribeRealtime() {
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'postcards' }, (payload) => {
       upsertPostcard(payload.new);
       renderBoard();
-      renderTimeline();
       gentlePulse(`[data-id="${payload.new.id}"]`);
       if (payload.new.user !== state.user) {
         notifyUser(`New postcard from ${payload.new.user}`, describePostcard(payload.new));
@@ -662,7 +635,6 @@ function subscribeRealtime() {
     .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'postcards' }, (payload) => {
       removePostcard(payload.old.id);
       renderBoard();
-      renderTimeline();
     })
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'moods' }, (payload) => {
       setMood(payload.new.user, payload.new.emoji);
@@ -880,7 +852,6 @@ async function confirmDelete(id) {
   }
   removePostcard(id);
   renderBoard();
-  renderTimeline();
   showToast('Postcard deleted');
 }
 

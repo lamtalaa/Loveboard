@@ -334,41 +334,6 @@ button:disabled {
   filter: blur(0);
 }
 
-.memory-lane {
-  margin-top: 2rem;
-  border-top: 1px dashed rgba(70, 50, 60, 0.2);
-  padding-top: 1.5rem;
-}
-
-.timeline {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.timeline-item {
-  display: flex;
-  gap: 0.75rem;
-  align-items: center;
-  animation: slideUp 0.5s ease both;
-}
-
-.timeline-marker {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: var(--rose);
-  box-shadow: 0 4px 8px var(--shadow);
-}
-
-.timeline-card {
-  flex: 1;
-  background: rgba(255, 255, 255, 0.8);
-  border-radius: 16px;
-  padding: 0.75rem 1rem;
-  box-shadow: 0 6px 16px var(--shadow);
-}
-
 .create-btn {
   position: fixed;
   bottom: 1rem;

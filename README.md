@@ -8,7 +8,6 @@ Loveboard is a cozy, romantic postcard board for Yassine and Nihal. It is built 
 - Surprise mode that softly blurs every postcard until tapped.
 - Create Postcard modal with: short note (150 chars), photo upload, doodle canvas, and 15s audio recording.
 - Instant syncing of postcards, moods, and floating heart reactions through Supabase realtime channels.
-- Memory Lane timeline for older postcards.
 - Assets (photos, doodles, audio) stored in Supabase Storage and referenced from each postcard.
 - Optional push notifications so the other person gets an OS-level alert even when the tab is closed (requires HTTPS + Supabase Edge function).
 
