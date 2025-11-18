@@ -1,7 +1,0 @@
-[build]
-  ignore = "false"
-  publish = "."
-
-# Force a fresh build every time
-[build.environment]
-  NETLIFY_USE_YARN = "false"

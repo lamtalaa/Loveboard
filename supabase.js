@@ -1,7 +1,7 @@
-const SUPABASE_URL = window.__SUPABASE_URL__;
-const SUPABASE_ANON_KEY = window.__SUPABASE_ANON_KEY__;
+const LOVE_SUPABASE_URL = window.__SUPABASE_URL__;
+const LOVE_SUPABASE_ANON_KEY = window.__SUPABASE_ANON_KEY__;
 
 export const supabase = window.supabase.createClient(
-  SUPABASE_URL,
-  SUPABASE_ANON_KEY
+  LOVE_SUPABASE_URL,
+  LOVE_SUPABASE_ANON_KEY
 );
