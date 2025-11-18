@@ -325,6 +325,37 @@ body {
   border-radius: 999px;
   background: rgba(70, 50, 60, 0.1);
   display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.audio-chip::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: transparent;
+  transition: background 0.2s ease;
+}
+
+.audio-chip.playing {
+  background: rgba(245, 181, 197, 0.3);
+  color: var(--ink);
+}
+
+.audio-chip.playing::before {
+  background: #f25b8d;
+}
+
+.audio-status {
+  font-size: 0.9rem;
+  color: rgba(70, 50, 60, 0.75);
+  min-height: 1.2rem;
+}
+
+#record-audio.recording {
+  background: #f05d90;
+  color: #fff;
 }
 
 #auth-gate {

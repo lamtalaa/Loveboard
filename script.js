@@ -22,7 +22,11 @@ const state = {
   },
   audioBlob: null,
   longPressTimer: null,
-  started: false
+  started: false,
+  playback: {
+    audio: null,
+    chip: null
+  }
 };
 
 const ui = {
@@ -42,6 +46,7 @@ const ui = {
   clearDoodle: document.getElementById('clear-doodle'),
   recordAudio: document.getElementById('record-audio'),
   audioPreview: document.getElementById('audio-preview'),
+  audioStatus: document.getElementById('audio-status'),
   moodButtons: document.querySelectorAll('.mood-btn'),
   surpriseToggle: document.getElementById('surprise-toggle'),
   logoutBtn: document.getElementById('logout-btn'),
@@ -148,7 +153,7 @@ function renderBoard() {
         img.alt = `${card.type} from ${card.user}`;
       } else if (card.type === 'audio') {
         audioChip.hidden = false;
-        audioChip.onclick = () => playAudio(card.asset_url);
+        audioChip.onclick = () => playAudio(card.asset_url, audioChip);
       }
     }
 
@@ -342,6 +347,8 @@ async function toggleRecording() {
     state.audioBlob = null;
     mediaRecorder.start();
     ui.recordAudio.textContent = 'Stop';
+    ui.recordAudio.classList.add('recording');
+    setAudioStatus('Recording...');
     const stopTimer = setTimeout(() => {
       if (mediaRecorder.state === 'recording') {
         mediaRecorder.stop();
@@ -357,6 +364,8 @@ async function toggleRecording() {
       ui.audioPreview.src = URL.createObjectURL(blob);
       ui.audioPreview.dataset.ready = 'true';
       ui.recordAudio.textContent = 'Start';
+      ui.recordAudio.classList.remove('recording');
+      setAudioStatus('Recording saved');
       stream.getTracks().forEach((track) => track.stop());
       state.recording.recorder = null;
     };
@@ -364,12 +373,16 @@ async function toggleRecording() {
       console.error('MediaRecorder error', evt.error || evt);
       showToast('Recording failed. Please try again.', 'error');
       ui.recordAudio.textContent = 'Start';
+      ui.recordAudio.classList.remove('recording');
+      setAudioStatus('');
       stream.getTracks().forEach((track) => track.stop());
     };
   } catch (err) {
     console.error('recording failed', err);
     ui.recordAudio.disabled = true;
     showToast('Audio recording not supported here.', 'error');
+    ui.recordAudio.classList.remove('recording');
+    setAudioStatus('');
   }
 }
 
@@ -438,6 +451,7 @@ async function handlePostcardSubmit(event) {
   ui.audioPreview.removeAttribute('src');
   ui.audioPreview.removeAttribute('data-ready');
   state.audioBlob = null;
+  setAudioStatus('');
 }
 
 async function uploadAsset(fileOrBlob, folder, extension) {
@@ -458,9 +472,32 @@ function canvasToBlob(canvas) {
   });
 }
 
-function playAudio(url) {
+function playAudio(url, chip) {
+  stopPlayback();
   const audio = new Audio(url);
-  audio.play().catch((err) => console.error(err));
+  state.playback.audio = audio;
+  state.playback.chip = chip;
+  chip.classList.add('playing');
+  chip.querySelector('span').textContent = 'Playing…';
+  audio.play().catch((err) => {
+    console.error(err);
+    showToast('Audio failed to play.', 'error');
+    stopPlayback();
+  });
+  audio.onended = stopPlayback;
+}
+
+function stopPlayback() {
+  if (state.playback.audio) {
+    state.playback.audio.pause();
+  }
+  if (state.playback.chip) {
+    state.playback.chip.classList.remove('playing');
+    const label = state.playback.chip.querySelector('span');
+    if (label) label.textContent = '🎧 Listen';
+  }
+  state.playback.audio = null;
+  state.playback.chip = null;
 }
 
 function setupLongPressHearts() {
@@ -557,6 +594,11 @@ function showToast(message, mode = 'info') {
   ui.toast._timer = setTimeout(() => {
     ui.toast.classList.remove('show');
   }, 2600);
+}
+
+function setAudioStatus(text) {
+  if (!ui.audioStatus) return;
+  ui.audioStatus.textContent = text;
 }
 
 function formatDate(value) {
