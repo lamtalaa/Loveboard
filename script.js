@@ -9,11 +9,16 @@ const MOOD_STICKERS = ['💗', '💛', '🫶', '💙', '💖'];
 const BUCKET = 'loveboard-assets';
 const LONG_PRESS_DURATION = 600;
 const AUTH_KEY = 'loveboard-user';
+const storedSurprise = localStorage.getItem('loveboard-surprise');
+const initialSurprise = storedSurprise === null ? true : storedSurprise === 'true';
+if (storedSurprise === null) {
+  localStorage.setItem('loveboard-surprise', 'true');
+}
 
 const state = {
   user: null,
   postcards: [],
-  surprise: localStorage.getItem('loveboard-surprise') === 'true',
+  surprise: initialSurprise,
   doodleDirty: false,
   doodleCtx: null,
   recording: {
