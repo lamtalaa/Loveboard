@@ -150,6 +150,13 @@
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+      window.__SUPABASE_URL__ = window.__SUPABASE_URL__ || '{{SUPABASE_URL}}';
+      window.__SUPABASE_ANON_KEY__ = window.__SUPABASE_ANON_KEY__ || '{{SUPABASE_ANON_KEY}}';
+      window.__PASSCODE_YASSINE__ = window.__PASSCODE_YASSINE__ || '{{PASSCODE_YASSINE}}';
+      window.__PASSCODE_NIHAL__ = window.__PASSCODE_NIHAL__ || '{{PASSCODE_NIHAL}}';
+      window.__VAPID_PUBLIC_KEY__ = window.__VAPID_PUBLIC_KEY__ || '{{VAPID_PUBLIC_KEY}}';
+    </script>
     <script type="module" src="supabase.js"></script>
     <script type="module" src="script.js"></script>
   </body>

@@ -10,6 +10,7 @@ Loveboard is a cozy, romantic postcard board for Yassine and Nihal. It is built 
 - Instant syncing of postcards, moods, and floating heart reactions through Supabase realtime channels.
 - Memory Lane timeline for older postcards.
 - Assets (photos, doodles, audio) stored in Supabase Storage and referenced from each postcard.
+- Optional push notifications so the other person gets an OS-level alert even when the tab is closed (requires HTTPS + Supabase Edge function).
 
 ## Project structure
 ```
@@ -55,17 +56,42 @@ create table public.hearts (
   "user" text not null,
   event_type text not null default 'heart'
 );
+
+create table public.push_subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  "user" text not null,
+  endpoint text not null unique,
+  subscription jsonb not null,
+  created_at timestamp with time zone default timezone('utc', now())
+);
 ```
 
 3. Enable Row Level Security and add simple policies such as:
    - `postcards`: allow `insert`/`select` for `anon`.
    - `moods`: allow `insert`/`update`/`select` for `anon`.
    - `hearts`: allow `insert`/`select` for `anon`.
+   - `push_subscriptions`: allow `insert`/`update`/`select` for `anon` (or scope to the owning user if you prefer tighter control).
    (Because the board is private and protected by the passphrase gate, the lightweight policy is acceptable. Tighten if you need stricter control.)
 
 4. Create a storage bucket named `loveboard-assets` and make it **public**.
 5. In the bucket, optionally create folders `photos/`, `doodles/`, and `audio/`. The app will automatically upload files there.
 6. Copy the project URL and anon key from Supabase settings and place them in `supabase.js`.
+7. (Push) Generate a VAPID key pair once using `npx web-push generate-vapid-keys`. Store the public key as `{{VAPID_PUBLIC_KEY}}` in `index.html` (via snippet injection or env) and save both keys as environment variables for your Supabase Edge function (see below).
+
+### Push notification Edge Function
+
+This repo ships with `supabase/functions/notify-push/index.ts`, which sends Web Push notifications to the other user. To enable it:
+
+1. In your Supabase project, go to **Edge Functions** and deploy the function:
+   ```bash
+   supabase functions deploy notify-push --project-ref ijwxlyoxhlmlysfjzksl
+   ```
+2. Set the following function secrets in Supabase:
+   - `SUPABASE_SERVICE_ROLE_KEY`
+   - `VAPID_PUBLIC_KEY`
+   - `VAPID_PRIVATE_KEY`
+3. Ensure your site is served over HTTPS so browsers allow push subscriptions.
+4. When each user logs in, the app registers a service worker (`sw.js`), asks for notification permission, stores the push subscription in `push_subscriptions`, and calls the Edge function whenever a postcard/mood/heart is created so the other person receives the OS-level notification.
 
 ## Environment variables in production
 For Netlify/Vercel you can inject the Supabase keys without checking them into git:
@@ -74,6 +100,7 @@ For Netlify/Vercel you can inject the Supabase keys without checking them into g
 <script>
   window.__SUPABASE_URL__ = window.__SUPABASE_URL__ || '';
   window.__SUPABASE_ANON_KEY__ = window.__SUPABASE_ANON_KEY__ || '';
+  window.__VAPID_PUBLIC_KEY__ = window.__VAPID_PUBLIC_KEY__ || '';
 </script>
 ```
 
@@ -102,5 +129,6 @@ After deploying, test:
 - Creating a postcard with every attachment type.
 - Switching surprise mode, mood stickers, and verifying realtime updates on two devices.
 - Long-press to ensure floating hearts sync.
+- Allowing notifications on desktop + phone and confirming that the other user receives an alert when you post a postcard, change mood, or send hearts (requires HTTPS + deployed Edge function).
 
 Enjoy Loveboard!💗

@@ -43,7 +43,8 @@ const state = {
   activeOptions: new Set(['message']),
   moodMenuListener: null,
   notificationsAllowed: notificationsSupported && Notification.permission === 'granted',
-  swRegistration: null
+  swRegistration: null,
+  pushSubscription: null
 };
 
 const ui = {
@@ -341,6 +342,11 @@ async function saveMood(emoji) {
     return;
   }
   setMood(state.user, emoji);
+  const target = getOtherUser();
+  if (target) {
+    const mood = getMoodMeta(emoji);
+    triggerRemoteNotification(target, `${state.user} shared a mood`, mood ? mood.label : 'Thinking of you.');
+  }
 }
 
 function handleSurpriseToggle() {
@@ -358,6 +364,12 @@ function notifyMood(moodRow) {
   const mood = getMoodMeta(moodRow.emoji);
   const label = mood ? mood.label : 'a new feeling';
   notifyUser(`${moodRow.user} shared a mood`, label);
+}
+
+function getOtherUser() {
+  if (state.user === 'Yassine') return 'Nihal';
+  if (state.user === 'Nihal') return 'Yassine';
+  return null;
 }
 
 function handleLogout() {
@@ -555,6 +567,10 @@ async function handlePostcardSubmit(event) {
     renderBoard();
     renderTimeline();
     gentlePulse(`[data-id="${data.id}"]`);
+    const target = getOtherUser();
+    if (target) {
+      triggerRemoteNotification(target, `New postcard from ${state.user}`, describePostcard(data));
+    }
   }
   ui.modal.close();
   ui.postcardForm.reset();
@@ -614,6 +630,10 @@ async function sendHeart() {
     showToast('Heart failed to send.', 'error');
   } else {
     spawnHeart('💗');
+    const target = getOtherUser();
+    if (target) {
+      triggerRemoteNotification(target, `${state.user} sent hearts`, 'Long-press anywhere to float some back.');
+    }
   }
 }
 
@@ -732,7 +752,7 @@ async function initNotifications() {
   if (!('serviceWorker' in navigator) || !notificationsSupported) return;
   if (!state.swRegistration) {
     try {
-      state.swRegistration = await navigator.serviceWorker.register('./sw.js');
+      state.swRegistration = await navigator.serviceWorker.register('/sw.js');
     } catch (err) {
       console.error('service worker registration failed', err);
       return;
@@ -748,6 +768,9 @@ async function initNotifications() {
     }
   } else {
     state.notificationsAllowed = Notification.permission === 'granted';
+  }
+  if (state.notificationsAllowed) {
+    await ensurePushSubscription();
   }
 }
 
@@ -767,6 +790,65 @@ async function notifyUser(title, body) {
     }
   } catch (err) {
     console.error('notify error', err);
+  }
+}
+
+async function ensurePushSubscription() {
+  if (!state.notificationsAllowed || !state.swRegistration) return;
+  const existing = await state.swRegistration.pushManager.getSubscription();
+  if (existing) {
+    state.pushSubscription = existing;
+    await saveSubscription(existing);
+    return;
+  }
+  const vapidKey = window.__VAPID_PUBLIC_KEY__;
+  if (!vapidKey) return;
+  try {
+    const subscription = await state.swRegistration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(vapidKey)
+    });
+    state.pushSubscription = subscription;
+    await saveSubscription(subscription);
+  } catch (err) {
+    console.error('push subscribe failed', err);
+  }
+}
+
+async function saveSubscription(subscription) {
+  if (!state.user) return;
+  const { error } = await supabase.from('push_subscriptions').upsert(
+    {
+      user: state.user,
+      endpoint: subscription.endpoint,
+      subscription
+    },
+    { onConflict: 'endpoint' }
+  );
+  if (error) {
+    console.error('subscription save', error);
+  }
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+async function triggerRemoteNotification(targetUser, title, body) {
+  if (!targetUser) return;
+  try {
+    await supabase.functions.invoke('notify-push', {
+      body: { targetUser, title, body }
+    });
+  } catch (err) {
+    console.error('remote notify', err);
   }
 }
 
