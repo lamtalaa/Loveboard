@@ -18,6 +18,8 @@ const BUCKET = 'loveboard-assets';
 const LONG_PRESS_DURATION = 600;
 const AUTH_KEY = 'loveboard-user';
 const DEFAULT_NOTE_IMG = './assets/default-note.svg';
+const NOTIFICATION_ICON = './assets/heart.svg';
+const notificationsSupported = 'Notification' in window;
 const storedSurprise = localStorage.getItem('loveboard-surprise');
 const initialSurprise = storedSurprise === null ? true : storedSurprise === 'true';
 if (storedSurprise === null) {
@@ -39,7 +41,9 @@ const state = {
   longPressTimer: null,
   started: false,
   activeOptions: new Set(['message']),
-  moodMenuListener: null
+  moodMenuListener: null,
+  notificationsAllowed: notificationsSupported && Notification.permission === 'granted',
+  swRegistration: null
 };
 
 const ui = {
@@ -123,6 +127,7 @@ function handleAuth(event) {
   ui.app.setAttribute('aria-hidden', 'false');
   enableCreateButton();
   startApp();
+  initNotifications();
 }
 
 async function startApp() {
@@ -140,6 +145,7 @@ function restoreSession() {
   ui.app.setAttribute('aria-hidden', 'false');
   enableCreateButton();
   startApp();
+  initNotifications();
 }
 
 async function loadPostcards() {
@@ -288,7 +294,7 @@ async function loadMoods() {
 function setMood(user, emoji) {
   const btn = document.querySelector(`.mood-btn[data-user="${user}"]`);
   if (!btn) return;
-  const mood = MOOD_STICKERS.find((m) => m.emoji === emoji);
+  const mood = getMoodMeta(emoji);
   btn.dataset.mood = emoji;
   btn.innerHTML = `${emoji} <span>${mood ? mood.label : ''}</span>`;
 }
@@ -341,6 +347,17 @@ function handleSurpriseToggle() {
   state.surprise = ui.surpriseToggle.checked;
   localStorage.setItem('loveboard-surprise', state.surprise);
   renderBoard();
+}
+
+function getMoodMeta(emoji) {
+  return MOOD_STICKERS.find((m) => m.emoji === emoji);
+}
+
+function notifyMood(moodRow) {
+  if (moodRow.user === state.user) return;
+  const mood = getMoodMeta(moodRow.emoji);
+  const label = mood ? mood.label : 'a new feeling';
+  notifyUser(`${moodRow.user} shared a mood`, label);
 }
 
 function handleLogout() {
@@ -618,6 +635,9 @@ function subscribeRealtime() {
       renderBoard();
       renderTimeline();
       gentlePulse(`[data-id="${payload.new.id}"]`);
+      if (payload.new.user !== state.user) {
+        notifyUser(`New postcard from ${payload.new.user}`, describePostcard(payload.new));
+      }
     })
     .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'postcards' }, (payload) => {
       removePostcard(payload.old.id);
@@ -626,13 +646,18 @@ function subscribeRealtime() {
     })
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'moods' }, (payload) => {
       setMood(payload.new.user, payload.new.emoji);
+      notifyMood(payload.new);
     })
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'moods' }, (payload) => {
       setMood(payload.new.user, payload.new.emoji);
+      notifyMood(payload.new);
     })
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'hearts' }, (payload) => {
       const emojis = ['💗', '💖', '💞', '💕'];
       spawnHeart(emojis[Math.floor(Math.random() * emojis.length)]);
+      if (payload.new.user !== state.user) {
+        notifyUser(`${payload.new.user} sent hearts`, 'Long-press anywhere to send love back.');
+      }
     })
     .subscribe();
 }
@@ -672,6 +697,13 @@ function getTilt(id = '') {
   return `${tilts[hash % tilts.length]}deg`;
 }
 
+function describePostcard(card) {
+  if (card.type === 'audio') return 'They left a little voice note for you.';
+  if (card.type === 'image') return card.message || 'They added a new photo.';
+  if (card.type === 'doodle') return card.message || 'They drew a doodle just for you.';
+  return card.message || 'Open Loveboard to read it.';
+}
+
 function scheduleCardMeasurement(node) {
   requestAnimationFrame(() => measureCardHeight(node));
 }
@@ -694,6 +726,48 @@ function measureCardHeight(node) {
   node.classList.remove('measuring');
   const target = Math.max(frontHeight, backHeight, 220);
   node.style.setProperty('--card-height', `${target}px`);
+}
+
+async function initNotifications() {
+  if (!('serviceWorker' in navigator) || !notificationsSupported) return;
+  if (!state.swRegistration) {
+    try {
+      state.swRegistration = await navigator.serviceWorker.register('./sw.js');
+    } catch (err) {
+      console.error('service worker registration failed', err);
+      return;
+    }
+  }
+  if (Notification.permission === 'default') {
+    try {
+      const permission = await Notification.requestPermission();
+      state.notificationsAllowed = permission === 'granted';
+    } catch (err) {
+      console.error('notification permission', err);
+      state.notificationsAllowed = false;
+    }
+  } else {
+    state.notificationsAllowed = Notification.permission === 'granted';
+  }
+}
+
+async function notifyUser(title, body) {
+  if (!state.notificationsAllowed) return;
+  try {
+    const registration =
+      state.swRegistration || (await navigator.serviceWorker.getRegistration());
+    if (registration) {
+      await registration.showNotification(title, {
+        body,
+        icon: NOTIFICATION_ICON,
+        badge: NOTIFICATION_ICON
+      });
+    } else if (notificationsSupported && Notification.permission === 'granted') {
+      new Notification(title, { body, icon: NOTIFICATION_ICON });
+    }
+  } catch (err) {
+    console.error('notify error', err);
+  }
 }
 
 function showToast(message, mode = 'info') {
