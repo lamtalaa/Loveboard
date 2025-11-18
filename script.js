@@ -33,7 +33,8 @@ const state = {
     audio: null,
     chip: null
   },
-  activeOptions: new Set(['message'])
+  activeOptions: new Set(['message']),
+  moodMenuListener: null
 };
 
 const ui = {
@@ -623,12 +624,14 @@ function attachMoodClickAway() {
       closeMoodMenus();
     }
   };
-  document.addEventListener('pointerdown', state.moodMenuListener);
+  document.addEventListener('click', state.moodMenuListener, true);
+  document.addEventListener('touchstart', state.moodMenuListener, true);
 }
 
 function detachMoodClickAway() {
   if (!state.moodMenuListener) return;
-  document.removeEventListener('pointerdown', state.moodMenuListener);
+  document.removeEventListener('click', state.moodMenuListener, true);
+  document.removeEventListener('touchstart', state.moodMenuListener, true);
   state.moodMenuListener = null;
 }
 
