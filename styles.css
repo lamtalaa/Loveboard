@@ -151,6 +151,12 @@ button:disabled {
   min-height: 180px;
 }
 
+.postcard.visual-card {
+  padding: 0;
+  min-height: auto;
+  aspect-ratio: var(--card-aspect, auto);
+}
+
 .delete-card {
   position: absolute;
   top: 0.6rem;
@@ -189,10 +195,21 @@ button:disabled {
   z-index: 1;
 }
 
+.postcard.visual-card .postcard-front,
+.postcard.visual-card .postcard-back {
+  padding: 0;
+}
+
+.postcard.visual-card .postcard-back {
+  padding: 1rem;
+}
+
 .postcard img {
   width: 100%;
+  height: 100%;
   border-radius: 12px;
-  object-fit: cover;
+  object-fit: contain;
+  display: block;
 }
 
 .postcard .note {

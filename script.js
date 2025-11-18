@@ -167,6 +167,8 @@ function renderBoard() {
     if (card.user === state.user) {
       node.classList.add('own');
     }
+    node.classList.remove('visual-card');
+    node.style.removeProperty('--card-aspect');
     node.querySelector('.note').textContent = card.message || 'No message, just vibes.';
     node.querySelector('.meta').textContent = `${card.user} · ${formatDate(card.created_at)}`;
 
@@ -182,6 +184,14 @@ function renderBoard() {
         img.hidden = false;
         img.src = card.asset_url;
         img.alt = `${card.type} from ${card.user}`;
+        const applySize = () => sizeCardToImage(node, img);
+        if (img.complete) {
+          applySize();
+        } else {
+          img.onload = () => {
+            applySize();
+          };
+        }
       } else if (card.type === 'audio') {
         audioChip.hidden = false;
         audioChip.onclick = () => playAudio(card.asset_url, audioChip);
@@ -644,6 +654,14 @@ function upsertPostcard(card) {
 
 function removePostcard(id) {
   state.postcards = state.postcards.filter((card) => card.id !== id);
+}
+
+function sizeCardToImage(node, img) {
+  if (!img.naturalWidth || !img.naturalHeight) return;
+  const ratio = img.naturalWidth / img.naturalHeight;
+  if (!ratio || !Number.isFinite(ratio)) return;
+  node.classList.add('visual-card');
+  node.style.setProperty('--card-aspect', ratio);
 }
 
 function showToast(message, mode = 'info') {
