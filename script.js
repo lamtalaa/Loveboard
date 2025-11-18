@@ -27,7 +27,8 @@ const state = {
   playback: {
     audio: null,
     chip: null
-  }
+  },
+  activeOptions: new Set(['message'])
 };
 
 const ui = {
@@ -52,7 +53,9 @@ const ui = {
   moodButtons: document.querySelectorAll('.mood-btn'),
   surpriseToggle: document.getElementById('surprise-toggle'),
   logoutBtn: document.getElementById('logout-btn'),
-  toast: document.getElementById('toast')
+  toast: document.getElementById('toast'),
+  optionButtons: document.querySelectorAll('.option-btn'),
+  optionSections: document.querySelectorAll('.option-section')
 };
 
 const template = document.getElementById('postcard-template');
@@ -62,7 +65,7 @@ init();
 function init() {
   ui.surpriseToggle.checked = state.surprise;
   ui.authForm.addEventListener('submit', handleAuth);
-  ui.createBtn.addEventListener('click', () => ui.modal.showModal());
+  ui.createBtn.addEventListener('click', openModal);
   ui.closeModal.addEventListener('click', () => ui.modal.close());
   ui.postcardForm.addEventListener('submit', handlePostcardSubmit);
   ui.clearDoodle.addEventListener('click', clearDoodle);
@@ -73,6 +76,8 @@ function init() {
   );
   ui.surpriseToggle.addEventListener('change', handleSurpriseToggle);
   ui.logoutBtn.addEventListener('click', handleLogout);
+  ui.optionButtons.forEach((btn) => btn.addEventListener('click', () => toggleOption(btn)));
+  updateOptionVisibility();
   restoreSession();
   setupLongPressHearts();
 }
@@ -401,10 +406,12 @@ function getSupportedMime() {
 async function handlePostcardSubmit(event) {
   event.preventDefault();
   if (!state.user) return;
-  const message = ui.messageInput.value.trim();
-  const photo = ui.photoInput.files[0];
-  const doodleBlob = state.doodleDirty ? await canvasToBlob(ui.doodleCanvas) : null;
-  const audioBlob = state.audioBlob;
+  const message = state.activeOptions.has('message') ? ui.messageInput.value.trim() : '';
+  const photo = state.activeOptions.has('photo') ? ui.photoInput.files[0] : null;
+  const doodleBlob = state.activeOptions.has('doodle') && state.doodleDirty
+    ? await canvasToBlob(ui.doodleCanvas)
+    : null;
+  const audioBlob = state.activeOptions.has('audio') ? state.audioBlob : null;
   let type = 'text';
   let assetUrl = null;
 
@@ -459,6 +466,7 @@ async function handlePostcardSubmit(event) {
   state.audioBlob = null;
   setAudioStatus('');
   stopTimerDisplay();
+  resetOptionPicker();
 }
 
 async function uploadAsset(fileOrBlob, folder, extension) {
@@ -633,6 +641,68 @@ function updateTimerLabel(value) {
   const seconds = Math.max(0, value);
   const label = `0:${seconds.toString().padStart(2, '0')}`;
   ui.recordTimer.textContent = label;
+}
+
+function toggleOption(btn) {
+  const option = btn.dataset.option;
+  if (!option) return;
+  if (state.activeOptions.has(option)) {
+    state.activeOptions.delete(option);
+    btn.classList.remove('active');
+    clearOption(option);
+  } else {
+    state.activeOptions.add(option);
+    btn.classList.add('active');
+  }
+  updateOptionVisibility();
+}
+
+function updateOptionVisibility() {
+  ui.optionSections.forEach((section) => {
+    const option = section.dataset.option;
+    if (!option) return;
+    section.classList.toggle('active', state.activeOptions.has(option));
+  });
+  ui.optionButtons.forEach((btn) => {
+    const option = btn.dataset.option;
+    btn.classList.toggle('active', state.activeOptions.has(option));
+  });
+}
+
+function clearOption(option) {
+  switch (option) {
+    case 'message':
+      ui.messageInput.value = '';
+      break;
+    case 'photo':
+      ui.photoInput.value = '';
+      break;
+    case 'doodle':
+      clearDoodle();
+      break;
+    case 'audio':
+      state.audioBlob = null;
+      ui.audioPreview.removeAttribute('src');
+      ui.audioPreview.removeAttribute('data-ready');
+      setAudioStatus('');
+      stopTimerDisplay();
+      break;
+    default:
+      break;
+  }
+}
+
+function resetOptionPicker() {
+  state.activeOptions = new Set(['message']);
+  clearOption('photo');
+  clearOption('doodle');
+  clearOption('audio');
+  updateOptionVisibility();
+}
+
+function openModal() {
+  resetOptionPicker();
+  ui.modal.showModal();
 }
 
 function formatDate(value) {

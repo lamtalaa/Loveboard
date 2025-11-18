@@ -77,28 +77,43 @@
           <h2>New Postcard</h2>
           <button type="button" id="close-modal" aria-label="Close">×</button>
         </header>
-        <label for="message-input">Short message (150 chars)</label>
-        <textarea id="message-input" maxlength="150" placeholder="Write something sweet..."></textarea>
-
-        <label for="photo-input">Photo</label>
-        <input id="photo-input" type="file" accept="image/*" />
-
-        <div class="doodle-block">
-          <div class="doodle-header">
-            <span>Doodle</span>
-            <button type="button" id="clear-doodle">Clear</button>
-          </div>
-          <canvas id="doodle-canvas" width="320" height="200" aria-label="Doodle"></canvas>
+        <div class="option-picker" role="group" aria-label="Choose postcard content">
+          <button type="button" class="option-btn active" data-option="message">Note</button>
+          <button type="button" class="option-btn" data-option="photo">Photo</button>
+          <button type="button" class="option-btn" data-option="doodle">Doodle</button>
+          <button type="button" class="option-btn" data-option="audio">Audio</button>
         </div>
 
-        <div class="audio-block">
-          <div class="audio-header">
-            <span>Audio (15s)</span>
-            <button type="button" id="record-audio">Start</button>
-            <span id="record-timer" class="record-timer">0:15</span>
+        <div class="option-section message-field" data-option="message">
+          <label for="message-input">Short message (150 chars)</label>
+          <textarea id="message-input" maxlength="150" placeholder="Write something sweet..."></textarea>
+        </div>
+
+        <div class="option-section photo-field" data-option="photo">
+          <label for="photo-input">Photo</label>
+          <input id="photo-input" type="file" accept="image/*" />
+        </div>
+
+        <div class="option-section doodle-field" data-option="doodle">
+          <div class="doodle-block">
+            <div class="doodle-header">
+              <span>Doodle</span>
+              <button type="button" id="clear-doodle">Clear</button>
+            </div>
+            <canvas id="doodle-canvas" width="320" height="200" aria-label="Doodle"></canvas>
           </div>
-          <audio id="audio-preview" controls></audio>
-          <p id="audio-status" class="audio-status" aria-live="polite"></p>
+        </div>
+
+        <div class="option-section audio-field" data-option="audio">
+          <div class="audio-block">
+            <div class="audio-header">
+              <span>Audio (15s)</span>
+              <button type="button" id="record-audio">Start</button>
+              <span id="record-timer" class="record-timer">0:15</span>
+            </div>
+            <audio id="audio-preview" controls></audio>
+            <p id="audio-status" class="audio-status" aria-live="polite"></p>
+          </div>
         </div>
 
         <button type="submit" class="primary">Send postcard</button>
