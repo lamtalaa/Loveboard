@@ -151,6 +151,26 @@ button:disabled {
   min-height: 180px;
 }
 
+.delete-card {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  border: none;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  font-size: 1rem;
+  cursor: pointer;
+  box-shadow: 0 6px 10px rgba(70, 50, 60, 0.15);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.postcard.own .delete-card {
+  opacity: 1;
+}
+
 .postcard > div {
   transition: transform 0.7s ease, filter 0.3s ease;
   width: 100%;

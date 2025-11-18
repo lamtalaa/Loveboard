@@ -163,11 +163,15 @@ function renderBoard() {
   state.postcards.forEach((card) => {
     const node = template.content.firstElementChild.cloneNode(true);
     node.dataset.id = card.id;
+    if (card.user === state.user) {
+      node.classList.add('own');
+    }
     node.querySelector('.note').textContent = card.message || 'No message, just vibes.';
     node.querySelector('.meta').textContent = `${card.user} · ${formatDate(card.created_at)}`;
 
     const img = node.querySelector('img');
     const audioChip = node.querySelector('.audio-chip');
+    const deleteBtn = node.querySelector('.delete-card');
 
     img.hidden = true;
     audioChip.hidden = true;
@@ -193,6 +197,16 @@ function renderBoard() {
       node.classList.toggle('flipped');
       node.classList.add('revealed');
     });
+
+    if (card.user === state.user && deleteBtn) {
+      deleteBtn.hidden = false;
+      deleteBtn.addEventListener('click', (evt) => {
+        evt.stopPropagation();
+        confirmDelete(card.id);
+      });
+    } else if (deleteBtn) {
+      deleteBtn.hidden = true;
+    }
 
     ui.board.appendChild(node);
   });
@@ -583,6 +597,11 @@ function subscribeRealtime() {
       renderTimeline();
       gentlePulse(`[data-id="${payload.new.id}"]`);
     })
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'postcards' }, (payload) => {
+      removePostcard(payload.old.id);
+      renderBoard();
+      renderTimeline();
+    })
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'moods' }, (payload) => {
       setMood(payload.new.user, payload.new.emoji);
     })
@@ -618,6 +637,10 @@ function upsertPostcard(card) {
   }
 }
 
+function removePostcard(id) {
+  state.postcards = state.postcards.filter((card) => card.id !== id);
+}
+
 function showToast(message, mode = 'info') {
   if (!ui.toast) return;
   ui.toast.textContent = message;
@@ -632,6 +655,22 @@ function showToast(message, mode = 'info') {
 function setAudioStatus(text) {
   if (!ui.audioStatus) return;
   ui.audioStatus.textContent = text;
+}
+
+async function confirmDelete(id) {
+  if (!id) return;
+  const ok = window.confirm('Delete this postcard? This cannot be undone.');
+  if (!ok) return;
+  const { error } = await supabase.from('postcards').delete().eq('id', id);
+  if (error) {
+    console.error('delete postcard', error);
+    showToast('Delete failed. Try again.', 'error');
+    return;
+  }
+  removePostcard(id);
+  renderBoard();
+  renderTimeline();
+  showToast('Postcard deleted');
 }
 
 function attachMoodClickAway() {
