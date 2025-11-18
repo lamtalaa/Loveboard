@@ -403,7 +403,7 @@ async function handlePostcardSubmit(event) {
     return;
   }
   if (data) {
-    state.postcards = [data, ...state.postcards];
+    upsertPostcard(data);
     renderBoard();
     renderTimeline();
     gentlePulse(`[data-id="${data.id}"]`);
@@ -484,7 +484,7 @@ function subscribeRealtime() {
   const channel = supabase.channel('loveboard-channel');
   channel
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'postcards' }, (payload) => {
-      state.postcards = [payload.new, ...state.postcards];
+      upsertPostcard(payload.new);
       renderBoard();
       renderTimeline();
       gentlePulse(`[data-id="${payload.new.id}"]`);
@@ -513,6 +513,15 @@ function gentlePulse(selector) {
     ],
     { duration: 600 }
   );
+}
+
+function upsertPostcard(card) {
+  const existingIndex = state.postcards.findIndex((item) => item.id === card.id);
+  if (existingIndex >= 0) {
+    state.postcards[existingIndex] = card;
+  } else {
+    state.postcards = [card, ...state.postcards];
+  }
 }
 
 function showToast(message, mode = 'info') {
