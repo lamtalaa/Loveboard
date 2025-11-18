@@ -60,6 +60,7 @@ const ui = {
   audioStatus: document.getElementById('audio-status'),
   recordTimer: document.getElementById('record-timer'),
   sendBtn: document.getElementById('send-btn'),
+  sendHint: document.getElementById('send-hint'),
   moodButtons: document.querySelectorAll('.mood-btn'),
   surpriseToggle: document.getElementById('surprise-toggle'),
   logoutBtn: document.getElementById('logout-btn'),
@@ -446,7 +447,7 @@ async function handlePostcardSubmit(event) {
   const audioBlob = state.activeOptions.has('audio') ? state.audioBlob : null;
   let type = 'text';
   let assetUrl = null;
-  setLoading(ui.sendBtn, true);
+  setSendingState(true);
 
   try {
     if (photo) {
@@ -462,7 +463,7 @@ async function handlePostcardSubmit(event) {
   } catch (err) {
     console.error('upload failed', err);
     showToast('Upload failed. Please try again.', 'error');
-    setLoading(ui.sendBtn, false);
+    setSendingState(false);
     return;
   }
 
@@ -484,7 +485,7 @@ async function handlePostcardSubmit(event) {
   if (error) {
     console.error('postcard save', error);
     showToast(`Couldn't save postcard: ${error.message}`, 'error');
-    setLoading(ui.sendBtn, false);
+    setSendingState(false);
     return;
   }
   if (data) {
@@ -501,7 +502,7 @@ async function handlePostcardSubmit(event) {
   state.audioBlob = null;
   setAudioStatus('');
   stopTimerDisplay();
-  setLoading(ui.sendBtn, false);
+  setSendingState(false);
   resetOptionPicker();
 }
 
@@ -727,6 +728,13 @@ function setLoading(button, loading) {
   if (!button) return;
   button.classList.toggle('loading', loading);
   button.disabled = loading;
+}
+
+function setSendingState(loading) {
+  setLoading(ui.sendBtn, loading);
+  if (ui.sendHint) {
+    ui.sendHint.textContent = loading ? 'Sending your love…' : '';
+  }
 }
 
 function startTimer(seconds) {

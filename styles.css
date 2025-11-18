@@ -397,6 +397,14 @@ button:disabled {
   opacity: 0.6;
 }
 
+.send-hint {
+  text-align: center;
+  font-size: 0.95rem;
+  color: rgba(70, 50, 60, 0.7);
+  min-height: 1.2rem;
+  margin: 0;
+}
+
 .doodle-block,
 .audio-block {
   background: rgba(255, 255, 255, 0.7);
