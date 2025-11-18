@@ -8,6 +8,7 @@ const USER_PASSCODES = {
 const MOOD_STICKERS = ['💗', '💛', '🫶', '💙', '💖'];
 const BUCKET = 'loveboard-assets';
 const LONG_PRESS_DURATION = 600;
+const AUTH_KEY = 'loveboard-user';
 
 const state = {
   user: null,
@@ -20,7 +21,8 @@ const state = {
     chunks: []
   },
   audioBlob: null,
-  longPressTimer: null
+  longPressTimer: null,
+  started: false
 };
 
 const ui = {
@@ -42,6 +44,7 @@ const ui = {
   audioPreview: document.getElementById('audio-preview'),
   moodButtons: document.querySelectorAll('.mood-btn'),
   surpriseToggle: document.getElementById('surprise-toggle'),
+  logoutBtn: document.getElementById('logout-btn'),
   toast: document.getElementById('toast')
 };
 
@@ -62,6 +65,8 @@ function init() {
     btn.addEventListener('click', () => openMoodPicker(btn))
   );
   ui.surpriseToggle.addEventListener('change', handleSurpriseToggle);
+  ui.logoutBtn.addEventListener('click', handleLogout);
+  restoreSession();
   setupLongPressHearts();
 }
 
@@ -78,14 +83,26 @@ function handleAuth(event) {
     return;
   }
   state.user = user;
+  localStorage.setItem(AUTH_KEY, user);
   ui.authGate.style.display = 'none';
   ui.app.setAttribute('aria-hidden', 'false');
   startApp();
 }
 
 async function startApp() {
+  if (state.started) return;
+  state.started = true;
   await Promise.all([loadPostcards(), loadMoods()]);
   subscribeRealtime();
+}
+
+function restoreSession() {
+  const savedUser = localStorage.getItem(AUTH_KEY);
+  if (!savedUser) return;
+  state.user = savedUser;
+  ui.authGate.style.display = 'none';
+  ui.app.setAttribute('aria-hidden', 'false');
+  startApp();
 }
 
 async function loadPostcards() {
@@ -246,6 +263,13 @@ function handleSurpriseToggle() {
   state.surprise = ui.surpriseToggle.checked;
   localStorage.setItem('loveboard-surprise', state.surprise);
   renderBoard();
+}
+
+function handleLogout() {
+  localStorage.removeItem(AUTH_KEY);
+  state.started = false;
+  state.user = null;
+  location.reload();
 }
 
 function setupDoodleCanvas() {
