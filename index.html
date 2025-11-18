@@ -26,7 +26,7 @@
           </select>
           <label for="passcode-input">Passphrase</label>
           <input id="passcode-input" type="password" required />
-          <button type="submit">Enter Loveboard</button>
+          <button type="submit" id="auth-submit" disabled>Enter Loveboard</button>
           <p id="auth-error" class="error-text"></p>
         </form>
       </div>
@@ -68,7 +68,7 @@
         <div class="timeline" id="timeline"></div>
       </section>
 
-      <button id="create-btn" class="create-btn">Create Postcard</button>
+      <button id="create-btn" class="create-btn" disabled>Create Postcard</button>
     </main>
 
     <dialog id="postcard-modal" class="modal">
@@ -116,7 +116,7 @@
           </div>
         </div>
 
-        <button type="submit" class="primary">Send postcard</button>
+        <button type="submit" class="primary" id="send-btn" disabled>Send postcard</button>
       </form>
     </dialog>
 

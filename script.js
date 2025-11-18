@@ -42,6 +42,9 @@ const ui = {
   authGate: document.getElementById('auth-gate'),
   authForm: document.getElementById('auth-form'),
   authError: document.getElementById('auth-error'),
+  userSelect: document.getElementById('user-select'),
+  passInput: document.getElementById('passcode-input'),
+  authSubmit: document.getElementById('auth-submit'),
   board: document.getElementById('board'),
   timeline: document.getElementById('timeline'),
   modal: document.getElementById('postcard-modal'),
@@ -56,6 +59,7 @@ const ui = {
   audioPreview: document.getElementById('audio-preview'),
   audioStatus: document.getElementById('audio-status'),
   recordTimer: document.getElementById('record-timer'),
+  sendBtn: document.getElementById('send-btn'),
   moodButtons: document.querySelectorAll('.mood-btn'),
   surpriseToggle: document.getElementById('surprise-toggle'),
   logoutBtn: document.getElementById('logout-btn'),
@@ -75,6 +79,10 @@ function init() {
   ui.closeModal.addEventListener('click', () => ui.modal.close());
   ui.postcardForm.addEventListener('submit', handlePostcardSubmit);
   ui.clearDoodle.addEventListener('click', clearDoodle);
+  ui.userSelect.addEventListener('change', updateAuthButton);
+  ui.passInput.addEventListener('input', updateAuthButton);
+  ui.messageInput.addEventListener('input', updateSendButtonState);
+  ui.photoInput.addEventListener('change', updateSendButtonState);
   setupDoodleCanvas();
   setupAudioRecorder();
   ui.moodButtons.forEach((btn) =>
@@ -84,6 +92,9 @@ function init() {
   ui.logoutBtn.addEventListener('click', handleLogout);
   ui.optionButtons.forEach((btn) => btn.addEventListener('click', () => toggleOption(btn)));
   updateOptionVisibility();
+  updateAuthButton();
+  updateSendButtonState();
+  setButtonState(ui.createBtn, false);
   restoreSession();
   setupLongPressHearts();
 }
@@ -104,6 +115,7 @@ function handleAuth(event) {
   localStorage.setItem(AUTH_KEY, user);
   ui.authGate.style.display = 'none';
   ui.app.setAttribute('aria-hidden', 'false');
+  enableCreateButton();
   startApp();
 }
 
@@ -120,6 +132,7 @@ function restoreSession() {
   state.user = savedUser;
   ui.authGate.style.display = 'none';
   ui.app.setAttribute('aria-hidden', 'false');
+  enableCreateButton();
   startApp();
 }
 
@@ -306,6 +319,7 @@ function setupDoodleCanvas() {
     const pos = getPos(evt);
     ctx.moveTo(pos.x, pos.y);
     evt.preventDefault();
+    updateSendButtonState();
   };
   const draw = (evt) => {
     if (!drawing) return;
@@ -329,6 +343,7 @@ function clearDoodle() {
   if (!ctx) return;
   ctx.clearRect(0, 0, ui.doodleCanvas.width, ui.doodleCanvas.height);
   state.doodleDirty = false;
+  updateSendButtonState();
 }
 
 function setupAudioRecorder() {
@@ -353,6 +368,7 @@ async function toggleRecording() {
     state.recording.recorder = mediaRecorder;
     state.recording.chunks = [];
     state.audioBlob = null;
+    updateSendButtonState();
     mediaRecorder.start();
     ui.recordAudio.textContent = 'Stop';
     ui.recordAudio.classList.add('recording');
@@ -370,6 +386,7 @@ async function toggleRecording() {
       clearTimeout(stopTimer);
       const blob = new Blob(state.recording.chunks, { type: mediaRecorder.mimeType || 'audio/webm' });
       state.audioBlob = blob;
+      updateSendButtonState();
       ui.audioPreview.src = URL.createObjectURL(blob);
       ui.audioPreview.dataset.ready = 'true';
       ui.recordAudio.textContent = 'Start';
@@ -635,6 +652,34 @@ function detachMoodClickAway() {
   state.moodMenuListener = null;
 }
 
+function updateAuthButton() {
+  if (!ui.authSubmit) return;
+  const ready = Boolean(ui.userSelect.value && ui.passInput.value.trim());
+  setButtonState(ui.authSubmit, ready);
+}
+
+function updateSendButtonState() {
+  setButtonState(ui.sendBtn, isPostcardReady());
+}
+
+function isPostcardReady() {
+  const messageReady = state.activeOptions.has('message') && ui.messageInput.value.trim().length > 0;
+  const photoReady = state.activeOptions.has('photo') && ui.photoInput.files.length > 0;
+  const doodleReady = state.activeOptions.has('doodle') && state.doodleDirty;
+  const audioReady = state.activeOptions.has('audio') && Boolean(state.audioBlob);
+  return messageReady || photoReady || doodleReady || audioReady;
+}
+
+function setButtonState(button, ready) {
+  if (!button) return;
+  button.disabled = !ready;
+  button.classList.toggle('ready', ready);
+}
+
+function enableCreateButton() {
+  setButtonState(ui.createBtn, true);
+}
+
 function startTimer(seconds) {
   let remaining = seconds;
   updateTimerLabel(remaining);
@@ -674,6 +719,7 @@ function toggleOption(btn) {
     btn.classList.add('active');
   }
   updateOptionVisibility();
+  updateSendButtonState();
 }
 
 function updateOptionVisibility() {
@@ -709,6 +755,7 @@ function clearOption(option) {
     default:
       break;
   }
+  updateSendButtonState();
 }
 
 function resetOptionPicker() {
@@ -717,6 +764,7 @@ function resetOptionPicker() {
   clearOption('doodle');
   clearOption('audio');
   updateOptionVisibility();
+  updateSendButtonState();
 }
 
 function openModal() {

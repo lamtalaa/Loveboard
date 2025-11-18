@@ -79,6 +79,10 @@ body {
   cursor: pointer;
 }
 
+button:disabled {
+  cursor: not-allowed;
+}
+
 .moods {
   display: flex;
   gap: 0.75rem;
@@ -254,6 +258,14 @@ body {
   font-size: 1.2rem;
   padding: 1rem;
   box-shadow: 0 16px 30px rgba(245, 181, 197, 0.45);
+  opacity: 0.6;
+  transition: transform 0.2s ease, opacity 0.2s ease, box-shadow 0.2s ease;
+}
+
+.create-btn.ready {
+  opacity: 1;
+  transform: translate(-50%, 0) scale(1.01);
+  box-shadow: 0 22px 34px rgba(245, 181, 197, 0.65);
 }
 
 .modal {
@@ -332,6 +344,13 @@ body {
   background: var(--rose);
   color: #fff;
   box-shadow: 0 12px 22px rgba(245, 181, 197, 0.55);
+  opacity: 0.6;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.primary.ready {
+  opacity: 1;
+  transform: translateY(-1px);
 }
 
 .doodle-block,
@@ -435,6 +454,14 @@ body {
   background: var(--rose);
   color: #fff;
   border: none;
+  opacity: 0.6;
+  transition: transform 0.2s ease, opacity 0.2s ease, box-shadow 0.2s ease;
+}
+
+.auth-card button.ready {
+  opacity: 1;
+  transform: translateY(-1px);
+  box-shadow: 0 12px 20px rgba(245, 181, 197, 0.4);
 }
 
 .error-text {
