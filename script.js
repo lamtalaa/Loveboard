@@ -6,10 +6,12 @@ const USER_PASSCODES = {
 };
 
 const MOOD_STICKERS = [
-  { emoji: '💗', label: 'Overflowing love' },
-  { emoji: '💛', label: 'Sunny and grateful' },
-  { emoji: '🫶', label: 'Need a hug' },
-  { emoji: '💙', label: 'Calm and reflective' },
+  { emoji: '💗', label: 'So in love with you' },
+  { emoji: '🫶', label: 'Missing you right now' },
+  { emoji: '💛', label: 'Soft + grateful' },
+  { emoji: '💙', label: 'Need extra cuddles' },
+  { emoji: '💋', label: 'Ready for kisses' },
+  { emoji: '🔥', label: 'Ridiculously horny' },
   { emoji: '💖', label: 'Playful sparkles' }
 ];
 const BUCKET = 'loveboard-assets';
