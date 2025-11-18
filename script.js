@@ -311,6 +311,7 @@ function openMoodPicker(anchorBtn) {
   });
   anchorBtn.parentElement.appendChild(menu);
   attachMoodClickAway();
+  positionMoodMenu(menu);
 }
 
 function closeMoodMenus() {
@@ -743,6 +744,22 @@ function detachMoodClickAway() {
   document.removeEventListener('click', state.moodMenuListener, true);
   document.removeEventListener('touchstart', state.moodMenuListener, true);
   state.moodMenuListener = null;
+}
+
+function positionMoodMenu(menu) {
+  requestAnimationFrame(() => {
+    const rect = menu.getBoundingClientRect();
+    const padding = 12;
+    let shift = 0;
+    if (rect.right > window.innerWidth - padding) {
+      shift = window.innerWidth - padding - rect.right;
+    } else if (rect.left < padding) {
+      shift = padding - rect.left;
+    }
+    if (shift !== 0) {
+      menu.style.transform = `translateX(${shift}px)`;
+    }
+  });
 }
 
 function updateAuthButton() {
