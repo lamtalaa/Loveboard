@@ -178,11 +178,19 @@ function renderBoard() {
     img.hidden = true;
     audioChip.hidden = true;
 
+    let needsMeasure = true;
     if (card.asset_url) {
       if (card.type === 'image' || card.type === 'doodle') {
         img.hidden = false;
         img.src = card.asset_url;
         img.alt = `${card.type} from ${card.user}`;
+        const measure = () => measureCardHeight(node);
+        if (img.complete) {
+          measure();
+        } else {
+          img.addEventListener('load', measure, { once: true });
+        }
+        needsMeasure = false;
       } else if (card.type === 'audio') {
         audioChip.hidden = false;
         audioChip.onclick = () => playAudio(card.asset_url, audioChip);
@@ -211,6 +219,9 @@ function renderBoard() {
     }
 
     ui.board.appendChild(node);
+    if (needsMeasure) {
+      scheduleCardMeasurement(node);
+    }
   });
 }
 
@@ -654,6 +665,23 @@ function getTilt(id = '') {
     hash = (hash + id.charCodeAt(i) * 7) % 97;
   }
   return `${tilts[hash % tilts.length]}deg`;
+}
+
+function scheduleCardMeasurement(node) {
+  requestAnimationFrame(() => measureCardHeight(node));
+}
+
+function measureCardHeight(node) {
+  if (!node) return;
+  const front = node.querySelector('.postcard-front');
+  const back = node.querySelector('.postcard-back');
+  if (!front || !back) return;
+  node.classList.add('measuring');
+  const frontHeight = front.getBoundingClientRect().height;
+  const backHeight = back.getBoundingClientRect().height;
+  node.classList.remove('measuring');
+  const target = Math.max(frontHeight, backHeight, 220);
+  node.style.setProperty('--card-height', `${target}px`);
 }
 
 function showToast(message, mode = 'info') {

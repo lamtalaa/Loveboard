@@ -158,6 +158,9 @@ button:disabled {
   border: 1px solid rgba(70, 50, 60, 0.05);
   transform: rotate(var(--tilt, 0deg));
   transition: transform 0.3s ease, box-shadow 0.3s ease;
+  height: var(--card-height, auto);
+  min-height: 220px;
+  overflow: hidden;
 }
 
 .postcard::after {
@@ -219,6 +222,7 @@ button:disabled {
   z-index: 1;
   border-radius: 24px;
   border: 1px dashed rgba(70, 50, 60, 0.08);
+  height: 100%;
 }
 
 
@@ -229,6 +233,14 @@ button:disabled {
   border-radius: 18px;
   object-fit: contain;
   display: block;
+}
+
+.postcard.measuring .postcard-front,
+.postcard.measuring .postcard-back {
+  position: static;
+  height: auto;
+  transform: none !important;
+  backface-visibility: visible;
 }
 
 .postcard .note {
