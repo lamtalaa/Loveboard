@@ -17,6 +17,8 @@ const MOOD_STICKERS = [
 const REACTIONS = [
   { emoji: '💋', label: 'Kiss' },
   { emoji: '✨', label: 'Sparkles' },
+  { emoji: '💗', label: 'Heartburst' },
+  { emoji: '❤️', label: 'Red heart' },
   { emoji: '🔥', label: 'Spicy' },
   { emoji: '🌙', label: 'Dreaming of you' },
   { emoji: '🌸', label: 'Blooming love' }
