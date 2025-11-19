@@ -325,6 +325,10 @@ button:disabled {
   font-size: 0.95rem;
 }
 
+.reaction-counts:empty {
+  display: none;
+}
+
 .reaction-pill {
   background: rgba(70, 50, 60, 0.08);
   border-radius: 999px;
@@ -332,10 +336,21 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   gap: 0.2rem;
+  flex-direction: column;
 }
 
 .reaction-pill small {
   font-size: 0.75rem;
+}
+
+.reaction-names {
+  font-size: 0.65rem;
+  color: rgba(70, 50, 60, 0.8);
+}
+
+.reaction-pill.mine {
+  background: rgba(245, 181, 197, 0.4);
+  box-shadow: inset 0 0 0 1px rgba(245, 181, 197, 0.6);
 }
 
 .react-btn {
@@ -373,6 +388,10 @@ button:disabled {
   border: none;
   background: transparent;
   font-size: 1.4rem;
+}
+
+.reaction-picker button.active {
+  transform: scale(1.1);
 }
 
 .postcard.flipped .postcard-front {

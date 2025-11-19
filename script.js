@@ -48,6 +48,7 @@ const state = {
   longPressTimer: null,
   started: false,
   reactions: {},
+  userReactions: {},
   activeOptions: new Set(['message']),
   moodMenuListener: null,
   notificationsAllowed: notificationsSupported && Notification.permission === 'granted',
@@ -297,12 +298,13 @@ async function loadMoods() {
 async function loadReactions() {
   const { data, error } = await supabase
     .from('postcard_reactions')
-    .select('postcard_id,reaction');
+    .select('postcard_id,reaction,user');
   if (error) {
     console.error('reactions load', error);
     return;
   }
   state.reactions = {};
+  state.userReactions = {};
   (data || []).forEach(applyReactionRow);
 }
 
@@ -697,11 +699,15 @@ function subscribeRealtime() {
       }
     })
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'postcard_reactions' }, (payload) => {
+      if (payload.new.user === state.user) return;
       applyReactionRow(payload.new);
       updateReactionUI(payload.new.postcard_id);
-      if (payload.new.user !== state.user) {
-        notifyUser('New postcard reaction', `${payload.new.user} reacted ${payload.new.reaction}`);
-      }
+      notifyUser('New postcard reaction', `${payload.new.user} reacted ${payload.new.reaction}`);
+    })
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'postcard_reactions' }, (payload) => {
+      if (payload.old.user === state.user) return;
+      removeReactionRow(payload.old);
+      updateReactionUI(payload.old.postcard_id);
     })
     .subscribe();
 }
@@ -743,12 +749,24 @@ function getTilt(id = '') {
 }
 
 function applyReactionRow(row) {
-  if (!row?.postcard_id || !row?.reaction) return;
-  if (!state.reactions[row.postcard_id]) {
-    state.reactions[row.postcard_id] = {};
+  const postcardId = row?.postcard_id;
+  const reaction = row?.reaction;
+  const user = row?.user;
+  if (!postcardId || !reaction) return;
+  if (!state.reactions[postcardId]) {
+    state.reactions[postcardId] = {};
   }
-  state.reactions[row.postcard_id][row.reaction] =
-    (state.reactions[row.postcard_id][row.reaction] || 0) + 1;
+  if (!state.reactions[postcardId][reaction]) {
+    state.reactions[postcardId][reaction] = { count: 0, users: [] };
+  }
+  const bucket = state.reactions[postcardId][reaction];
+  bucket.count += 1;
+  if (user && !bucket.users.includes(user)) {
+    bucket.users.push(user);
+  }
+  if (user === state.user) {
+    state.userReactions[postcardId] = reaction;
+  }
 }
 
 function describePostcard(card) {
@@ -756,6 +774,27 @@ function describePostcard(card) {
   if (card.type === 'image') return card.message || 'They added a new photo.';
   if (card.type === 'doodle') return card.message || 'They drew a doodle just for you.';
   return card.message || 'Open Loveboard to read it.';
+}
+
+function removeReactionRow(row) {
+  const postcardId = row?.postcard_id;
+  const reaction = row?.reaction;
+  const user = row?.user;
+  const bucket = state.reactions[postcardId]?.[reaction];
+  if (!bucket) return;
+  bucket.count = Math.max(0, bucket.count - 1);
+  if (user) {
+    bucket.users = bucket.users.filter((name) => name !== user);
+  }
+  if (bucket.count === 0 || bucket.users.length === 0) {
+    delete state.reactions[postcardId][reaction];
+  }
+  if (state.reactions[postcardId] && !Object.keys(state.reactions[postcardId]).length) {
+    delete state.reactions[postcardId];
+  }
+  if (user === state.user) {
+    delete state.userReactions[postcardId];
+  }
 }
 
 function scheduleCardMeasurement(node) {
@@ -785,10 +824,26 @@ function measureCardHeight(node) {
 function renderReactionCounts(postcardId, container) {
   if (!container) return;
   const counts = state.reactions[postcardId] || {};
-  const entries = Object.entries(counts).filter(([, count]) => count > 0);
-  container.innerHTML = entries
-    .map(([emoji, count]) => `<span class="reaction-pill">${emoji} <small>${count}</small></span>`)
-    .join('');
+  const entries = Object.entries(counts).filter(([, data]) => data.count > 0);
+  container.innerHTML = '';
+  entries.forEach(([emoji, data]) => {
+    const pill = document.createElement('span');
+    pill.className = 'reaction-pill';
+    if (state.userReactions[postcardId] === emoji) {
+      pill.classList.add('mine');
+    }
+    pill.textContent = `${emoji} `;
+    const count = document.createElement('small');
+    count.textContent = data.count;
+    pill.appendChild(count);
+    if (data.users.length) {
+      const names = document.createElement('small');
+      names.className = 'reaction-names';
+      names.textContent = data.users.join(', ');
+      pill.appendChild(names);
+    }
+    container.appendChild(pill);
+  });
 }
 
 function setupReactionPicker(picker, postcardId) {
@@ -800,9 +855,12 @@ function setupReactionPicker(picker, postcardId) {
     btn.dataset.reaction = emoji;
     btn.title = label;
     btn.textContent = emoji;
+    if (state.userReactions[postcardId] === emoji) {
+      btn.classList.add('active');
+    }
     btn.addEventListener('click', async (evt) => {
       evt.stopPropagation();
-      await addReaction(postcardId, emoji);
+      await handleReactionSelection(postcardId, emoji);
       closeReactionPicker();
     });
     picker.appendChild(btn);
@@ -838,6 +896,18 @@ function closeReactionPicker() {
   }
 }
 
+async function handleReactionSelection(postcardId, reaction) {
+  const current = state.userReactions[postcardId];
+  if (current === reaction) {
+    await removeReaction(postcardId, reaction);
+  } else {
+    if (current) {
+      await removeReaction(postcardId, current);
+    }
+    await addReaction(postcardId, reaction);
+  }
+}
+
 async function addReaction(postcardId, reaction) {
   if (!state.user || !postcardId) return;
   const { error } = await supabase.from('postcard_reactions').insert({
@@ -849,13 +919,27 @@ async function addReaction(postcardId, reaction) {
     console.error('reaction save', error);
     showToast('Reaction failed to send.', 'error');
   } else {
-    applyReactionRow({ postcard_id: postcardId, reaction });
+    applyReactionRow({ postcard_id: postcardId, reaction, user: state.user });
     updateReactionUI(postcardId);
     const target = getOtherUser();
     if (target) {
       triggerRemoteNotification(target, `${state.user} reacted`, `Reaction: ${reaction}`);
     }
   }
+}
+
+async function removeReaction(postcardId, reaction) {
+  if (!state.user || !postcardId || !reaction) return;
+  const { error } = await supabase
+    .from('postcard_reactions')
+    .delete()
+    .match({ postcard_id: postcardId, user: state.user, reaction });
+  if (error) {
+    console.error('reaction delete', error);
+    return;
+  }
+  removeReactionRow({ postcard_id: postcardId, reaction, user: state.user });
+  updateReactionUI(postcardId);
 }
 
 function updateReactionUI(postcardId) {

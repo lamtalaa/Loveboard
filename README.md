@@ -77,7 +77,7 @@ create table public.postcard_reactions (
    - `moods`: allow `insert`/`update`/`select` for `anon`.
    - `hearts`: allow `insert`/`select` for `anon`.
    - `push_subscriptions`: allow `insert`/`update`/`select` for `anon` (or scope to the owning user if you prefer tighter control).
-   - `postcard_reactions`: allow `insert`/`select` for `anon`.
+   - `postcard_reactions`: allow `insert`/`select`/`delete` for `anon` (delete scoped to `auth.uid()`/`user` if you tighten security).
    (Because the board is private and protected by the passphrase gate, the lightweight policy is acceptable. Tighten if you need stricter control.)
 
 4. Create a storage bucket named `loveboard-assets` and make it **public**.
