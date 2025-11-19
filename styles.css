@@ -347,7 +347,13 @@ button:disabled {
   cursor: pointer;
 }
 
-.reaction-picker {
+
+.reaction-area.active .reaction-picker {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.reaction-area .reaction-picker {
   position: absolute;
   left: 0;
   display: flex;
@@ -357,6 +363,10 @@ button:disabled {
   border-radius: 16px;
   box-shadow: 0 10px 24px rgba(70, 50, 60, 0.2);
   z-index: 6;
+  opacity: 0;
+  transform: translateY(-6px);
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
 .reaction-picker button {

@@ -266,9 +266,10 @@ function renderBoard() {
     reactionCounts.forEach((container) => renderReactionCounts(card.id, container));
     reactionPickers.forEach((picker) => setupReactionPicker(picker, card.id));
     reactButtons.forEach((btn, idx) => {
+      const picker = reactionPickers[idx];
       btn.addEventListener('click', (evt) => {
         evt.stopPropagation();
-        toggleReactionPicker(reactionPickers[idx]);
+        toggleReactionPicker(btn.closest('.reaction-area'), picker);
       });
     });
 
@@ -785,10 +786,6 @@ function renderReactionCounts(postcardId, container) {
   if (!container) return;
   const counts = state.reactions[postcardId] || {};
   const entries = Object.entries(counts).filter(([, count]) => count > 0);
-  if (!entries.length) {
-    container.textContent = '';
-    return;
-  }
   container.innerHTML = entries
     .map(([emoji, count]) => `<span class="reaction-pill">${emoji} <small>${count}</small></span>`)
     .join('');
@@ -812,13 +809,14 @@ function setupReactionPicker(picker, postcardId) {
   });
 }
 
-function toggleReactionPicker(picker) {
-  if (!picker) return;
+function toggleReactionPicker(area, picker) {
+  if (!picker || !area) return;
   if (state.openReactionPicker && state.openReactionPicker !== picker) {
-    state.openReactionPicker.hidden = true;
+    state.openReactionPicker.closest('.reaction-area').classList.remove('active');
   }
-  const willOpen = picker.hidden;
-  picker.hidden = !willOpen;
+  const willOpen = !area.classList.contains('active');
+  area.classList.toggle('active', willOpen);
+  picker.style.pointerEvents = willOpen ? 'auto' : 'none';
   state.openReactionPicker = willOpen ? picker : null;
   if (willOpen) {
     const rect = picker.getBoundingClientRect();
@@ -833,7 +831,9 @@ function toggleReactionPicker(picker) {
 
 function closeReactionPicker() {
   if (state.openReactionPicker) {
-    state.openReactionPicker.hidden = true;
+    const area = state.openReactionPicker.closest('.reaction-area');
+    if (area) area.classList.remove('active');
+    state.openReactionPicker.style.pointerEvents = 'none';
     state.openReactionPicker = null;
   }
 }
