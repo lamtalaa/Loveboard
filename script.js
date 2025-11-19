@@ -73,6 +73,7 @@ const ui = {
   moodButtons: document.querySelectorAll('.mood-btn'),
   surpriseToggle: document.getElementById('surprise-toggle'),
   logoutBtn: document.getElementById('logout-btn'),
+  currentAvatar: document.getElementById('current-user-avatar'),
   toast: document.getElementById('toast'),
   optionButtons: document.querySelectorAll('.option-btn'),
   optionSections: document.querySelectorAll('.option-section')
@@ -126,6 +127,7 @@ function handleAuth(event) {
   ui.authGate.style.display = 'none';
   ui.app.setAttribute('aria-hidden', 'false');
   enableCreateButton();
+  updateAvatar();
   startApp();
   initNotifications();
 }
@@ -144,6 +146,7 @@ function restoreSession() {
   ui.authGate.style.display = 'none';
   ui.app.setAttribute('aria-hidden', 'false');
   enableCreateButton();
+  updateAvatar();
   startApp();
   initNotifications();
 }
@@ -347,10 +350,16 @@ function getOtherUser() {
   return null;
 }
 
+function updateAvatar() {
+  if (!ui.currentAvatar) return;
+  ui.currentAvatar.textContent = state.user ? state.user[0] : '?';
+}
+
 function handleLogout() {
   localStorage.removeItem(AUTH_KEY);
   state.started = false;
   state.user = null;
+  updateAvatar();
   location.reload();
 }
 
