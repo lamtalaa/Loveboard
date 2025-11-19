@@ -14,6 +14,13 @@ const MOOD_STICKERS = [
   { emoji: '🔥', label: 'Ridiculously horny' },
   { emoji: '💖', label: 'Playful sparkles' }
 ];
+const REACTIONS = [
+  { emoji: '💋', label: 'Kiss' },
+  { emoji: '✨', label: 'Sparkles' },
+  { emoji: '🔥', label: 'Spicy' },
+  { emoji: '🌙', label: 'Dreaming of you' },
+  { emoji: '🌸', label: 'Blooming love' }
+];
 const BUCKET = 'loveboard-assets';
 const LONG_PRESS_DURATION = 600;
 const AUTH_KEY = 'loveboard-user';
@@ -40,11 +47,13 @@ const state = {
   audioBlob: null,
   longPressTimer: null,
   started: false,
+  reactions: {},
   activeOptions: new Set(['message']),
   moodMenuListener: null,
   notificationsAllowed: notificationsSupported && Notification.permission === 'granted',
   swRegistration: null,
-  pushSubscription: null
+  pushSubscription: null,
+  openReactionPicker: null
 };
 
 const ui = {
@@ -162,11 +171,13 @@ async function loadPostcards() {
     return;
   }
   state.postcards = data || [];
+  await loadReactions();
   renderBoard();
 }
 
 function renderBoard() {
   ui.board.innerHTML = '';
+  state.openReactionPicker = null;
   if (!state.postcards.length) {
     const empty = document.createElement('p');
     empty.className = 'empty-state';
@@ -191,6 +202,9 @@ function renderBoard() {
     const audioPanel = node.querySelector('.audio-only');
     const audioPlayer = node.querySelector('.audio-player');
     const deleteBtn = node.querySelector('.delete-card');
+    const reactionCounts = node.querySelectorAll('.reaction-counts');
+    const reactButtons = node.querySelectorAll('.react-btn');
+    const reactionPickers = node.querySelectorAll('.reaction-picker');
 
     visual.hidden = true;
     defaultVisual.hidden = true;
@@ -249,6 +263,15 @@ function renderBoard() {
       deleteBtn.hidden = true;
     }
 
+    reactionCounts.forEach((container) => renderReactionCounts(card.id, container));
+    reactionPickers.forEach((picker) => setupReactionPicker(picker, card.id));
+    reactButtons.forEach((btn, idx) => {
+      btn.addEventListener('click', (evt) => {
+        evt.stopPropagation();
+        toggleReactionPicker(reactionPickers[idx]);
+      });
+    });
+
     ui.board.appendChild(node);
     if (needsMeasure) {
       scheduleCardMeasurement(node);
@@ -268,6 +291,18 @@ async function loadMoods() {
     return;
   }
   (data || []).forEach((entry) => setMood(entry.user, entry.emoji));
+}
+
+async function loadReactions() {
+  const { data, error } = await supabase
+    .from('postcard_reactions')
+    .select('postcard_id,reaction');
+  if (error) {
+    console.error('reactions load', error);
+    return;
+  }
+  state.reactions = {};
+  (data || []).forEach(applyReactionRow);
 }
 
 function setMood(user, emoji) {
@@ -660,6 +695,13 @@ function subscribeRealtime() {
         notifyUser(`${payload.new.user} sent hearts`, 'Long-press anywhere to send love back.');
       }
     })
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'postcard_reactions' }, (payload) => {
+      applyReactionRow(payload.new);
+      updateReactionUI(payload.new.postcard_id);
+      if (payload.new.user !== state.user) {
+        notifyUser('New postcard reaction', `${payload.new.user} reacted ${payload.new.reaction}`);
+      }
+    })
     .subscribe();
 }
 
@@ -687,6 +729,7 @@ function upsertPostcard(card) {
 
 function removePostcard(id) {
   state.postcards = state.postcards.filter((card) => card.id !== id);
+  delete state.reactions[id];
 }
 
 function getTilt(id = '') {
@@ -696,6 +739,15 @@ function getTilt(id = '') {
     hash = (hash + id.charCodeAt(i) * 7) % 97;
   }
   return `${tilts[hash % tilts.length]}deg`;
+}
+
+function applyReactionRow(row) {
+  if (!row?.postcard_id || !row?.reaction) return;
+  if (!state.reactions[row.postcard_id]) {
+    state.reactions[row.postcard_id] = {};
+  }
+  state.reactions[row.postcard_id][row.reaction] =
+    (state.reactions[row.postcard_id][row.reaction] || 0) + 1;
 }
 
 function describePostcard(card) {
@@ -727,6 +779,89 @@ function measureCardHeight(node) {
   node.classList.remove('measuring');
   const target = Math.max(frontHeight, backHeight, 220);
   node.style.setProperty('--card-height', `${target}px`);
+}
+
+function renderReactionCounts(postcardId, container) {
+  if (!container) return;
+  const counts = state.reactions[postcardId] || {};
+  const entries = Object.entries(counts).filter(([, count]) => count > 0);
+  if (!entries.length) {
+    container.textContent = '';
+    return;
+  }
+  container.innerHTML = entries
+    .map(([emoji, count]) => `<span class="reaction-pill">${emoji} <small>${count}</small></span>`)
+    .join('');
+}
+
+function setupReactionPicker(picker, postcardId) {
+  if (!picker) return;
+  picker.innerHTML = '';
+  REACTIONS.forEach(({ emoji, label }) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.dataset.reaction = emoji;
+    btn.title = label;
+    btn.textContent = emoji;
+    btn.addEventListener('click', async (evt) => {
+      evt.stopPropagation();
+      await addReaction(postcardId, emoji);
+      closeReactionPicker();
+    });
+    picker.appendChild(btn);
+  });
+}
+
+function toggleReactionPicker(picker) {
+  if (!picker) return;
+  if (state.openReactionPicker && state.openReactionPicker !== picker) {
+    state.openReactionPicker.hidden = true;
+  }
+  const willOpen = picker.hidden;
+  picker.hidden = !willOpen;
+  state.openReactionPicker = willOpen ? picker : null;
+  if (willOpen) {
+    const rect = picker.getBoundingClientRect();
+    if (rect.bottom > window.innerHeight - 12) {
+      picker.style.top = '-60px';
+    } else {
+      picker.style.top = '40px';
+    }
+    document.addEventListener('click', closeReactionPicker, { once: true });
+  }
+}
+
+function closeReactionPicker() {
+  if (state.openReactionPicker) {
+    state.openReactionPicker.hidden = true;
+    state.openReactionPicker = null;
+  }
+}
+
+async function addReaction(postcardId, reaction) {
+  if (!state.user || !postcardId) return;
+  const { error } = await supabase.from('postcard_reactions').insert({
+    postcard_id: postcardId,
+    reaction,
+    user: state.user
+  });
+  if (error) {
+    console.error('reaction save', error);
+    showToast('Reaction failed to send.', 'error');
+  } else {
+    const target = getOtherUser();
+    if (target) {
+      triggerRemoteNotification(target, `${state.user} reacted`, `Reaction: ${reaction}`);
+    }
+  }
+}
+
+function updateReactionUI(postcardId) {
+  const card = document.querySelector(`[data-id="${postcardId}"]`);
+  if (!card) return;
+  card.querySelectorAll('.reaction-counts').forEach((container) =>
+    renderReactionCounts(postcardId, container)
+  );
 }
 
 async function initNotifications() {

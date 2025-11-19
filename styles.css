@@ -309,6 +309,62 @@ button:disabled {
   color: rgba(70, 50, 60, 0.7);
 }
 
+.reaction-area {
+  margin-top: 0.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  position: relative;
+}
+
+.reaction-counts {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+  font-size: 0.95rem;
+}
+
+.reaction-pill {
+  background: rgba(70, 50, 60, 0.08);
+  border-radius: 999px;
+  padding: 0.15rem 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.reaction-pill small {
+  font-size: 0.75rem;
+}
+
+.react-btn {
+  border: 1px dashed rgba(70, 50, 60, 0.3);
+  border-radius: 999px;
+  background: transparent;
+  padding: 0.2rem 0.8rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.reaction-picker {
+  position: absolute;
+  left: 0;
+  display: flex;
+  gap: 0.3rem;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 0.4rem 0.6rem;
+  border-radius: 16px;
+  box-shadow: 0 10px 24px rgba(70, 50, 60, 0.2);
+  z-index: 6;
+}
+
+.reaction-picker button {
+  border: none;
+  background: transparent;
+  font-size: 1.4rem;
+}
+
 .postcard.flipped .postcard-front {
   transform: rotateY(180deg);
 }
