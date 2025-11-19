@@ -756,13 +756,28 @@ function applyReactionRow(row) {
   if (!state.reactions[postcardId]) {
     state.reactions[postcardId] = {};
   }
+  if (user) {
+    Object.entries(state.reactions[postcardId]).forEach(([emoji, bucket]) => {
+      if (!bucket) return;
+      if (emoji === reaction) return;
+      if (bucket.users.includes(user)) {
+        bucket.users = bucket.users.filter((name) => name !== user);
+        bucket.count = Math.max(0, bucket.count - 1);
+        if (!bucket.count) {
+          delete state.reactions[postcardId][emoji];
+        }
+      }
+    });
+  }
   if (!state.reactions[postcardId][reaction]) {
     state.reactions[postcardId][reaction] = { count: 0, users: [] };
   }
   const bucket = state.reactions[postcardId][reaction];
-  bucket.count += 1;
   if (user && !bucket.users.includes(user)) {
     bucket.users.push(user);
+    bucket.count += 1;
+  } else if (!user) {
+    bucket.count += 1;
   }
   if (user === state.user) {
     state.userReactions[postcardId] = reaction;
@@ -837,7 +852,7 @@ function renderReactionCounts(postcardId, container) {
       const names = document.createElement('span');
       names.className = 'reaction-names';
       names.textContent = data.users
-        .map((name) => (name ? name[0] : ''))
+        .map((name) => (name ? name[0].toUpperCase() : ''))
         .join('');
       pill.appendChild(names);
     }
