@@ -370,6 +370,7 @@ button:disabled {
   position: absolute;
   left: 0;
   display: flex;
+  flex-wrap: wrap;
   gap: 0.3rem;
   background: rgba(255, 255, 255, 0.95);
   padding: 0.4rem 0.6rem;
@@ -380,6 +381,7 @@ button:disabled {
   transform: translateY(-6px);
   pointer-events: none;
   transition: opacity 0.2s ease, transform 0.2s ease;
+  min-width: 200px;
 }
 
 .reaction-picker button {
