@@ -181,6 +181,13 @@ button:disabled {
   overflow: hidden;
 }
 
+.front-reactions {
+  position: absolute;
+  bottom: 0.6rem;
+  left: 0.8rem;
+  z-index: 2;
+}
+
 .postcard::after {
   content: '';
   position: absolute;
@@ -347,8 +354,9 @@ button:disabled {
   border: 1px dashed rgba(70, 50, 60, 0.3);
   border-radius: 999px;
   background: transparent;
-  padding: 0.2rem 0.8rem;
+  padding: 0.35rem 1.1rem;
   font-family: inherit;
+  font-size: 1rem;
   cursor: pointer;
 }
 
@@ -377,7 +385,7 @@ button:disabled {
 .reaction-picker button {
   border: none;
   background: transparent;
-  font-size: 1.4rem;
+  font-size: 1.8rem;
 }
 
 .reaction-picker button.active {
