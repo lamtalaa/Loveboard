@@ -832,14 +832,13 @@ function renderReactionCounts(postcardId, container) {
     if (state.userReactions[postcardId] === emoji) {
       pill.classList.add('mine');
     }
-    pill.textContent = `${emoji} `;
-    const count = document.createElement('small');
-    count.textContent = data.count;
-    pill.appendChild(count);
+    pill.textContent = emoji;
     if (data.users.length) {
-      const names = document.createElement('small');
+      const names = document.createElement('span');
       names.className = 'reaction-names';
-      names.textContent = data.users.join(', ');
+      names.textContent = data.users
+        .map((name) => (name ? name[0] : ''))
+        .join('');
       pill.appendChild(names);
     }
     container.appendChild(pill);

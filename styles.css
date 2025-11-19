@@ -332,20 +332,10 @@ button:disabled {
 .reaction-pill {
   background: rgba(70, 50, 60, 0.08);
   border-radius: 999px;
-  padding: 0.15rem 0.5rem;
+  padding: 0.15rem 0.4rem;
   display: inline-flex;
   align-items: center;
   gap: 0.2rem;
-  flex-direction: column;
-}
-
-.reaction-pill small {
-  font-size: 0.75rem;
-}
-
-.reaction-names {
-  font-size: 0.65rem;
-  color: rgba(70, 50, 60, 0.8);
 }
 
 .reaction-pill.mine {
