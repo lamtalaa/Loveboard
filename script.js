@@ -699,13 +699,13 @@ function subscribeRealtime() {
       }
     })
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'postcard_reactions' }, (payload) => {
-      if (payload.new.user === state.user) return;
       applyReactionRow(payload.new);
       updateReactionUI(payload.new.postcard_id);
-      notifyUser('New postcard reaction', `${payload.new.user} reacted ${payload.new.reaction}`);
+      if (payload.new.user !== state.user) {
+        notifyUser('New postcard reaction', `${payload.new.user} reacted ${payload.new.reaction}`);
+      }
     })
     .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'postcard_reactions' }, (payload) => {
-      if (payload.old.user === state.user) return;
       removeReactionRow(payload.old);
       updateReactionUI(payload.old.postcard_id);
     })
