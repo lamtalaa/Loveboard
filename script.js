@@ -849,6 +849,8 @@ async function addReaction(postcardId, reaction) {
     console.error('reaction save', error);
     showToast('Reaction failed to send.', 'error');
   } else {
+    applyReactionRow({ postcard_id: postcardId, reaction });
+    updateReactionUI(postcardId);
     const target = getOtherUser();
     if (target) {
       triggerRemoteNotification(target, `${state.user} reacted`, `Reaction: ${reaction}`);
