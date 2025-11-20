@@ -314,10 +314,12 @@ button:disabled {
 .postcard .meta {
   font-size: 0.9rem;
   color: rgba(70, 50, 60, 0.7);
+  display: block;
+  margin-top: 0.1rem;
 }
 
 .reaction-area {
-  margin-top: 0.5rem;
+  margin-top: 0.35rem;
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
