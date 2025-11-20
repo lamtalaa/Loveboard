@@ -1052,9 +1052,13 @@ function renderComments(postcardId, container) {
     time.className = 'comment-time';
     time.textContent = formatCommentTime(entry.created_at);
     meta.append(author, time);
-    const created = entry.created_at ? new Date(entry.created_at).toISOString() : null;
-    const updated = entry.updated_at ? new Date(entry.updated_at).toISOString() : null;
-    const showEdited = Boolean(updated && created && updated !== created);
+    const createdTime = entry.created_at ? new Date(entry.created_at).getTime() : null;
+    const updatedTime = entry.updated_at ? new Date(entry.updated_at).getTime() : null;
+    const showEdited =
+      state.commentUpdatedAtSupported &&
+      typeof createdTime === 'number' &&
+      typeof updatedTime === 'number' &&
+      updatedTime - createdTime > 2000;
     if (showEdited) {
       const edited = document.createElement('span');
       edited.className = 'comment-edited';
