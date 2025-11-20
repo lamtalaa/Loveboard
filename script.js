@@ -799,6 +799,16 @@ function subscribeCommentBroadcast() {
       removeCommentRow(payload);
       updateCommentUI(payload.postcard_id);
     })
+    .on('broadcast', { event: 'reaction:add' }, ({ payload }) => {
+      if (!payload?.row || payload?.sender === state.user) return;
+      applyReactionRow(payload.row);
+      updateReactionUI(payload.row.postcard_id);
+    })
+    .on('broadcast', { event: 'reaction:remove' }, ({ payload }) => {
+      if (!payload?.row || payload?.sender === state.user) return;
+      removeReactionRow(payload.row);
+      updateReactionUI(payload.row.postcard_id);
+    })
     .on('broadcast', { event: 'postcard:new' }, ({ payload }) => {
       if (!payload?.postcard || payload?.sender === state.user) return;
       upsertPostcard(payload.postcard);
@@ -1245,17 +1255,19 @@ async function handleReactionSelection(postcardId, reaction) {
 
 async function addReaction(postcardId, reaction) {
   if (!state.user || !postcardId) return;
-  const { error } = await supabase.from('postcard_reactions').insert({
+  const row = {
     postcard_id: postcardId,
     reaction,
     user: state.user
-  });
+  };
+  const { error } = await supabase.from('postcard_reactions').insert(row);
   if (error) {
     console.error('reaction save', error);
     showToast('Reaction failed to send.', 'error');
   } else {
-    applyReactionRow({ postcard_id: postcardId, reaction, user: state.user });
+    applyReactionRow(row);
     updateReactionUI(postcardId);
+    await broadcastCommentEvent('reaction:add', { row, sender: state.user });
     const target = getOtherUser();
     if (target) {
       triggerRemoteNotification(target, `${state.user} reacted`, `Reaction: ${reaction}`);
@@ -1275,6 +1287,10 @@ async function removeReaction(postcardId, reaction) {
   }
   removeReactionRow({ postcard_id: postcardId, reaction, user: state.user });
   updateReactionUI(postcardId);
+  await broadcastCommentEvent('reaction:remove', {
+    row: { postcard_id: postcardId, reaction, user: state.user },
+    sender: state.user
+  });
 }
 
 function updateReactionUI(postcardId) {
