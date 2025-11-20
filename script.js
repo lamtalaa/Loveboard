@@ -62,7 +62,8 @@ const state = {
   commentChannel: null,
   commentChannelReady: false,
   pendingCommentBroadcasts: [],
-  editingComment: null
+  editingComment: null,
+  commentUpdatedAtSupported: true
 };
 
 const ui = {
@@ -325,10 +326,24 @@ async function loadReactions() {
 }
 
 async function loadComments() {
-  const { data, error } = await supabase
+  const columnsWithUpdate = 'id,postcard_id,user,comment,created_at,updated_at';
+  let columns = columnsWithUpdate;
+  let data;
+  let error;
+  ({ data, error } = await supabase
     .from('postcard_comments')
-    .select('id,postcard_id,user,comment,created_at,updated_at')
-    .order('created_at', { ascending: true });
+    .select(columns)
+    .order('created_at', { ascending: true }));
+  if (error && isUpdatedAtMissing(error)) {
+    state.commentUpdatedAtSupported = false;
+    columns = 'id,postcard_id,user,comment,created_at';
+    ({ data, error } = await supabase
+      .from('postcard_comments')
+      .select(columns)
+      .order('created_at', { ascending: true }));
+  } else {
+    state.commentUpdatedAtSupported = true;
+  }
   if (error) {
     console.error('comments load', error);
     return;
@@ -811,6 +826,15 @@ function flushPendingCommentBroadcasts() {
   queue.forEach(({ event, payload }) => broadcastCommentEvent(event, payload));
 }
 
+function isUpdatedAtMissing(error) {
+  if (!error) return false;
+  return (
+    error.message?.toLowerCase().includes('updated_at') ||
+    String(error.hint || '').toLowerCase().includes('updated_at') ||
+    error.code === '42703'
+  );
+}
+
 function gentlePulse(selector) {
   const card = document.querySelector(selector);
   if (!card) return;
@@ -1238,21 +1262,33 @@ async function handleCommentSubmit(postcardId, input, form) {
     button.disabled = true;
     button.textContent = 'Sending…';
   }
+  const payload = { postcard_id: postcardId, user: state.user, comment: text };
+  if (state.commentUpdatedAtSupported) {
+    payload.updated_at = new Date().toISOString();
+  }
   try {
-    const timestamp = new Date().toISOString();
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('postcard_comments')
-      .insert({ postcard_id: postcardId, user: state.user, comment: text, updated_at: timestamp })
+      .insert(payload)
       .select()
       .single();
+    if (error && state.commentUpdatedAtSupported && isUpdatedAtMissing(error)) {
+      state.commentUpdatedAtSupported = false;
+      delete payload.updated_at;
+      ({ data, error } = await supabase
+        .from('postcard_comments')
+        .insert(payload)
+        .select()
+        .single());
+    }
     if (error) {
       throw error;
     }
     if (data) {
       applyCommentRow(data);
       updateCommentUI(postcardId);
+      await broadcastCommentEvent('comment:new', data);
     }
-    await broadcastCommentEvent('comment:new', data);
     input.value = '';
     const target = getOtherUser();
     if (target) {
@@ -1317,14 +1353,27 @@ async function handleCommentEditSubmit(postcardId, commentId, input) {
   const cancelBtn = form?.querySelector('button[type="button"]');
   if (saveBtn) saveBtn.disabled = true;
   if (cancelBtn) cancelBtn.disabled = true;
+  const payload = { comment: text };
+  if (state.commentUpdatedAtSupported) {
+    payload.updated_at = new Date().toISOString();
+  }
   try {
-    const timestamp = new Date().toISOString();
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('postcard_comments')
-      .update({ comment: text, updated_at: timestamp })
+      .update(payload)
       .eq('id', commentId)
       .select()
       .single();
+    if (error && state.commentUpdatedAtSupported && isUpdatedAtMissing(error)) {
+      state.commentUpdatedAtSupported = false;
+      delete payload.updated_at;
+      ({ data, error } = await supabase
+        .from('postcard_comments')
+        .update(payload)
+        .eq('id', commentId)
+        .select()
+        .single());
+    }
     if (error) {
       throw error;
     }
