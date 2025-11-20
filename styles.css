@@ -369,6 +369,8 @@ button:disabled {
 .reaction-area .reaction-picker {
   position: absolute;
   left: 0;
+  bottom: calc(100% + 0.4rem);
+  top: auto;
   display: flex;
   flex-wrap: wrap;
   gap: 0.3rem;
