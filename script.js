@@ -911,6 +911,9 @@ function applyReactionRow(row) {
 function applyCommentRow(row) {
   const postcardId = row?.postcard_id;
   if (!postcardId || !row?.id) return;
+  if (!row.updated_at) {
+    row.updated_at = row.created_at;
+  }
   if (!state.comments[postcardId]) {
     state.comments[postcardId] = [];
   }
@@ -1049,7 +1052,10 @@ function renderComments(postcardId, container) {
     time.className = 'comment-time';
     time.textContent = formatCommentTime(entry.created_at);
     meta.append(author, time);
-    if (entry.updated_at && entry.updated_at !== entry.created_at) {
+    const created = entry.created_at ? new Date(entry.created_at).toISOString() : null;
+    const updated = entry.updated_at ? new Date(entry.updated_at).toISOString() : null;
+    const showEdited = Boolean(updated && created && updated !== created);
+    if (showEdited) {
       const edited = document.createElement('span');
       edited.className = 'comment-edited';
       edited.textContent = 'Edited';
