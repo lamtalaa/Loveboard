@@ -798,6 +798,11 @@ function subscribeCommentBroadcast() {
       removeCommentRow(payload);
       updateCommentUI(payload.postcard_id);
     })
+    .on('broadcast', { event: 'postcard:delete' }, ({ payload }) => {
+      if (!payload?.postcard_id) return;
+      removePostcard(payload.postcard_id);
+      renderBoard();
+    })
     .subscribe((status) => {
       if (status === 'SUBSCRIBED') {
         state.commentChannelReady = true;
@@ -1569,6 +1574,7 @@ async function confirmDelete(id) {
   }
   removePostcard(id);
   renderBoard();
+  await broadcastCommentEvent('postcard:delete', { postcard_id: id });
   showToast('Postcard deleted');
 }
 
