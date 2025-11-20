@@ -840,6 +840,12 @@ function isMissingTableError(error) {
   return error.code === '42P01' || error.message?.toLowerCase().includes('does not exist');
 }
 
+function isMissingFunctionError(error) {
+  if (!error) return false;
+  const message = String(error.message || '').toLowerCase();
+  return message.includes('function delete-postcard') || message.includes('not found');
+}
+
 function gentlePulse(selector) {
   const card = document.querySelector(selector);
   if (!card) return;
@@ -1556,16 +1562,52 @@ async function confirmDelete(id) {
   if (!id) return;
   const ok = window.confirm('Delete this postcard? This cannot be undone.');
   if (!ok) return;
-  await cleanupPostcardChildren(id);
-  const { error } = await supabase.from('postcards').delete().eq('id', id);
-  if (error) {
-    console.error('delete postcard', error);
+  const deleted = await deletePostcard(id);
+  if (!deleted) {
     showToast('Delete failed. Try again.', 'error');
     return;
   }
   removePostcard(id);
   renderBoard();
   showToast('Postcard deleted');
+}
+
+async function deletePostcard(id) {
+  const viaFunction = await deletePostcardViaFunction(id);
+  if (viaFunction) return true;
+  return deletePostcardDirect(id);
+}
+
+async function deletePostcardViaFunction(id) {
+  try {
+    const { data, error } = await supabase.functions.invoke('delete-postcard', {
+      body: { postcardId: id }
+    });
+    if (error) {
+      if (isMissingFunctionError(error)) {
+        return false;
+      }
+      throw error;
+    }
+    return data?.success ?? true;
+  } catch (err) {
+    console.error('delete postcard function', err);
+    return false;
+  }
+}
+
+async function deletePostcardDirect(id) {
+  try {
+    await cleanupPostcardChildren(id);
+    const { error } = await supabase.from('postcards').delete().eq('id', id);
+    if (error) {
+      throw error;
+    }
+    return true;
+  } catch (err) {
+    console.error('delete postcard direct', err);
+    return false;
+  }
 }
 
 async function cleanupPostcardChildren(id) {

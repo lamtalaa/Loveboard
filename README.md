@@ -111,6 +111,17 @@ This repo ships with `supabase/functions/notify-push/index.ts`, which sends Web 
 3. Ensure your site is served over HTTPS so browsers allow push subscriptions.
 4. When each user logs in, the app registers a service worker (`sw.js`), asks for notification permission, stores the push subscription in `push_subscriptions`, and calls the Edge function whenever a postcard/mood/heart is created so the other person receives the OS-level notification.
 
+### Postcard deletion Edge Function
+
+Deleting a postcard now goes through a tiny Supabase Edge Function so related comments/reactions are removed with service-role privileges (bypassing RLS edge cases).
+
+1. Deploy it:
+   ```bash
+   supabase functions deploy delete-postcard --project-ref ijwxlyoxhlmlysfjzksl
+   ```
+2. Ensure the function has access to `SUPABASE_SERVICE_ROLE_KEY` (same as `notify-push`).
+3. No additional configuration is required; the app will fall back to the legacy client-side delete if the function isn't available.
+
 ## Environment variables in production
 For Netlify/Vercel you can inject the Supabase keys without checking them into git:
 
