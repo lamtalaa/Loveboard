@@ -75,6 +75,7 @@ create table public.postcard_reactions (
 create table public.postcard_comments (
   id uuid primary key default gen_random_uuid(),
   created_at timestamp with time zone default timezone('utc', now()) not null,
+  updated_at timestamp with time zone default timezone('utc', now()) not null,
   postcard_id uuid references public.postcards(id) on delete cascade,
   "user" text not null,
   comment text not null

@@ -212,11 +212,11 @@ function renderBoard() {
     const audioPanel = node.querySelector('.audio-only');
     const audioPlayer = node.querySelector('.audio-player');
     const deleteBtn = node.querySelector('.delete-card');
-    const reactionCounts = node.querySelectorAll('.reaction-counts');
-    const reactButtons = node.querySelectorAll('.react-btn');
-    const reactionPickers = node.querySelectorAll('.reaction-picker');
-    const commentLists = node.querySelectorAll('.comment-list');
-    const commentForms = node.querySelectorAll('.comment-form');
+  const reactionCounts = node.querySelectorAll('.reaction-counts');
+  const reactButtons = node.querySelectorAll('.react-btn');
+  const reactionPickers = node.querySelectorAll('.reaction-picker');
+  const commentLists = node.querySelectorAll('.comment-list');
+  const commentForms = node.querySelectorAll('.comment-form');
 
     visual.hidden = true;
     defaultVisual.hidden = true;
@@ -284,7 +284,10 @@ function renderBoard() {
         toggleReactionPicker(btn.closest('.reaction-area'), picker);
       });
     });
-    commentLists.forEach((container) => renderComments(card.id, container));
+    commentLists.forEach((container) => {
+      setupCommentList(container);
+      renderComments(card.id, container);
+    });
     commentForms.forEach((form) => setupCommentForm(form, card.id));
 
     ui.board.appendChild(node);
@@ -324,7 +327,7 @@ async function loadReactions() {
 async function loadComments() {
   const { data, error } = await supabase
     .from('postcard_comments')
-    .select('id,postcard_id,user,comment,created_at')
+    .select('id,postcard_id,user,comment,created_at,updated_at')
     .order('created_at', { ascending: true });
   if (error) {
     console.error('comments load', error);
@@ -989,6 +992,10 @@ function renderReactionCounts(postcardId, container) {
 
 function renderComments(postcardId, container) {
   if (!container) return;
+  const wasNearBottom =
+    container.scrollHeight - container.scrollTop - container.clientHeight < 20;
+  const userScrolledUp = container.dataset.userScroll === 'true';
+  const shouldStickBottom = !userScrolledUp || wasNearBottom || !container.childElementCount;
   const comments = state.comments[postcardId] || [];
   container.innerHTML = '';
   if (!comments.length) {
@@ -1018,6 +1025,12 @@ function renderComments(postcardId, container) {
     time.className = 'comment-time';
     time.textContent = formatCommentTime(entry.created_at);
     meta.append(author, time);
+    if (entry.updated_at && entry.updated_at !== entry.created_at) {
+      const edited = document.createElement('span');
+      edited.className = 'comment-edited';
+      edited.textContent = 'Edited';
+      meta.append(edited);
+    }
     row.append(meta);
     if (isEditing) {
       const form = document.createElement('form');
@@ -1079,6 +1092,10 @@ function renderComments(postcardId, container) {
     }
     container.appendChild(row);
   });
+  if (shouldStickBottom) {
+    container.scrollTop = container.scrollHeight;
+    container.dataset.userScroll = 'false';
+  }
 }
 
 function setupCommentForm(form, postcardId) {
@@ -1093,6 +1110,17 @@ function setupCommentForm(form, postcardId) {
     evt.preventDefault();
     evt.stopPropagation();
     await handleCommentSubmit(postcardId, input, form);
+  });
+}
+
+function setupCommentList(container) {
+  if (!container || container.dataset.scrollBound) return;
+  container.dataset.scrollBound = 'true';
+  container.dataset.userScroll = 'false';
+  container.addEventListener('scroll', () => {
+    const nearBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight < 20;
+    container.dataset.userScroll = nearBottom ? 'false' : 'true';
   });
 }
 
@@ -1211,9 +1239,10 @@ async function handleCommentSubmit(postcardId, input, form) {
     button.textContent = 'Sending…';
   }
   try {
+    const timestamp = new Date().toISOString();
     const { data, error } = await supabase
       .from('postcard_comments')
-      .insert({ postcard_id: postcardId, user: state.user, comment: text })
+      .insert({ postcard_id: postcardId, user: state.user, comment: text, updated_at: timestamp })
       .select()
       .single();
     if (error) {
@@ -1289,9 +1318,10 @@ async function handleCommentEditSubmit(postcardId, commentId, input) {
   if (saveBtn) saveBtn.disabled = true;
   if (cancelBtn) cancelBtn.disabled = true;
   try {
+    const timestamp = new Date().toISOString();
     const { data, error } = await supabase
       .from('postcard_comments')
-      .update({ comment: text })
+      .update({ comment: text, updated_at: timestamp })
       .eq('id', commentId)
       .select()
       .single();
