@@ -1,13 +1,13 @@
 # Loveboard
 
-Loveboard is a cozy, romantic postcard board for Yassine and Nihal. It is built with plain HTML, CSS, and vanilla JavaScript plus Supabase for realtime data, simple auth, and storage. The UI is mobile-first and thumb-friendly so both of you can swap little notes, photos, doodles, audio snippets, and floating hearts on the go.
+Loveboard is a cozy, romantic postcard board for Yassine and Nihal. It is built with plain HTML, CSS, and vanilla JavaScript plus Supabase for realtime data, simple auth, and storage. The UI is mobile-first and thumb-friendly so both of you can swap little notes, photos, doodles, and audio snippets on the go.
 
 ## Features
 - Password gate that lets only Yassine or Nihal in.
 - Mood stickers of the day with realtime updates.
 - Surprise mode that softly blurs every postcard until tapped.
 - Create Postcard modal with: short note (150 chars), photo upload, doodle canvas, and 15s audio recording.
-- Instant syncing of postcards, moods, floating heart reactions, postcard emoji reactions, and comments through Supabase realtime channels + client broadcasts.
+- Instant syncing of postcards, moods, postcard emoji reactions, and comments through Supabase realtime channels + client broadcasts.
 - Threaded postcard comments with inline edit/delete controls so you can reply (or tweak) in place.
 - Assets (photos, doodles, audio) stored in Supabase Storage and referenced from each postcard.
 - Optional push notifications so the other person gets an OS-level alert even when the tab is closed (requires HTTPS + Supabase Edge function).
@@ -50,13 +50,6 @@ create table public.moods (
   primary key ("user", "date")
 );
 
-create table public.hearts (
-  id uuid primary key default gen_random_uuid(),
-  created_at timestamp with time zone default timezone('utc', now()) not null,
-  "user" text not null,
-  event_type text not null default 'heart'
-);
-
 create table public.push_subscriptions (
   id uuid primary key default gen_random_uuid(),
   "user" text not null,
@@ -85,7 +78,6 @@ create table public.postcard_comments (
 3. Enable Row Level Security and add simple policies such as:
    - `postcards`: allow `insert`/`select` for `anon`.
    - `moods`: allow `insert`/`update`/`select` for `anon`.
-   - `hearts`: allow `insert`/`select` for `anon`.
    - `push_subscriptions`: allow `insert`/`update`/`select` for `anon` (or scope to the owning user if you prefer tighter control).
    - `postcard_reactions`: allow `insert`/`select`/`delete` for `anon` (delete scoped to `auth.uid()`/`user` if you tighten security).
    - `postcard_comments`: allow `insert`/`select`/`update`/`delete` for `anon` (scope edits/deletes to the posted `user` if you later wire Supabase Auth).
@@ -109,7 +101,7 @@ This repo ships with `supabase/functions/notify-push/index.ts`, which sends Web 
    - `VAPID_PUBLIC_KEY`
    - `VAPID_PRIVATE_KEY`
 3. Ensure your site is served over HTTPS so browsers allow push subscriptions.
-4. When each user logs in, the app registers a service worker (`sw.js`), asks for notification permission, stores the push subscription in `push_subscriptions`, and calls the Edge function whenever a postcard/mood/heart is created so the other person receives the OS-level notification.
+4. When each user logs in, the app registers a service worker (`sw.js`), asks for notification permission, stores the push subscription in `push_subscriptions`, and calls the Edge function whenever a postcard or mood is created so the other person receives the OS-level notification.
 
 ### Postcard deletion Edge Function
 
@@ -157,7 +149,6 @@ After deploying, test:
 - Logging in as each user (passphrase).
 - Creating a postcard with every attachment type.
 - Switching surprise mode, mood stickers, and verifying realtime updates on two devices.
-- Long-press to ensure floating hearts sync.
-- Allowing notifications on desktop + phone and confirming that the other user receives an alert when you post a postcard, change mood, or send hearts (requires HTTPS + deployed Edge function).
+- Allowing notifications on desktop + phone and confirming that the other user receives an alert when you post a postcard or change mood (requires HTTPS + deployed Edge function).
 
 Enjoy Loveboard!💗

@@ -24,7 +24,6 @@ const REACTIONS = [
   { emoji: '🌸', label: 'Blooming love' }
 ];
 const BUCKET = 'loveboard-assets';
-const LONG_PRESS_DURATION = 600;
 const AUTH_KEY = 'loveboard-user';
 const DEFAULT_NOTE_IMG = './assets/default-note.svg';
 const NOTIFICATION_ICON = './assets/heart.svg';
@@ -47,7 +46,6 @@ const state = {
     timer: null
   },
   audioBlob: null,
-  longPressTimer: null,
   started: false,
   reactions: {},
   userReactions: {},
@@ -126,7 +124,6 @@ function init() {
   updateSendButtonState();
   setButtonState(ui.createBtn, false);
   restoreSession();
-  setupLongPressHearts();
 }
 
 function handleAuth(event) {
@@ -668,51 +665,6 @@ function canvasToBlob(canvas) {
   });
 }
 
-function setupLongPressHearts() {
-  const zone = document.body;
-  zone.addEventListener('pointerdown', () => {
-    if (!state.user) return;
-    state.longPressTimer = setTimeout(sendHeart, LONG_PRESS_DURATION);
-  });
-  ['pointerup', 'pointerleave', 'pointercancel'].forEach((evt) =>
-    zone.addEventListener(evt, cancelHeartTimer)
-  );
-}
-
-function cancelHeartTimer() {
-  clearTimeout(state.longPressTimer);
-  state.longPressTimer = null;
-}
-
-async function sendHeart() {
-  cancelHeartTimer();
-  if (!state.user) return;
-  const { error } = await supabase.from('hearts').insert({
-    user: state.user,
-    event_type: 'heart'
-  });
-  if (error) {
-    console.error('heart send', error);
-    showToast('Heart failed to send.', 'error');
-  } else {
-    spawnHeart('💗');
-    const target = getOtherUser();
-    if (target) {
-      triggerRemoteNotification(target, `${state.user} sent hearts`, 'Long-press anywhere to float some back.');
-    }
-  }
-}
-
-function spawnHeart(emoji) {
-  const el = document.createElement('span');
-  el.className = 'heart-float';
-  el.textContent = emoji;
-  el.style.left = `${Math.random() * 100}%`;
-  el.style.top = `${50 + Math.random() * 40}%`;
-  document.body.appendChild(el);
-  setTimeout(() => el.remove(), 1600);
-}
-
 function subscribeRealtime() {
   if (state.realtimeChannel) return;
   const channel = supabase.channel('loveboard-channel');
@@ -737,13 +689,6 @@ function subscribeRealtime() {
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'moods' }, (payload) => {
       setMood(payload.new.user, payload.new.emoji);
       notifyMood(payload.new);
-    })
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'hearts' }, (payload) => {
-      const emojis = ['💗', '💖', '💞', '💕'];
-      spawnHeart(emojis[Math.floor(Math.random() * emojis.length)]);
-      if (payload.new.user !== state.user) {
-        notifyUser(`${payload.new.user} sent hearts`, 'Long-press anywhere to send love back.');
-      }
     })
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'postcard_reactions' }, (payload) => {
       applyReactionRow(payload.new);

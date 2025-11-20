@@ -825,13 +825,6 @@ button:disabled {
   min-height: 1.5rem;
 }
 
-.heart-float {
-  position: fixed;
-  font-size: 1.5rem;
-  animation: float 1.6s ease forwards;
-  pointer-events: none;
-}
-
 .toast {
   position: fixed;
   left: 50%;
@@ -851,20 +844,6 @@ button:disabled {
 .toast.show {
   opacity: 1;
   transform: translate(-50%, 0);
-}
-
-@keyframes float {
-  0% {
-    transform: translate(-50%, 0) scale(0.8);
-    opacity: 0;
-  }
-  30% {
-    opacity: 1;
-  }
-  100% {
-    transform: translate(-50%, -120px) scale(1.4);
-    opacity: 0;
-  }
 }
 
 @keyframes slideUp {
