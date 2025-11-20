@@ -57,7 +57,12 @@ const state = {
   notificationsAllowed: notificationsSupported && Notification.permission === 'granted',
   swRegistration: null,
   pushSubscription: null,
-  openReactionPicker: null
+  openReactionPicker: null,
+  realtimeChannel: null,
+  commentChannel: null,
+  commentChannelReady: false,
+  pendingCommentBroadcasts: [],
+  editingComment: null
 };
 
 const ui = {
@@ -150,6 +155,7 @@ async function startApp() {
   state.started = true;
   await Promise.all([loadPostcards(), loadMoods()]);
   subscribeRealtime();
+  subscribeCommentBroadcast();
 }
 
 function restoreSession() {
@@ -689,7 +695,9 @@ function spawnHeart(emoji) {
 }
 
 function subscribeRealtime() {
+  if (state.realtimeChannel) return;
   const channel = supabase.channel('loveboard-channel');
+  state.realtimeChannel = channel;
   channel
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'postcards' }, (payload) => {
       upsertPostcard(payload.new);
@@ -738,11 +746,66 @@ function subscribeRealtime() {
         notifyUser('New postcard comment', `${payload.new.user}: ${snippet}`);
       }
     })
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'postcard_comments' }, (payload) => {
+      applyCommentRow(payload.new);
+      updateCommentUI(payload.new.postcard_id);
+    })
     .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'postcard_comments' }, (payload) => {
       removeCommentRow(payload.old);
       updateCommentUI(payload.old.postcard_id);
     })
     .subscribe();
+}
+
+function subscribeCommentBroadcast() {
+  if (state.commentChannel) return;
+  const channel = supabase.channel('loveboard-comments', {
+    config: { broadcast: { ack: true } }
+  });
+  state.commentChannel = channel;
+  state.commentChannelReady = false;
+  channel
+    .on('broadcast', { event: 'comment:new' }, ({ payload }) => {
+      if (!payload) return;
+      applyCommentRow(payload);
+      updateCommentUI(payload.postcard_id);
+    })
+    .on('broadcast', { event: 'comment:update' }, ({ payload }) => {
+      if (!payload) return;
+      applyCommentRow(payload);
+      updateCommentUI(payload.postcard_id);
+    })
+    .on('broadcast', { event: 'comment:delete' }, ({ payload }) => {
+      if (!payload) return;
+      removeCommentRow(payload);
+      updateCommentUI(payload.postcard_id);
+    })
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        state.commentChannelReady = true;
+        flushPendingCommentBroadcasts();
+      }
+    });
+}
+
+async function broadcastCommentEvent(event, payload) {
+  if (!state.commentChannel || !payload) return;
+  if (!state.commentChannelReady) {
+    state.pendingCommentBroadcasts.push({ event, payload });
+    return;
+  }
+  try {
+    await state.commentChannel.send({ type: 'broadcast', event, payload });
+  } catch (err) {
+    console.error('comment broadcast', err);
+  }
+}
+
+function flushPendingCommentBroadcasts() {
+  if (!state.commentChannelReady || !state.pendingCommentBroadcasts.length) return;
+  const queue = [...state.pendingCommentBroadcasts];
+  state.pendingCommentBroadcasts = [];
+  queue.forEach(({ event, payload }) => broadcastCommentEvent(event, payload));
 }
 
 function gentlePulse(selector) {
@@ -871,6 +934,9 @@ function removeCommentRow(row) {
   if (!state.comments[postcardId].length) {
     delete state.comments[postcardId];
   }
+  if (state.editingComment && state.editingComment.commentId === commentId) {
+    state.editingComment = null;
+  }
 }
 
 function scheduleCardMeasurement(node) {
@@ -932,11 +998,16 @@ function renderComments(postcardId, container) {
     container.appendChild(empty);
     return;
   }
+  const editing = state.editingComment;
   comments.forEach((entry) => {
     const row = document.createElement('div');
     row.className = 'comment';
     if (entry.user === state.user) {
       row.classList.add('mine');
+    }
+    const isEditing = editing && editing.commentId === entry.id && editing.postcardId === postcardId;
+    if (isEditing) {
+      row.classList.add('editing');
     }
     const meta = document.createElement('div');
     meta.className = 'comment-meta';
@@ -947,10 +1018,65 @@ function renderComments(postcardId, container) {
     time.className = 'comment-time';
     time.textContent = formatCommentTime(entry.created_at);
     meta.append(author, time);
-    const text = document.createElement('p');
-    text.className = 'comment-text';
-    text.textContent = entry.comment || '';
-    row.append(meta, text);
+    row.append(meta);
+    if (isEditing) {
+      const form = document.createElement('form');
+      form.className = 'comment-edit-form';
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.maxLength = 280;
+      input.value = editing?.draft ?? entry.comment ?? '';
+      input.placeholder = 'Edit comment';
+      input.addEventListener('input', () => updateEditingDraft(input.value));
+      const actions = document.createElement('div');
+      actions.className = 'comment-edit-actions';
+      const saveBtn = document.createElement('button');
+      saveBtn.type = 'submit';
+      saveBtn.textContent = 'Save';
+      const cancelBtn = document.createElement('button');
+      cancelBtn.type = 'button';
+      cancelBtn.textContent = 'Cancel';
+      cancelBtn.addEventListener('click', (evt) => {
+        evt.stopPropagation();
+        cancelCommentEdit();
+      });
+      actions.append(saveBtn, cancelBtn);
+      form.append(input, actions);
+      const stop = (evt) => evt.stopPropagation();
+      form.addEventListener('click', stop);
+      input.addEventListener('click', stop);
+      form.addEventListener('submit', async (evt) => {
+        evt.preventDefault();
+        evt.stopPropagation();
+        await handleCommentEditSubmit(postcardId, entry.id, input);
+      });
+      row.append(form);
+    } else {
+      const text = document.createElement('p');
+      text.className = 'comment-text';
+      text.textContent = entry.comment || '';
+      row.append(text);
+      if (entry.user === state.user) {
+        const actions = document.createElement('div');
+        actions.className = 'comment-actions';
+        const editBtn = document.createElement('button');
+        editBtn.type = 'button';
+        editBtn.textContent = 'Edit';
+        editBtn.addEventListener('click', (evt) => {
+          evt.stopPropagation();
+          startCommentEdit(postcardId, entry);
+        });
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.textContent = 'Delete';
+        deleteBtn.addEventListener('click', (evt) => {
+          evt.stopPropagation();
+          confirmDeleteComment(postcardId, entry.id);
+        });
+        actions.append(editBtn, deleteBtn);
+        row.append(actions);
+      }
+    }
     container.appendChild(row);
   });
 }
@@ -1097,6 +1223,7 @@ async function handleCommentSubmit(postcardId, input, form) {
       applyCommentRow(data);
       updateCommentUI(postcardId);
     }
+    await broadcastCommentEvent('comment:new', data);
     input.value = '';
     const target = getOtherUser();
     if (target) {
@@ -1120,6 +1247,95 @@ function updateCommentUI(postcardId) {
   card.querySelectorAll('.comment-list').forEach((container) =>
     renderComments(postcardId, container)
   );
+}
+
+function startCommentEdit(postcardId, entry) {
+  if (!entry?.id) return;
+  state.editingComment = {
+    postcardId,
+    commentId: entry.id,
+    draft: entry.comment || ''
+  };
+  updateCommentUI(postcardId);
+  requestAnimationFrame(() => {
+    const card = document.querySelector(`[data-id="${postcardId}"]`);
+    const input = card?.querySelector('.comment-edit-form input');
+    if (input) {
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+    }
+  });
+}
+
+function updateEditingDraft(value) {
+  if (!state.editingComment) return;
+  state.editingComment.draft = value;
+}
+
+function cancelCommentEdit() {
+  if (!state.editingComment) return;
+  const { postcardId } = state.editingComment;
+  state.editingComment = null;
+  updateCommentUI(postcardId);
+}
+
+async function handleCommentEditSubmit(postcardId, commentId, input) {
+  if (!state.user || !postcardId || !commentId || !input) return;
+  const text = input.value.trim();
+  if (!text) return;
+  const form = input.closest('form');
+  const saveBtn = form?.querySelector('button[type="submit"]');
+  const cancelBtn = form?.querySelector('button[type="button"]');
+  if (saveBtn) saveBtn.disabled = true;
+  if (cancelBtn) cancelBtn.disabled = true;
+  try {
+    const { data, error } = await supabase
+      .from('postcard_comments')
+      .update({ comment: text })
+      .eq('id', commentId)
+      .select()
+      .single();
+    if (error) {
+      throw error;
+    }
+    applyCommentRow(data);
+    state.editingComment = null;
+    updateCommentUI(postcardId);
+    await broadcastCommentEvent('comment:update', data);
+  } catch (err) {
+    console.error('comment edit', err);
+    showToast('Edit failed. Try again?', 'error');
+  } finally {
+    if (saveBtn) saveBtn.disabled = false;
+    if (cancelBtn) cancelBtn.disabled = false;
+  }
+}
+
+async function confirmDeleteComment(postcardId, commentId) {
+  if (!state.user || !postcardId || !commentId) return;
+  const ok = window.confirm('Delete this comment?');
+  if (!ok) return;
+  try {
+    const { data, error } = await supabase
+      .from('postcard_comments')
+      .delete()
+      .eq('id', commentId)
+      .select()
+      .single();
+    if (error) {
+      throw error;
+    }
+    removeCommentRow({ postcard_id: postcardId, id: commentId });
+    updateCommentUI(postcardId);
+    await broadcastCommentEvent('comment:delete', { postcard_id: postcardId, id: commentId });
+  } catch (err) {
+    console.error('comment delete', err);
+    showToast('Failed to delete comment.', 'error');
+    return;
+  }
+  if (state.editingComment && state.editingComment.commentId === commentId) {
+    state.editingComment = null;
+  }
 }
 
 async function initNotifications() {

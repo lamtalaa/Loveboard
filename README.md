@@ -7,8 +7,8 @@ Loveboard is a cozy, romantic postcard board for Yassine and Nihal. It is built 
 - Mood stickers of the day with realtime updates.
 - Surprise mode that softly blurs every postcard until tapped.
 - Create Postcard modal with: short note (150 chars), photo upload, doodle canvas, and 15s audio recording.
-- Instant syncing of postcards, moods, floating heart reactions, and postcard emoji reactions through Supabase realtime channels.
-- Threaded postcard comments that sync instantly so you can reply in place.
+- Instant syncing of postcards, moods, floating heart reactions, postcard emoji reactions, and comments through Supabase realtime channels + client broadcasts.
+- Threaded postcard comments with inline edit/delete controls so you can reply (or tweak) in place.
 - Assets (photos, doodles, audio) stored in Supabase Storage and referenced from each postcard.
 - Optional push notifications so the other person gets an OS-level alert even when the tab is closed (requires HTTPS + Supabase Edge function).
 
@@ -87,7 +87,7 @@ create table public.postcard_comments (
    - `hearts`: allow `insert`/`select` for `anon`.
    - `push_subscriptions`: allow `insert`/`update`/`select` for `anon` (or scope to the owning user if you prefer tighter control).
    - `postcard_reactions`: allow `insert`/`select`/`delete` for `anon` (delete scoped to `auth.uid()`/`user` if you tighten security).
-   - `postcard_comments`: allow `insert`/`select` for `anon` (you can scope deletes to the original author if you add a delete UI).
+   - `postcard_comments`: allow `insert`/`select`/`update`/`delete` for `anon` (scope edits/deletes to the posted `user` if you later wire Supabase Auth).
    (Because the board is private and protected by the passphrase gate, the lightweight policy is acceptable. Tighten if you need stricter control.)
 
 4. Create a storage bucket named `loveboard-assets` and make it **public**.
