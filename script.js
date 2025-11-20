@@ -632,6 +632,7 @@ async function handlePostcardSubmit(event) {
     upsertPostcard(data);
     renderBoard();
     gentlePulse(`[data-id="${data.id}"]`);
+    await broadcastCommentEvent('postcard:new', { postcard: data, sender: state.user });
     const target = getOtherUser();
     if (target) {
       triggerRemoteNotification(target, `New postcard from ${state.user}`, describePostcard(data));
@@ -797,6 +798,12 @@ function subscribeCommentBroadcast() {
       if (!payload) return;
       removeCommentRow(payload);
       updateCommentUI(payload.postcard_id);
+    })
+    .on('broadcast', { event: 'postcard:new' }, ({ payload }) => {
+      if (!payload?.postcard || payload?.sender === state.user) return;
+      upsertPostcard(payload.postcard);
+      renderBoard();
+      gentlePulse(`[data-id="${payload.postcard.id}"]`);
     })
     .on('broadcast', { event: 'postcard:delete' }, ({ payload }) => {
       if (!payload?.postcard_id) return;
