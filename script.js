@@ -835,6 +835,11 @@ function isUpdatedAtMissing(error) {
   );
 }
 
+function isMissingTableError(error) {
+  if (!error) return false;
+  return error.code === '42P01' || error.message?.toLowerCase().includes('does not exist');
+}
+
 function gentlePulse(selector) {
   const card = document.querySelector(selector);
   if (!card) return;
@@ -1551,6 +1556,7 @@ async function confirmDelete(id) {
   if (!id) return;
   const ok = window.confirm('Delete this postcard? This cannot be undone.');
   if (!ok) return;
+  await cleanupPostcardChildren(id);
   const { error } = await supabase.from('postcards').delete().eq('id', id);
   if (error) {
     console.error('delete postcard', error);
@@ -1560,6 +1566,26 @@ async function confirmDelete(id) {
   removePostcard(id);
   renderBoard();
   showToast('Postcard deleted');
+}
+
+async function cleanupPostcardChildren(id) {
+  await Promise.all([
+    deleteChildRows('postcard_comments', id),
+    deleteChildRows('postcard_reactions', id)
+  ]);
+}
+
+async function deleteChildRows(table, postcardId) {
+  try {
+    const { error } = await supabase.from(table).delete().eq('postcard_id', postcardId);
+    if (error && !isMissingTableError(error)) {
+      throw error;
+    }
+  } catch (err) {
+    if (!isMissingTableError(err)) {
+      console.error(`${table} cleanup`, err);
+    }
+  }
 }
 
 function attachMoodClickAway() {
