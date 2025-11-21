@@ -5,15 +5,25 @@ const USER_PASSCODES = {
   Nihal: 'ilovey'
 };
 
-const MOOD_STICKERS = [
-  { emoji: '💗', label: 'So in love with you' },
-  { emoji: '🫶', label: 'Missing you right now' },
-  { emoji: '💛', label: 'Soft + grateful' },
-  { emoji: '💙', label: 'Need extra cuddles' },
-  { emoji: '💋', label: 'Ready for kisses' },
-  { emoji: '🔥', label: 'Ridiculously horny' },
-  { emoji: '💖', label: 'Playful sparkles' }
-];
+const MOOD_PRESETS = {
+  Yassine: [
+    { emoji: '🛡️', label: 'Right now I’m your protective king' },
+    { emoji: '😎', label: 'Slow-breath confidence in this moment' },
+    { emoji: '🔥', label: 'Focused on seducing you this very second' },
+    { emoji: '🌹', label: 'Romantic protector mode is on' },
+    { emoji: '🃏', label: 'Playful dominant tease right now' },
+    { emoji: '💪', label: 'Your alpha cuddle magnet this moment' }
+  ],
+  Nihal: [
+    { emoji: '🌸', label: 'Feeling soft + obedient for you now' },
+    { emoji: '💃', label: 'In this moment I’m your seductive muse' },
+    { emoji: '🤍', label: 'Ready to please you right now' },
+    { emoji: '💗', label: 'Romantic sweetheart mood this second' },
+    { emoji: '😈', label: 'Playful temptress energy at the moment' },
+    { emoji: '🫦', label: 'Kissable doll waiting on you now' }
+  ]
+};
+const FALLBACK_MOODS = [{ emoji: '💗', label: 'So in love with you' }];
 const REACTIONS = [
   { emoji: '💋', label: 'Kiss' },
   { emoji: '✨', label: 'Sparkles' },
@@ -352,7 +362,7 @@ async function loadComments() {
 function setMood(user, emoji) {
   const btn = document.querySelector(`.mood-btn[data-user="${user}"]`);
   if (!btn) return;
-  const mood = getMoodMeta(emoji);
+  const mood = getMoodMeta(emoji, user);
   btn.dataset.mood = emoji;
   btn.innerHTML = `${emoji} <span>${mood ? mood.label : ''}</span>`;
 }
@@ -363,7 +373,8 @@ function openMoodPicker(anchorBtn) {
   closeMoodMenus();
   const menu = document.createElement('div');
   menu.className = 'mood-menu';
-  MOOD_STICKERS.forEach(({ emoji, label }) => {
+  const options = getMoodOptions(state.user);
+  options.forEach(({ emoji, label }) => {
     const option = document.createElement('button');
     option.type = 'button';
     option.innerHTML = `${emoji}<small>${label}</small>`;
@@ -401,7 +412,7 @@ async function saveMood(emoji) {
   setMood(state.user, emoji);
   const target = getOtherUser();
   if (target) {
-    const mood = getMoodMeta(emoji);
+    const mood = getMoodMeta(emoji, state.user);
     triggerRemoteNotification(target, `${state.user} shared a mood`, mood ? mood.label : 'Thinking of you.');
   }
 }
@@ -412,13 +423,17 @@ function handleSurpriseToggle() {
   renderBoard();
 }
 
-function getMoodMeta(emoji) {
-  return MOOD_STICKERS.find((m) => m.emoji === emoji);
+function getMoodMeta(emoji, user) {
+  return getMoodOptions(user).find((m) => m.emoji === emoji) || FALLBACK_MOODS.find((m) => m.emoji === emoji);
+}
+
+function getMoodOptions(user) {
+  return MOOD_PRESETS[user] || FALLBACK_MOODS;
 }
 
 function notifyMood(moodRow) {
   if (moodRow.user === state.user) return;
-  const mood = getMoodMeta(moodRow.emoji);
+  const mood = getMoodMeta(moodRow.emoji, moodRow.user);
   const label = mood ? mood.label : 'a new feeling';
   notifyUser(`${moodRow.user} shared a mood`, label);
 }
