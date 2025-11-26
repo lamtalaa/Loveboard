@@ -1126,10 +1126,13 @@ function renderCommentReactionCounts(commentId, container) {
     }
     const icon = document.createElement('span');
     icon.textContent = emoji;
-    const count = document.createElement('span');
-    count.className = 'comment-reaction-count';
-    count.textContent = `×${data.count}`;
-    pill.append(icon, count);
+    const names = document.createElement('span');
+    names.className = 'comment-reaction-names';
+    names.textContent = data.users
+      .map((name) => (name ? name[0].toUpperCase() : ''))
+      .filter(Boolean)
+      .join('');
+    pill.append(icon, names);
     container.appendChild(pill);
   });
 }
