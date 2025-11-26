@@ -521,6 +521,11 @@ button:disabled {
   cursor: pointer;
 }
 
+.reaction-area .react-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 
 .reaction-area.active .reaction-picker {
   opacity: 1;
@@ -695,23 +700,6 @@ button:disabled {
   font-size: 0.7rem;
   color: rgba(70, 50, 60, 0.65);
   letter-spacing: 0.08em;
-}
-
-.comment-react-btn {
-  border: 1px dashed rgba(70, 50, 60, 0.4);
-  border-radius: 999px;
-  background: transparent;
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  padding: 0.2rem 0.7rem;
-  color: rgba(70, 50, 60, 0.8);
-  cursor: pointer;
-}
-
-.comment-react-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 .comment-reaction-area.active .comment-reaction-picker {

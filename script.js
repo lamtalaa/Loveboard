@@ -1686,7 +1686,7 @@ function renderComments(postcardId, container) {
     setupCommentReactionPicker(picker, postcardId, entry.id);
     const reactBtn = document.createElement('button');
     reactBtn.type = 'button';
-    reactBtn.className = 'comment-react-btn';
+    reactBtn.className = 'react-btn';
     reactBtn.textContent = 'React';
     reactBtn.disabled = !state.user;
     reactBtn.addEventListener('click', (evt) => {
