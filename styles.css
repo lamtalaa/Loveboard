@@ -70,6 +70,13 @@ body {
   padding: 0.15rem 0.55rem;
   box-shadow: 0 6px 14px rgba(70, 50, 60, 0.15);
   cursor: pointer;
+  position: relative;
+  z-index: 16;
+}
+
+.menu-panel[hidden],
+.notification-panel[hidden] {
+  display: none !important;
 }
 
 .menu-panel {
