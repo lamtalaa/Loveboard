@@ -74,8 +74,6 @@ const state = {
   pendingCommentBroadcasts: [],
   editingComment: null,
   commentUpdatedAtSupported: true,
-  commentOriginalSupported: true,
-  originalCommentViews: new Set(),
   menuOpen: false,
   menuClickListener: null,
   menuKeyListener: null,
@@ -377,10 +375,6 @@ async function loadComments() {
     state.commentUpdatedAtSupported = false;
     ({ data, error } = await fetchComments(buildCommentColumns()));
   }
-  if (error && state.commentOriginalSupported && isOriginalCommentMissing(error)) {
-    state.commentOriginalSupported = false;
-    ({ data, error } = await fetchComments(buildCommentColumns()));
-  }
   if (error) {
     console.error('comments load', error);
     return;
@@ -393,9 +387,6 @@ function buildCommentColumns() {
   const parts = ['id', 'postcard_id', 'user', 'comment', 'created_at'];
   if (state.commentUpdatedAtSupported) {
     parts.push('updated_at');
-  }
-  if (state.commentOriginalSupported) {
-    parts.push('original_comment');
   }
   return parts.join(',');
 }
@@ -1287,12 +1278,6 @@ function isUpdatedAtMissing(error) {
   );
 }
 
-function isOriginalCommentMissing(error) {
-  if (!error) return false;
-  const message = `${error.message || ''} ${error.hint || ''}`.toLowerCase();
-  return message.includes('original_comment') || error.code === '42703';
-}
-
 function isMissingTableError(error) {
   if (!error) return false;
   return error.code === '42P01' || error.message?.toLowerCase().includes('does not exist');
@@ -1335,10 +1320,6 @@ function removePostcard(id) {
     if (!entry?.id) return;
     delete state.commentReactions[entry.id];
     delete state.commentUserReactions[entry.id];
-    const key = getCommentKey(id, entry.id);
-    if (key) {
-      state.originalCommentViews.delete(key);
-    }
   });
 }
 
@@ -1428,9 +1409,6 @@ function applyCommentRow(row) {
   if (!row.updated_at) {
     row.updated_at = row.created_at;
   }
-  if (!row.original_comment) {
-    row.original_comment = row.comment;
-  }
   if (!state.comments[postcardId]) {
     state.comments[postcardId] = [];
   }
@@ -1505,10 +1483,6 @@ function removeCommentRow(row) {
   }
   delete state.commentReactions[commentId];
   delete state.commentUserReactions[commentId];
-  const key = getCommentKey(postcardId, commentId);
-  if (key) {
-    state.originalCommentViews.delete(key);
-  }
   if (state.editingComment && state.editingComment.commentId === commentId) {
     state.editingComment = null;
   }
@@ -1618,12 +1592,6 @@ function renderComments(postcardId, container) {
     if (isEditing) {
       row.classList.add('editing');
     }
-    const hasOriginalDiff =
-      state.commentOriginalSupported &&
-      entry.original_comment &&
-      entry.original_comment !== entry.comment;
-    const key = getCommentKey(postcardId, entry.id);
-    const showingOriginal = Boolean(hasOriginalDiff && key && state.originalCommentViews.has(key));
     const meta = document.createElement('div');
     meta.className = 'comment-meta';
     const author = document.createElement('span');
@@ -1645,17 +1613,6 @@ function renderComments(postcardId, container) {
       edited.className = 'comment-edited';
       edited.textContent = 'Edited';
       meta.append(edited);
-    }
-    if (!isEditing && hasOriginalDiff) {
-      const toggle = document.createElement('button');
-      toggle.type = 'button';
-      toggle.className = 'comment-original-toggle';
-      toggle.textContent = showingOriginal ? 'Hide original' : 'View original';
-      toggle.addEventListener('click', (evt) => {
-        evt.stopPropagation();
-        toggleOriginalComment(postcardId, entry.id);
-      });
-      meta.append(toggle);
     }
     row.append(meta);
     if (isEditing) {
@@ -1693,9 +1650,7 @@ function renderComments(postcardId, container) {
     } else {
       const text = document.createElement('p');
       text.className = 'comment-text';
-      text.textContent = showingOriginal
-        ? entry.original_comment || entry.comment || ''
-        : entry.comment || '';
+      text.textContent = entry.comment || '';
       row.append(text);
       if (entry.user === state.user) {
         const actions = document.createElement('div');
@@ -1971,9 +1926,6 @@ async function handleCommentSubmit(postcardId, input, form) {
   if (state.commentUpdatedAtSupported) {
     payload.updated_at = new Date().toISOString();
   }
-  if (state.commentOriginalSupported) {
-    payload.original_comment = text;
-  }
   try {
     let { data, error } = await supabase
       .from('postcard_comments')
@@ -1983,15 +1935,6 @@ async function handleCommentSubmit(postcardId, input, form) {
     if (error && state.commentUpdatedAtSupported && isUpdatedAtMissing(error)) {
       state.commentUpdatedAtSupported = false;
       delete payload.updated_at;
-      ({ data, error } = await supabase
-        .from('postcard_comments')
-        .insert(payload)
-        .select()
-        .single());
-    }
-    if (error && state.commentOriginalSupported && isOriginalCommentMissing(error)) {
-      state.commentOriginalSupported = false;
-      delete payload.original_comment;
       ({ data, error } = await supabase
         .from('postcard_comments')
         .insert(payload)
@@ -2029,22 +1972,6 @@ function updateCommentUI(postcardId) {
   card.querySelectorAll('.comment-list').forEach((container) =>
     renderComments(postcardId, container)
   );
-}
-
-function toggleOriginalComment(postcardId, commentId) {
-  const key = getCommentKey(postcardId, commentId);
-  if (!key) return;
-  if (state.originalCommentViews.has(key)) {
-    state.originalCommentViews.delete(key);
-  } else {
-    state.originalCommentViews.add(key);
-  }
-  updateCommentUI(postcardId);
-}
-
-function getCommentKey(postcardId, commentId) {
-  if (!postcardId || !commentId) return null;
-  return `${postcardId}:${commentId}`;
 }
 
 function startCommentEdit(postcardId, entry) {

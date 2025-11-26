@@ -629,15 +629,6 @@ button:disabled {
   letter-spacing: 0.05em;
 }
 
-.comment-original-toggle {
-  border: none;
-  background: transparent;
-  color: rgba(70, 50, 60, 0.7);
-  font-size: 0.7rem;
-  text-decoration: underline;
-  cursor: pointer;
-}
-
 .comment-text {
   margin: 0;
 }
