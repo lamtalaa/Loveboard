@@ -604,11 +604,22 @@ function markNotificationsRead() {
 
 function logActivity({ type, title, body, target }) {
   if (!title) return;
+  const normalizedBody = body || '';
+  const latest = state.activityFeed[0];
+  if (
+    latest &&
+    latest.type === type &&
+    latest.target === target &&
+    latest.body === normalizedBody &&
+    Date.now() - new Date(latest.timestamp).getTime() < 1500
+  ) {
+    return;
+  }
   const entry = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     type,
     title,
-    body: body || '',
+    body: normalizedBody,
     target,
     timestamp: new Date().toISOString(),
     read: state.notificationsPanelOpen
@@ -1143,47 +1154,101 @@ function subscribeCommentBroadcast() {
       if (!payload) return;
       applyCommentRow(payload);
       updateCommentUI(payload.postcard_id);
+      logActivity({
+        type: 'comment:new',
+        title: `${getActivityActor(payload.user)} commented`,
+        body: payload.comment || '',
+        target: `comment:${payload.postcard_id}:${payload.id}`
+      });
     })
     .on('broadcast', { event: 'comment:update' }, ({ payload }) => {
       if (!payload) return;
       applyCommentRow(payload);
       updateCommentUI(payload.postcard_id);
+      logActivity({
+        type: 'comment:update',
+        title: `${getActivityActor(payload.user)} edited a comment`,
+        body: payload.comment || '',
+        target: `comment:${payload.postcard_id}:${payload.id}`
+      });
     })
     .on('broadcast', { event: 'comment:delete' }, ({ payload }) => {
       if (!payload) return;
       removeCommentRow(payload);
       updateCommentUI(payload.postcard_id);
+      logActivity({
+        type: 'comment:delete',
+        title: `${getActivityActor(payload.user)} deleted a comment`,
+        body: '',
+        target: `comment:${payload.postcard_id}:${payload.id}`
+      });
     })
     .on('broadcast', { event: 'reaction:add' }, ({ payload }) => {
       if (!payload?.row || payload?.sender === state.user) return;
       applyReactionRow(payload.row);
       updateReactionUI(payload.row.postcard_id);
+      logActivity({
+        type: 'reaction:add',
+        title: `${getActivityActor(payload.row.user)} reacted ${payload.row.reaction}`,
+        body: '',
+        target: `postcard:${payload.row.postcard_id}`
+      });
     })
     .on('broadcast', { event: 'reaction:remove' }, ({ payload }) => {
       if (!payload?.row || payload?.sender === state.user) return;
       removeReactionRow(payload.row);
       updateReactionUI(payload.row.postcard_id);
+      logActivity({
+        type: 'reaction:remove',
+        title: `${getActivityActor(payload.row.user)} removed a reaction`,
+        body: '',
+        target: `postcard:${payload.row.postcard_id}`
+      });
     })
     .on('broadcast', { event: 'commentReaction:add' }, ({ payload }) => {
       if (!payload?.row || payload?.sender === state.user) return;
       applyCommentReactionRow(payload.row);
       updateCommentUI(payload.row.postcard_id);
+      logActivity({
+        type: 'commentReaction:add',
+        title: `${getActivityActor(payload.row.user)} reacted ${payload.row.reaction} to a comment`,
+        body: '',
+        target: `comment:${payload.row.postcard_id}:${payload.row.comment_id}`
+      });
     })
     .on('broadcast', { event: 'commentReaction:remove' }, ({ payload }) => {
       if (!payload?.row || payload?.sender === state.user) return;
       removeCommentReactionRow(payload.row);
       updateCommentUI(payload.row.postcard_id);
+      logActivity({
+        type: 'commentReaction:remove',
+        title: `${getActivityActor(payload.row.user)} removed a comment reaction`,
+        body: '',
+        target: `comment:${payload.row.postcard_id}:${payload.row.comment_id}`
+      });
     })
     .on('broadcast', { event: 'postcard:new' }, ({ payload }) => {
       if (!payload?.postcard || payload?.sender === state.user) return;
       upsertPostcard(payload.postcard);
       renderBoard();
       gentlePulse(`[data-id="${payload.postcard.id}"]`);
+      logActivity({
+        type: 'postcard:new',
+        title: `${getActivityActor(payload.postcard.user)} posted a postcard`,
+        body: describePostcard(payload.postcard),
+        target: `postcard:${payload.postcard.id}`
+      });
     })
     .on('broadcast', { event: 'postcard:delete' }, ({ payload }) => {
       if (!payload?.postcard_id) return;
       removePostcard(payload.postcard_id);
       renderBoard();
+      logActivity({
+        type: 'postcard:delete',
+        title: 'A postcard was deleted',
+        body: '',
+        target: `postcard:${payload.postcard_id}`
+      });
     })
     .subscribe((status) => {
       if (status === 'SUBSCRIBED') {
