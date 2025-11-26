@@ -129,6 +129,12 @@ const template = document.getElementById('postcard-template');
 init();
 
 function init() {
+  if (ui.menuPanel) {
+    ui.menuPanel.hidden = true;
+  }
+  if (ui.notificationPanel) {
+    ui.notificationPanel.hidden = true;
+  }
   ui.surpriseToggle.checked = state.surprise;
   ui.authForm.addEventListener('submit', handleAuth);
   ui.createBtn.addEventListener('click', openModal);
