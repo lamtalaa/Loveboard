@@ -79,9 +79,19 @@
           </button>
           <div id="menu-panel" class="menu-panel" hidden>
             <p class="menu-title">Quick actions</p>
-            <button type="button" id="menu-notifications" class="menu-item">
-              Enable notifications
+            <button type="button" id="menu-notifications" class="menu-item menu-notifications">
+              <span>Notifications</span>
+              <span id="notification-count" class="notification-count" hidden>0</span>
             </button>
+            <div id="notification-panel" class="notification-panel" hidden>
+              <div class="notification-actions">
+                <button type="button" id="notification-enable" class="notification-enable">
+                  Enable push alerts
+                </button>
+              </div>
+              <p id="notification-empty" class="notification-empty">No activity yet.</p>
+              <div id="notification-items" class="notification-items" role="list"></div>
+            </div>
             <label class="menu-item menu-toggle-row">
               <div>
                 <span class="menu-item-title">Surprise Mode</span>

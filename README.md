@@ -11,6 +11,7 @@ Loveboard is a cozy, romantic postcard board for Yassine and Nihal. It is built 
 - Threaded postcard comments with inline edit/delete controls so you can reply (or tweak) in place.
 - Emoji reactions on each comment so you can leave a quick vibe check without typing.
 - Edited comments keep their original text so you can tap “View original” anytime for transparency.
+- A cozy notification center inside the hamburger menu so you can jump to anything that changed (postcards, moods, comments, reactions).
 - Assets (photos, doodles, audio) stored in Supabase Storage and referenced from each postcard.
 - Optional push notifications so the other person gets an OS-level alert even when the tab is closed (requires HTTPS + Supabase Edge function).
 

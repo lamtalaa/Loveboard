@@ -78,7 +78,10 @@ const state = {
   originalCommentViews: new Set(),
   menuOpen: false,
   menuClickListener: null,
-  menuKeyListener: null
+  menuKeyListener: null,
+  activityFeed: [],
+  unreadActivityCount: 0,
+  notificationsPanelOpen: false
 };
 
 const ui = {
@@ -109,6 +112,11 @@ const ui = {
   menuToggle: document.getElementById('menu-toggle'),
   menuPanel: document.getElementById('menu-panel'),
   notificationBtn: document.getElementById('menu-notifications'),
+  notificationCount: document.getElementById('notification-count'),
+  notificationPanel: document.getElementById('notification-panel'),
+  notificationItems: document.getElementById('notification-items'),
+  notificationEmpty: document.getElementById('notification-empty'),
+  notificationEnable: document.getElementById('notification-enable'),
   logoutBtn: document.getElementById('logout-btn'),
   currentAvatar: document.getElementById('current-user-avatar'),
   toast: document.getElementById('toast'),
@@ -142,10 +150,16 @@ function init() {
   if (ui.notificationBtn) {
     ui.notificationBtn.addEventListener('click', handleNotificationMenuClick);
   }
+  if (ui.notificationItems) {
+    ui.notificationItems.addEventListener('click', handleNotificationItemClick);
+  }
+  if (ui.notificationEnable) {
+    ui.notificationEnable.addEventListener('click', handleNotificationEnableClick);
+  }
   ui.surpriseToggle.addEventListener('change', handleSurpriseToggle);
   ui.logoutBtn.addEventListener('click', handleLogout);
   ui.optionButtons.forEach((btn) => btn.addEventListener('click', () => toggleOption(btn)));
-  updateNotificationMenuLabel();
+  updateNotificationUI();
   updateOptionVisibility();
   updateAuthButton();
   updateSendButtonState();
@@ -492,6 +506,10 @@ function closeMenuPanel() {
   if (ui.menuToggle) {
     ui.menuToggle.setAttribute('aria-expanded', 'false');
   }
+  if (ui.notificationPanel) {
+    ui.notificationPanel.hidden = true;
+  }
+  state.notificationsPanelOpen = false;
   detachMenuListeners();
 }
 
@@ -527,42 +545,196 @@ function detachMenuListeners() {
   }
 }
 
-async function handleNotificationMenuClick() {
-  if (!notificationsSupported) {
-    showToast('Notifications are not supported on this device.', 'error');
+function renderNotificationList() {
+  if (!ui.notificationItems || !ui.notificationPanel) return;
+  ui.notificationItems.innerHTML = '';
+  if (!state.activityFeed.length) {
+    if (ui.notificationEmpty) {
+      ui.notificationEmpty.hidden = false;
+    }
     return;
   }
-  if (Notification.permission === 'denied') {
-    showToast('Notifications are blocked in your browser settings.', 'error');
-    return;
+  if (ui.notificationEmpty) {
+    ui.notificationEmpty.hidden = true;
   }
-  const allowed = await initNotifications();
-  updateNotificationMenuLabel();
-  if (allowed) {
-    showToast('Notifications enabled ✨');
-  }
-  closeMenuPanel();
+  state.activityFeed.forEach((entry) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'notification-item';
+    if (!entry.read) {
+      btn.classList.add('unread');
+    }
+    btn.dataset.activityId = entry.id;
+    const title = document.createElement('p');
+    title.className = 'notification-item-title';
+    title.textContent = entry.title;
+    const body = document.createElement('p');
+    body.className = 'notification-item-body';
+    body.textContent = entry.body || '';
+    const time = document.createElement('span');
+    time.className = 'notification-item-time';
+    time.textContent = formatCommentTime(entry.timestamp);
+    btn.append(title);
+    if (entry.body) {
+      btn.append(body);
+    }
+    btn.append(time);
+    ui.notificationItems.appendChild(btn);
+  });
 }
 
-function updateNotificationMenuLabel() {
-  if (!ui.notificationBtn) return;
+function markNotificationsRead() {
+  let changed = false;
+  state.activityFeed.forEach((entry) => {
+    if (!entry.read) {
+      entry.read = true;
+      changed = true;
+    }
+  });
+  if (changed) {
+    updateNotificationUI();
+  }
+}
+
+function logActivity({ type, title, body, target }) {
+  if (!title) return;
+  const entry = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    type,
+    title,
+    body: body || '',
+    target,
+    timestamp: new Date().toISOString(),
+    read: state.notificationsPanelOpen
+  };
+  state.activityFeed = [entry, ...state.activityFeed].slice(0, 40);
+  updateNotificationUI();
+}
+
+function getActivityActor(user) {
+  if (!user) return 'Someone';
+  return user === state.user ? 'You' : user;
+}
+
+function focusNotification(activityId) {
+  if (!activityId) return;
+  const entry = state.activityFeed.find((item) => item.id === activityId);
+  if (!entry) return;
+  entry.read = true;
+  updateNotificationUI();
+  closeMenuPanel();
+  focusActivityTarget(entry);
+}
+
+function focusActivityTarget(entry) {
+  if (!entry?.target) return;
+  const parts = entry.target.split(':');
+  const type = parts[0];
+  let element = null;
+  if (type === 'postcard') {
+    element = findPostcardElement(parts[1]);
+  } else if (type === 'comment') {
+    element = findCommentElement(parts[1], parts[2]);
+  } else if (type === 'mood') {
+    element = document.querySelector(`.mood-btn[data-user="${parts[1]}"]`);
+  }
+  if (element) {
+    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    highlightElement(element);
+  } else {
+    showToast('Cannot find that update on the board.', 'error');
+  }
+}
+
+function findPostcardElement(postcardId) {
+  if (!postcardId) return null;
+  return document.querySelector(`[data-id="${postcardId}"]`);
+}
+
+function findCommentElement(postcardId, commentId) {
+  if (!postcardId || !commentId) return null;
+  const card = findPostcardElement(postcardId);
+  if (!card) return null;
+  return card.querySelector(`[data-comment-id="${commentId}"]`) || card;
+}
+
+function highlightElement(element) {
+  if (!element || !element.animate) return;
+  element.animate(
+    [
+      { transform: 'scale(1)', boxShadow: '0 0 0 rgba(245, 181, 197, 0)' },
+      { transform: 'scale(1.02)', boxShadow: '0 0 0 6px rgba(245, 181, 197, 0.4)' },
+      { transform: 'scale(1)', boxShadow: '0 0 0 rgba(245, 181, 197, 0)' }
+    ],
+    { duration: 800 }
+  );
+}
+
+function handleNotificationMenuClick(evt) {
+  evt?.stopPropagation();
+  if (!ui.notificationPanel) return;
+  const willOpen = ui.notificationPanel.hidden;
+  ui.notificationPanel.hidden = !willOpen;
+  state.notificationsPanelOpen = willOpen;
+  if (willOpen) {
+    markNotificationsRead();
+    renderNotificationList();
+  }
+}
+
+function handleNotificationItemClick(evt) {
+  const item = evt.target.closest('.notification-item');
+  if (!item) return;
+  evt.stopPropagation();
+  const activityId = item.dataset.activityId;
+  focusNotification(activityId);
+}
+
+async function handleNotificationEnableClick(evt) {
+  evt?.stopPropagation();
+  const allowed = await initNotifications();
+  updateNotificationUI();
+  if (allowed) {
+    showToast('Push alerts enabled ✨');
+  }
+}
+
+function updateNotificationUI() {
+  const unread = state.activityFeed.filter((entry) => !entry.read).length;
+  state.unreadActivityCount = unread;
+  if (ui.notificationCount) {
+    if (unread > 0) {
+      ui.notificationCount.textContent = unread > 9 ? '9+' : String(unread);
+      ui.notificationCount.hidden = false;
+    } else {
+      ui.notificationCount.hidden = true;
+    }
+  }
+  updateNotificationControls();
+  if (state.notificationsPanelOpen) {
+    renderNotificationList();
+  }
+}
+
+function updateNotificationControls() {
+  if (!ui.notificationEnable) return;
   if (!notificationsSupported) {
-    ui.notificationBtn.textContent = 'Notifications unavailable';
-    ui.notificationBtn.disabled = true;
+    ui.notificationEnable.textContent = 'Push not supported';
+    ui.notificationEnable.disabled = true;
     return;
   }
   if (Notification.permission === 'denied') {
-    ui.notificationBtn.textContent = 'Notifications blocked';
-    ui.notificationBtn.disabled = true;
+    ui.notificationEnable.textContent = 'Push blocked in browser';
+    ui.notificationEnable.disabled = true;
     return;
   }
   if (Notification.permission === 'granted' || state.notificationsAllowed) {
-    ui.notificationBtn.textContent = 'Notifications on';
-    ui.notificationBtn.disabled = true;
+    ui.notificationEnable.textContent = 'Push alerts on';
+    ui.notificationEnable.disabled = true;
     return;
   }
-  ui.notificationBtn.textContent = 'Enable notifications';
-  ui.notificationBtn.disabled = false;
+  ui.notificationEnable.textContent = 'Enable push alerts';
+  ui.notificationEnable.disabled = false;
 }
 
 function getMoodMeta(emoji, user) {
@@ -835,18 +1007,42 @@ function subscribeRealtime() {
       if (payload.new.user !== state.user) {
         notifyUser(`New postcard from ${payload.new.user}`, describePostcard(payload.new));
       }
+      logActivity({
+        type: 'postcard:new',
+        title: `${getActivityActor(payload.new.user)} posted a postcard`,
+        body: describePostcard(payload.new),
+        target: `postcard:${payload.new.id}`
+      });
     })
     .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'postcards' }, (payload) => {
       removePostcard(payload.old.id);
       renderBoard();
+      logActivity({
+        type: 'postcard:delete',
+        title: `${getActivityActor(payload.old?.user)} deleted a postcard`,
+        body: '',
+        target: `postcard:${payload.old.id}`
+      });
     })
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'moods' }, (payload) => {
       setMood(payload.new.user, payload.new.emoji);
       notifyMood(payload.new);
+      logActivity({
+        type: 'mood',
+        title: `${getActivityActor(payload.new.user)} set their mood`,
+        body: getMoodMeta(payload.new.emoji, payload.new.user)?.label || payload.new.emoji,
+        target: `mood:${payload.new.user}`
+      });
     })
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'moods' }, (payload) => {
       setMood(payload.new.user, payload.new.emoji);
       notifyMood(payload.new);
+      logActivity({
+        type: 'mood',
+        title: `${getActivityActor(payload.new.user)} updated their mood`,
+        body: getMoodMeta(payload.new.emoji, payload.new.user)?.label || payload.new.emoji,
+        target: `mood:${payload.new.user}`
+      });
     })
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'postcard_reactions' }, (payload) => {
       applyReactionRow(payload.new);
@@ -854,18 +1050,42 @@ function subscribeRealtime() {
       if (payload.new.user !== state.user) {
         notifyUser('New postcard reaction', `${payload.new.user} reacted ${payload.new.reaction}`);
       }
+      logActivity({
+        type: 'reaction:add',
+        title: `${getActivityActor(payload.new.user)} reacted ${payload.new.reaction}`,
+        body: '',
+        target: `postcard:${payload.new.postcard_id}`
+      });
     })
     .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'postcard_reactions' }, (payload) => {
       removeReactionRow(payload.old);
       updateReactionUI(payload.old.postcard_id);
+      logActivity({
+        type: 'reaction:remove',
+        title: `${getActivityActor(payload.old?.user)} removed a reaction`,
+        body: '',
+        target: `postcard:${payload.old.postcard_id}`
+      });
     })
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comment_reactions' }, (payload) => {
       applyCommentReactionRow(payload.new);
       updateCommentUI(payload.new.postcard_id);
+      logActivity({
+        type: 'commentReaction:add',
+        title: `${getActivityActor(payload.new.user)} reacted ${payload.new.reaction} to a comment`,
+        body: '',
+        target: `comment:${payload.new.postcard_id}:${payload.new.comment_id}`
+      });
     })
     .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'comment_reactions' }, (payload) => {
       removeCommentReactionRow(payload.old);
       updateCommentUI(payload.old.postcard_id);
+      logActivity({
+        type: 'commentReaction:remove',
+        title: `${getActivityActor(payload.old?.user)} removed a comment reaction`,
+        body: '',
+        target: `comment:${payload.old.postcard_id}:${payload.old.comment_id}`
+      });
     })
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'postcard_comments' }, (payload) => {
       applyCommentRow(payload.new);
@@ -875,14 +1095,32 @@ function subscribeRealtime() {
         const snippet = raw.length > 60 ? `${raw.slice(0, 57)}…` : raw;
         notifyUser('New postcard comment', `${payload.new.user}: ${snippet}`);
       }
+      logActivity({
+        type: 'comment:new',
+        title: `${getActivityActor(payload.new.user)} commented`,
+        body: payload.new.comment || '',
+        target: `comment:${payload.new.postcard_id}:${payload.new.id}`
+      });
     })
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'postcard_comments' }, (payload) => {
       applyCommentRow(payload.new);
       updateCommentUI(payload.new.postcard_id);
+      logActivity({
+        type: 'comment:update',
+        title: `${getActivityActor(payload.new.user)} edited a comment`,
+        body: payload.new.comment || '',
+        target: `comment:${payload.new.postcard_id}:${payload.new.id}`
+      });
     })
     .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'postcard_comments' }, (payload) => {
       removeCommentRow(payload.old);
       updateCommentUI(payload.old.postcard_id);
+      logActivity({
+        type: 'comment:delete',
+        title: `${getActivityActor(payload.old?.user)} deleted a comment`,
+        body: '',
+        target: `comment:${payload.old.postcard_id}:${payload.old.id}`
+      });
     })
     .subscribe();
 }
@@ -1301,6 +1539,7 @@ function renderComments(postcardId, container) {
   comments.forEach((entry) => {
     const row = document.createElement('div');
     row.className = 'comment';
+    row.dataset.commentId = entry.id;
     if (entry.user === state.user) {
       row.classList.add('mine');
     }
@@ -1849,7 +2088,7 @@ async function initNotifications() {
       state.swRegistration = await navigator.serviceWorker.register('/sw.js');
     } catch (err) {
       console.error('service worker registration failed', err);
-      updateNotificationMenuLabel();
+      updateNotificationUI();
       return false;
     }
   }
@@ -1864,7 +2103,7 @@ async function initNotifications() {
   } else {
     state.notificationsAllowed = Notification.permission === 'granted';
   }
-  updateNotificationMenuLabel();
+  updateNotificationUI();
   if (!state.notificationsAllowed) {
     return false;
   }
