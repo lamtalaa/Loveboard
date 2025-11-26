@@ -490,6 +490,97 @@ button:disabled {
   cursor: pointer;
 }
 
+.comment-reaction-area {
+  border-top: 1px dashed rgba(70, 50, 60, 0.12);
+  padding-top: 0.25rem;
+  margin-top: 0.35rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+  position: relative;
+}
+
+.comment-reaction-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+}
+
+.comment-reaction-counts[data-empty='true'] {
+  display: none;
+}
+
+.comment-reaction-pill {
+  background: rgba(70, 50, 60, 0.08);
+  border-radius: 999px;
+  padding: 0.15rem 0.45rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.comment-reaction-pill.mine {
+  background: rgba(245, 181, 197, 0.4);
+  box-shadow: inset 0 0 0 1px rgba(245, 181, 197, 0.5);
+}
+
+.comment-reaction-count {
+  font-size: 0.7rem;
+  color: rgba(70, 50, 60, 0.65);
+}
+
+.comment-react-btn {
+  border: 1px dashed rgba(70, 50, 60, 0.4);
+  border-radius: 999px;
+  background: transparent;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.2rem 0.7rem;
+  color: rgba(70, 50, 60, 0.8);
+  cursor: pointer;
+}
+
+.comment-react-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.comment-reaction-area.active .comment-reaction-picker {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.comment-reaction-picker {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 0.3rem);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 0.35rem 0.5rem;
+  border-radius: 14px;
+  box-shadow: 0 10px 20px rgba(70, 50, 60, 0.2);
+  z-index: 7;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-6px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.comment-reaction-picker button {
+  border: none;
+  background: transparent;
+  font-size: 1.35rem;
+}
+
+.comment-reaction-picker button.active {
+  transform: scale(1.1);
+}
+
 .comment-edit-form {
   display: flex;
   flex-direction: column;

@@ -60,6 +60,8 @@ const state = {
   reactions: {},
   userReactions: {},
   comments: {},
+  commentReactions: {},
+  commentUserReactions: {},
   activeOptions: new Set(['message']),
   moodMenuListener: null,
   notificationsAllowed: notificationsSupported && Notification.permission === 'granted',
@@ -189,7 +191,7 @@ async function loadPostcards() {
     return;
   }
   state.postcards = data || [];
-  await Promise.all([loadReactions(), loadComments()]);
+  await Promise.all([loadReactions(), loadComments(), loadCommentReactions()]);
   renderBoard();
 }
 
@@ -357,6 +359,19 @@ async function loadComments() {
   }
   state.comments = {};
   (data || []).forEach(applyCommentRow);
+}
+
+async function loadCommentReactions() {
+  const { data, error } = await supabase
+    .from('comment_reactions')
+    .select('comment_id,postcard_id,reaction,user');
+  if (error) {
+    console.error('comment reactions load', error);
+    return;
+  }
+  state.commentReactions = {};
+  state.commentUserReactions = {};
+  (data || []).forEach(applyCommentReactionRow);
 }
 
 function setMood(user, emoji) {
@@ -716,6 +731,14 @@ function subscribeRealtime() {
       removeReactionRow(payload.old);
       updateReactionUI(payload.old.postcard_id);
     })
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comment_reactions' }, (payload) => {
+      applyCommentReactionRow(payload.new);
+      updateCommentUI(payload.new.postcard_id);
+    })
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'comment_reactions' }, (payload) => {
+      removeCommentReactionRow(payload.old);
+      updateCommentUI(payload.old.postcard_id);
+    })
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'postcard_comments' }, (payload) => {
       applyCommentRow(payload.new);
       updateCommentUI(payload.new.postcard_id);
@@ -768,6 +791,16 @@ function subscribeCommentBroadcast() {
       if (!payload?.row || payload?.sender === state.user) return;
       removeReactionRow(payload.row);
       updateReactionUI(payload.row.postcard_id);
+    })
+    .on('broadcast', { event: 'commentReaction:add' }, ({ payload }) => {
+      if (!payload?.row || payload?.sender === state.user) return;
+      applyCommentReactionRow(payload.row);
+      updateCommentUI(payload.row.postcard_id);
+    })
+    .on('broadcast', { event: 'commentReaction:remove' }, ({ payload }) => {
+      if (!payload?.row || payload?.sender === state.user) return;
+      removeCommentReactionRow(payload.row);
+      updateCommentUI(payload.row.postcard_id);
     })
     .on('broadcast', { event: 'postcard:new' }, ({ payload }) => {
       if (!payload?.postcard || payload?.sender === state.user) return;
@@ -853,7 +886,13 @@ function upsertPostcard(card) {
 function removePostcard(id) {
   state.postcards = state.postcards.filter((card) => card.id !== id);
   delete state.reactions[id];
+  const removedComments = state.comments[id] || [];
   delete state.comments[id];
+  removedComments.forEach((entry) => {
+    if (!entry?.id) return;
+    delete state.commentReactions[entry.id];
+    delete state.commentUserReactions[entry.id];
+  });
 }
 
 function getTilt(id = '') {
@@ -898,6 +937,41 @@ function applyReactionRow(row) {
   }
   if (user === state.user) {
     state.userReactions[postcardId] = reaction;
+  }
+}
+
+function applyCommentReactionRow(row) {
+  const commentId = row?.comment_id;
+  const reaction = row?.reaction;
+  const user = row?.user;
+  if (!commentId || !reaction) return;
+  if (!state.commentReactions[commentId]) {
+    state.commentReactions[commentId] = {};
+  }
+  if (user) {
+    Object.entries(state.commentReactions[commentId]).forEach(([emoji, bucket]) => {
+      if (!bucket || emoji === reaction) return;
+      if (bucket.users.includes(user)) {
+        bucket.users = bucket.users.filter((name) => name !== user);
+        bucket.count = Math.max(0, bucket.count - 1);
+        if (!bucket.count) {
+          delete state.commentReactions[commentId][emoji];
+        }
+      }
+    });
+  }
+  if (!state.commentReactions[commentId][reaction]) {
+    state.commentReactions[commentId][reaction] = { count: 0, users: [] };
+  }
+  const bucket = state.commentReactions[commentId][reaction];
+  if (user && !bucket.users.includes(user)) {
+    bucket.users.push(user);
+    bucket.count += 1;
+  } else if (!user) {
+    bucket.count += 1;
+  }
+  if (user === state.user) {
+    state.commentUserReactions[commentId] = reaction;
   }
 }
 
@@ -948,6 +1022,28 @@ function removeReactionRow(row) {
   }
 }
 
+function removeCommentReactionRow(row) {
+  const commentId = row?.comment_id;
+  const reaction = row?.reaction;
+  const user = row?.user;
+  if (!commentId || !reaction) return;
+  const bucket = state.commentReactions[commentId]?.[reaction];
+  if (!bucket) return;
+  bucket.count = Math.max(0, bucket.count - 1);
+  if (user) {
+    bucket.users = bucket.users.filter((name) => name !== user);
+  }
+  if (!bucket.count || bucket.users.length === 0) {
+    delete state.commentReactions[commentId][reaction];
+  }
+  if (state.commentReactions[commentId] && !Object.keys(state.commentReactions[commentId]).length) {
+    delete state.commentReactions[commentId];
+  }
+  if (user === state.user) {
+    delete state.commentUserReactions[commentId];
+  }
+}
+
 function removeCommentRow(row) {
   const postcardId = row?.postcard_id;
   const commentId = row?.id;
@@ -957,6 +1053,8 @@ function removeCommentRow(row) {
   if (!state.comments[postcardId].length) {
     delete state.comments[postcardId];
   }
+  delete state.commentReactions[commentId];
+  delete state.commentUserReactions[commentId];
   if (state.editingComment && state.editingComment.commentId === commentId) {
     state.editingComment = null;
   }
@@ -1006,6 +1104,32 @@ function renderReactionCounts(postcardId, container) {
         .join('');
       pill.appendChild(names);
     }
+    container.appendChild(pill);
+  });
+}
+
+function renderCommentReactionCounts(commentId, container) {
+  if (!container) return;
+  const counts = state.commentReactions[commentId] || {};
+  const entries = Object.entries(counts).filter(([, data]) => data.count > 0);
+  container.innerHTML = '';
+  if (!entries.length) {
+    container.dataset.empty = 'true';
+    return;
+  }
+  container.dataset.empty = 'false';
+  entries.forEach(([emoji, data]) => {
+    const pill = document.createElement('span');
+    pill.className = 'comment-reaction-pill';
+    if (state.commentUserReactions[commentId] === emoji) {
+      pill.classList.add('mine');
+    }
+    const icon = document.createElement('span');
+    icon.textContent = emoji;
+    const count = document.createElement('span');
+    count.className = 'comment-reaction-count';
+    count.textContent = `×${data.count}`;
+    pill.append(icon, count);
     container.appendChild(pill);
   });
 }
@@ -1117,6 +1241,26 @@ function renderComments(postcardId, container) {
         row.append(actions);
       }
     }
+    const reactionArea = document.createElement('div');
+    reactionArea.className = 'reaction-area comment-reaction-area';
+    const reactionCounts = document.createElement('div');
+    reactionCounts.className = 'comment-reaction-counts';
+    renderCommentReactionCounts(entry.id, reactionCounts);
+    const picker = document.createElement('div');
+    picker.className = 'comment-reaction-picker';
+    setupCommentReactionPicker(picker, postcardId, entry.id);
+    const reactBtn = document.createElement('button');
+    reactBtn.type = 'button';
+    reactBtn.className = 'comment-react-btn';
+    reactBtn.textContent = 'React';
+    reactBtn.disabled = !state.user;
+    reactBtn.addEventListener('click', (evt) => {
+      evt.stopPropagation();
+      toggleReactionPicker(reactionArea, picker);
+    });
+    reactionArea.addEventListener('click', (evt) => evt.stopPropagation());
+    reactionArea.append(reactionCounts, reactBtn, picker);
+    row.append(reactionArea);
     container.appendChild(row);
   });
   if (shouldStickBottom) {
@@ -1172,6 +1316,27 @@ function setupReactionPicker(picker, postcardId) {
   });
 }
 
+function setupCommentReactionPicker(picker, postcardId, commentId) {
+  if (!picker) return;
+  picker.innerHTML = '';
+  REACTIONS.forEach(({ emoji, label }) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.dataset.reaction = emoji;
+    btn.title = label;
+    btn.textContent = emoji;
+    if (state.commentUserReactions[commentId] === emoji) {
+      btn.classList.add('active');
+    }
+    btn.addEventListener('click', async (evt) => {
+      evt.stopPropagation();
+      await handleCommentReactionSelection(postcardId, commentId, emoji);
+      closeReactionPicker();
+    });
+    picker.appendChild(btn);
+  });
+}
+
 function toggleReactionPicker(area, picker) {
   if (!picker || !area) return;
   if (state.openReactionPicker && state.openReactionPicker !== picker) {
@@ -1182,11 +1347,15 @@ function toggleReactionPicker(area, picker) {
   picker.style.pointerEvents = willOpen ? 'auto' : 'none';
   state.openReactionPicker = willOpen ? picker : null;
   if (willOpen) {
-    const rect = picker.getBoundingClientRect();
-    if (rect.bottom > window.innerHeight - 12) {
-      picker.style.top = '-60px';
+    if (picker.classList.contains('reaction-picker')) {
+      const rect = picker.getBoundingClientRect();
+      if (rect.bottom > window.innerHeight - 12) {
+        picker.style.top = '-60px';
+      } else {
+        picker.style.top = '40px';
+      }
     } else {
-      picker.style.top = '40px';
+      picker.style.top = '';
     }
     document.addEventListener('click', closeReactionPicker, { once: true });
   }
@@ -1259,6 +1428,56 @@ function updateReactionUI(postcardId) {
   card.querySelectorAll('.reaction-counts').forEach((container) =>
     renderReactionCounts(postcardId, container)
   );
+}
+
+async function handleCommentReactionSelection(postcardId, commentId, reaction) {
+  if (!state.user || !postcardId || !commentId || !reaction) return;
+  const current = state.commentUserReactions[commentId];
+  if (current === reaction) {
+    await removeCommentReaction(postcardId, commentId, reaction);
+  } else {
+    if (current) {
+      await removeCommentReaction(postcardId, commentId, current);
+    }
+    await addCommentReaction(postcardId, commentId, reaction);
+  }
+}
+
+async function addCommentReaction(postcardId, commentId, reaction) {
+  if (!state.user || !postcardId || !commentId) return;
+  const row = {
+    postcard_id: postcardId,
+    comment_id: commentId,
+    reaction,
+    user: state.user
+  };
+  const { error } = await supabase.from('comment_reactions').insert(row);
+  if (error) {
+    console.error('comment reaction save', error);
+    showToast('Reaction failed to send.', 'error');
+    return;
+  }
+  applyCommentReactionRow(row);
+  updateCommentUI(postcardId);
+  await broadcastCommentEvent('commentReaction:add', { row, sender: state.user });
+}
+
+async function removeCommentReaction(postcardId, commentId, reaction) {
+  if (!state.user || !postcardId || !commentId || !reaction) return;
+  const { error } = await supabase
+    .from('comment_reactions')
+    .delete()
+    .match({ postcard_id: postcardId, comment_id: commentId, user: state.user, reaction });
+  if (error) {
+    console.error('comment reaction delete', error);
+    return;
+  }
+  removeCommentReactionRow({ postcard_id: postcardId, comment_id: commentId, reaction, user: state.user });
+  updateCommentUI(postcardId);
+  await broadcastCommentEvent('commentReaction:remove', {
+    row: { postcard_id: postcardId, comment_id: commentId, reaction, user: state.user },
+    sender: state.user
+  });
 }
 
 async function handleCommentSubmit(postcardId, input, form) {
@@ -1602,7 +1821,8 @@ async function deletePostcardDirect(id) {
 async function cleanupPostcardChildren(id) {
   await Promise.all([
     deleteChildRows('postcard_comments', id),
-    deleteChildRows('postcard_reactions', id)
+    deleteChildRows('postcard_reactions', id),
+    deleteChildRows('comment_reactions', id)
   ]);
 }
 

@@ -15,7 +15,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
 };
 
-const CHILD_TABLES = ['postcard_comments', 'postcard_reactions'];
+const CHILD_TABLES = ['postcard_comments', 'postcard_reactions', 'comment_reactions'];
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
