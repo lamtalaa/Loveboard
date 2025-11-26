@@ -73,7 +73,12 @@ const state = {
   commentChannelReady: false,
   pendingCommentBroadcasts: [],
   editingComment: null,
-  commentUpdatedAtSupported: true
+  commentUpdatedAtSupported: true,
+  commentOriginalSupported: true,
+  originalCommentViews: new Set(),
+  menuOpen: false,
+  menuClickListener: null,
+  menuKeyListener: null
 };
 
 const ui = {
@@ -101,6 +106,9 @@ const ui = {
   sendHint: document.getElementById('send-hint'),
   moodButtons: document.querySelectorAll('.mood-btn'),
   surpriseToggle: document.getElementById('surprise-toggle'),
+  menuToggle: document.getElementById('menu-toggle'),
+  menuPanel: document.getElementById('menu-panel'),
+  notificationBtn: document.getElementById('menu-notifications'),
   logoutBtn: document.getElementById('logout-btn'),
   currentAvatar: document.getElementById('current-user-avatar'),
   toast: document.getElementById('toast'),
@@ -128,9 +136,16 @@ function init() {
   ui.moodButtons.forEach((btn) =>
     btn.addEventListener('click', () => openMoodPicker(btn))
   );
+  if (ui.menuToggle) {
+    ui.menuToggle.addEventListener('click', toggleMenuPanel);
+  }
+  if (ui.notificationBtn) {
+    ui.notificationBtn.addEventListener('click', handleNotificationMenuClick);
+  }
   ui.surpriseToggle.addEventListener('change', handleSurpriseToggle);
   ui.logoutBtn.addEventListener('click', handleLogout);
   ui.optionButtons.forEach((btn) => btn.addEventListener('click', () => toggleOption(btn)));
+  updateNotificationMenuLabel();
   updateOptionVisibility();
   updateAuthButton();
   updateSendButtonState();
@@ -335,23 +350,16 @@ async function loadReactions() {
 }
 
 async function loadComments() {
-  const columnsWithUpdate = 'id,postcard_id,user,comment,created_at,updated_at';
-  let columns = columnsWithUpdate;
   let data;
   let error;
-  ({ data, error } = await supabase
-    .from('postcard_comments')
-    .select(columns)
-    .order('created_at', { ascending: true }));
-  if (error && isUpdatedAtMissing(error)) {
+  ({ data, error } = await fetchComments(buildCommentColumns()));
+  if (error && state.commentUpdatedAtSupported && isUpdatedAtMissing(error)) {
     state.commentUpdatedAtSupported = false;
-    columns = 'id,postcard_id,user,comment,created_at';
-    ({ data, error } = await supabase
-      .from('postcard_comments')
-      .select(columns)
-      .order('created_at', { ascending: true }));
-  } else {
-    state.commentUpdatedAtSupported = true;
+    ({ data, error } = await fetchComments(buildCommentColumns()));
+  }
+  if (error && state.commentOriginalSupported && isOriginalCommentMissing(error)) {
+    state.commentOriginalSupported = false;
+    ({ data, error } = await fetchComments(buildCommentColumns()));
   }
   if (error) {
     console.error('comments load', error);
@@ -359,6 +367,24 @@ async function loadComments() {
   }
   state.comments = {};
   (data || []).forEach(applyCommentRow);
+}
+
+function buildCommentColumns() {
+  const parts = ['id', 'postcard_id', 'user', 'comment', 'created_at'];
+  if (state.commentUpdatedAtSupported) {
+    parts.push('updated_at');
+  }
+  if (state.commentOriginalSupported) {
+    parts.push('original_comment');
+  }
+  return parts.join(',');
+}
+
+function fetchComments(columns) {
+  return supabase
+    .from('postcard_comments')
+    .select(columns)
+    .order('created_at', { ascending: true });
 }
 
 async function loadCommentReactions() {
@@ -438,6 +464,107 @@ function handleSurpriseToggle() {
   renderBoard();
 }
 
+function toggleMenuPanel(evt) {
+  if (evt) {
+    evt.stopPropagation();
+  }
+  if (state.menuOpen) {
+    closeMenuPanel();
+  } else {
+    openMenuPanel();
+  }
+}
+
+function openMenuPanel() {
+  if (!ui.menuPanel) return;
+  ui.menuPanel.hidden = false;
+  state.menuOpen = true;
+  if (ui.menuToggle) {
+    ui.menuToggle.setAttribute('aria-expanded', 'true');
+  }
+  attachMenuListeners();
+}
+
+function closeMenuPanel() {
+  if (!ui.menuPanel) return;
+  ui.menuPanel.hidden = true;
+  state.menuOpen = false;
+  if (ui.menuToggle) {
+    ui.menuToggle.setAttribute('aria-expanded', 'false');
+  }
+  detachMenuListeners();
+}
+
+function attachMenuListeners() {
+  if (!state.menuClickListener) {
+    state.menuClickListener = (evt) => {
+      if (!ui.menuPanel?.contains(evt.target) && evt.target !== ui.menuToggle) {
+        closeMenuPanel();
+      }
+    };
+    document.addEventListener('click', state.menuClickListener, false);
+    document.addEventListener('touchstart', state.menuClickListener, false);
+  }
+  if (!state.menuKeyListener) {
+    state.menuKeyListener = (evt) => {
+      if (evt.key === 'Escape') {
+        closeMenuPanel();
+      }
+    };
+    document.addEventListener('keydown', state.menuKeyListener, true);
+  }
+}
+
+function detachMenuListeners() {
+  if (state.menuClickListener) {
+    document.removeEventListener('click', state.menuClickListener, false);
+    document.removeEventListener('touchstart', state.menuClickListener, false);
+    state.menuClickListener = null;
+  }
+  if (state.menuKeyListener) {
+    document.removeEventListener('keydown', state.menuKeyListener, true);
+    state.menuKeyListener = null;
+  }
+}
+
+async function handleNotificationMenuClick() {
+  if (!notificationsSupported) {
+    showToast('Notifications are not supported on this device.', 'error');
+    return;
+  }
+  if (Notification.permission === 'denied') {
+    showToast('Notifications are blocked in your browser settings.', 'error');
+    return;
+  }
+  const allowed = await initNotifications();
+  updateNotificationMenuLabel();
+  if (allowed) {
+    showToast('Notifications enabled ✨');
+  }
+  closeMenuPanel();
+}
+
+function updateNotificationMenuLabel() {
+  if (!ui.notificationBtn) return;
+  if (!notificationsSupported) {
+    ui.notificationBtn.textContent = 'Notifications unavailable';
+    ui.notificationBtn.disabled = true;
+    return;
+  }
+  if (Notification.permission === 'denied') {
+    ui.notificationBtn.textContent = 'Notifications blocked';
+    ui.notificationBtn.disabled = true;
+    return;
+  }
+  if (Notification.permission === 'granted' || state.notificationsAllowed) {
+    ui.notificationBtn.textContent = 'Notifications on';
+    ui.notificationBtn.disabled = true;
+    return;
+  }
+  ui.notificationBtn.textContent = 'Enable notifications';
+  ui.notificationBtn.disabled = false;
+}
+
 function getMoodMeta(emoji, user) {
   return getMoodOptions(user).find((m) => m.emoji === emoji) || FALLBACK_MOODS.find((m) => m.emoji === emoji);
 }
@@ -465,6 +592,7 @@ function updateAvatar() {
 }
 
 function handleLogout() {
+  closeMenuPanel();
   localStorage.removeItem(AUTH_KEY);
   state.started = false;
   state.user = null;
@@ -850,6 +978,12 @@ function isUpdatedAtMissing(error) {
   );
 }
 
+function isOriginalCommentMissing(error) {
+  if (!error) return false;
+  const message = `${error.message || ''} ${error.hint || ''}`.toLowerCase();
+  return message.includes('original_comment') || error.code === '42703';
+}
+
 function isMissingTableError(error) {
   if (!error) return false;
   return error.code === '42P01' || error.message?.toLowerCase().includes('does not exist');
@@ -892,6 +1026,10 @@ function removePostcard(id) {
     if (!entry?.id) return;
     delete state.commentReactions[entry.id];
     delete state.commentUserReactions[entry.id];
+    const key = getCommentKey(id, entry.id);
+    if (key) {
+      state.originalCommentViews.delete(key);
+    }
   });
 }
 
@@ -981,6 +1119,9 @@ function applyCommentRow(row) {
   if (!row.updated_at) {
     row.updated_at = row.created_at;
   }
+  if (!row.original_comment) {
+    row.original_comment = row.comment;
+  }
   if (!state.comments[postcardId]) {
     state.comments[postcardId] = [];
   }
@@ -1055,6 +1196,10 @@ function removeCommentRow(row) {
   }
   delete state.commentReactions[commentId];
   delete state.commentUserReactions[commentId];
+  const key = getCommentKey(postcardId, commentId);
+  if (key) {
+    state.originalCommentViews.delete(key);
+  }
   if (state.editingComment && state.editingComment.commentId === commentId) {
     state.editingComment = null;
   }
@@ -1163,6 +1308,12 @@ function renderComments(postcardId, container) {
     if (isEditing) {
       row.classList.add('editing');
     }
+    const hasOriginalDiff =
+      state.commentOriginalSupported &&
+      entry.original_comment &&
+      entry.original_comment !== entry.comment;
+    const key = getCommentKey(postcardId, entry.id);
+    const showingOriginal = Boolean(hasOriginalDiff && key && state.originalCommentViews.has(key));
     const meta = document.createElement('div');
     meta.className = 'comment-meta';
     const author = document.createElement('span');
@@ -1184,6 +1335,17 @@ function renderComments(postcardId, container) {
       edited.className = 'comment-edited';
       edited.textContent = 'Edited';
       meta.append(edited);
+    }
+    if (!isEditing && hasOriginalDiff) {
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'comment-original-toggle';
+      toggle.textContent = showingOriginal ? 'Hide original' : 'View original';
+      toggle.addEventListener('click', (evt) => {
+        evt.stopPropagation();
+        toggleOriginalComment(postcardId, entry.id);
+      });
+      meta.append(toggle);
     }
     row.append(meta);
     if (isEditing) {
@@ -1221,7 +1383,9 @@ function renderComments(postcardId, container) {
     } else {
       const text = document.createElement('p');
       text.className = 'comment-text';
-      text.textContent = entry.comment || '';
+      text.textContent = showingOriginal
+        ? entry.original_comment || entry.comment || ''
+        : entry.comment || '';
       row.append(text);
       if (entry.user === state.user) {
         const actions = document.createElement('div');
@@ -1497,6 +1661,9 @@ async function handleCommentSubmit(postcardId, input, form) {
   if (state.commentUpdatedAtSupported) {
     payload.updated_at = new Date().toISOString();
   }
+  if (state.commentOriginalSupported) {
+    payload.original_comment = text;
+  }
   try {
     let { data, error } = await supabase
       .from('postcard_comments')
@@ -1506,6 +1673,15 @@ async function handleCommentSubmit(postcardId, input, form) {
     if (error && state.commentUpdatedAtSupported && isUpdatedAtMissing(error)) {
       state.commentUpdatedAtSupported = false;
       delete payload.updated_at;
+      ({ data, error } = await supabase
+        .from('postcard_comments')
+        .insert(payload)
+        .select()
+        .single());
+    }
+    if (error && state.commentOriginalSupported && isOriginalCommentMissing(error)) {
+      state.commentOriginalSupported = false;
+      delete payload.original_comment;
       ({ data, error } = await supabase
         .from('postcard_comments')
         .insert(payload)
@@ -1543,6 +1719,22 @@ function updateCommentUI(postcardId) {
   card.querySelectorAll('.comment-list').forEach((container) =>
     renderComments(postcardId, container)
   );
+}
+
+function toggleOriginalComment(postcardId, commentId) {
+  const key = getCommentKey(postcardId, commentId);
+  if (!key) return;
+  if (state.originalCommentViews.has(key)) {
+    state.originalCommentViews.delete(key);
+  } else {
+    state.originalCommentViews.add(key);
+  }
+  updateCommentUI(postcardId);
+}
+
+function getCommentKey(postcardId, commentId) {
+  if (!postcardId || !commentId) return null;
+  return `${postcardId}:${commentId}`;
 }
 
 function startCommentEdit(postcardId, entry) {
@@ -1649,13 +1841,16 @@ async function confirmDeleteComment(postcardId, commentId) {
 }
 
 async function initNotifications() {
-  if (!('serviceWorker' in navigator) || !notificationsSupported) return;
+  if (!('serviceWorker' in navigator) || !notificationsSupported) {
+    return false;
+  }
   if (!state.swRegistration) {
     try {
       state.swRegistration = await navigator.serviceWorker.register('/sw.js');
     } catch (err) {
       console.error('service worker registration failed', err);
-      return;
+      updateNotificationMenuLabel();
+      return false;
     }
   }
   if (Notification.permission === 'default') {
@@ -1669,9 +1864,12 @@ async function initNotifications() {
   } else {
     state.notificationsAllowed = Notification.permission === 'granted';
   }
-  if (state.notificationsAllowed) {
-    await ensurePushSubscription();
+  updateNotificationMenuLabel();
+  if (!state.notificationsAllowed) {
+    return false;
   }
+  await ensurePushSubscription();
+  return true;
 }
 
 async function notifyUser(title, body) {

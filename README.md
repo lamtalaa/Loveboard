@@ -10,6 +10,7 @@ Loveboard is a cozy, romantic postcard board for Yassine and Nihal. It is built 
 - Instant syncing of postcards, moods, postcard emoji reactions, and comments through Supabase realtime channels + client broadcasts.
 - Threaded postcard comments with inline edit/delete controls so you can reply (or tweak) in place.
 - Emoji reactions on each comment so you can leave a quick vibe check without typing.
+- Edited comments keep their original text so you can tap “View original” anytime for transparency.
 - Assets (photos, doodles, audio) stored in Supabase Storage and referenced from each postcard.
 - Optional push notifications so the other person gets an OS-level alert even when the tab is closed (requires HTTPS + Supabase Edge function).
 
@@ -72,7 +73,8 @@ create table public.postcard_comments (
   updated_at timestamp with time zone default timezone('utc', now()) not null,
   postcard_id uuid references public.postcards(id) on delete cascade,
   "user" text not null,
-  comment text not null
+  comment text not null,
+  original_comment text
 );
 
 create table public.comment_reactions (

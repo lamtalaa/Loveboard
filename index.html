@@ -67,11 +67,32 @@
           </div>
         </div>
         <div class="header-actions">
-          <label class="surprise-toggle">
-            <input type="checkbox" id="surprise-toggle" />
-            <span>Surprise Mode</span>
-          </label>
-          <button id="logout-btn" class="ghost-btn" type="button">Log out</button>
+          <button
+            id="menu-toggle"
+            class="menu-toggle"
+            type="button"
+            aria-label="Open quick menu"
+            aria-expanded="false"
+            aria-controls="menu-panel"
+          >
+            ☰
+          </button>
+          <div id="menu-panel" class="menu-panel" hidden>
+            <p class="menu-title">Quick actions</p>
+            <button type="button" id="menu-notifications" class="menu-item">
+              Enable notifications
+            </button>
+            <label class="menu-item menu-toggle-row">
+              <div>
+                <span class="menu-item-title">Surprise Mode</span>
+                <span class="menu-item-sub">Blur postcards until tapped</span>
+              </div>
+              <input type="checkbox" id="surprise-toggle" />
+            </label>
+            <button id="logout-btn" class="menu-item menu-danger" type="button">
+              Log out
+            </button>
+          </div>
         </div>
       </header>
 
