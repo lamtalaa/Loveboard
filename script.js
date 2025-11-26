@@ -1648,10 +1648,12 @@ function renderComments(postcardId, container) {
       });
       row.append(form);
     } else {
+      const body = document.createElement('div');
+      body.className = 'comment-body';
       const text = document.createElement('p');
       text.className = 'comment-text';
       text.textContent = entry.comment || '';
-      row.append(text);
+      body.append(text);
       if (entry.user === state.user) {
         const actions = document.createElement('div');
         actions.className = 'comment-actions';
@@ -1670,8 +1672,9 @@ function renderComments(postcardId, container) {
           confirmDeleteComment(postcardId, entry.id);
         });
         actions.append(editBtn, deleteBtn);
-        row.append(actions);
+        body.append(actions);
       }
+      row.append(body);
     }
     const reactionArea = document.createElement('div');
     reactionArea.className = 'reaction-area comment-reaction-area';
