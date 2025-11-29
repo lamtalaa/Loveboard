@@ -1782,16 +1782,6 @@ function toggleReactionPicker(area, picker) {
   picker.style.pointerEvents = willOpen ? 'auto' : 'none';
   state.openReactionPicker = willOpen ? picker : null;
   if (willOpen) {
-    if (picker.classList.contains('reaction-picker')) {
-      const rect = picker.getBoundingClientRect();
-      if (rect.bottom > window.innerHeight - 12) {
-        picker.style.top = '-60px';
-      } else {
-        picker.style.top = '40px';
-      }
-    } else {
-      picker.style.top = '';
-    }
     document.addEventListener('click', closeReactionPicker, { once: true });
   }
 }
