@@ -521,21 +521,29 @@ button:disabled {
 }
 
 .react-btn {
-  border: 1px dashed rgba(70, 50, 60, 0.3);
+  border: none;
   border-radius: 999px;
-  background: transparent;
-  padding: 0.25rem 0.85rem;
+  background: linear-gradient(120deg, var(--rose), var(--lavender));
+  padding: 0.3rem 1rem;
   font-family: inherit;
-  font-size: 0.85rem;
-  letter-spacing: 0.08em;
+  font-size: 0.78rem;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
   cursor: pointer;
-  color: rgba(70, 50, 60, 0.8);
+  color: #fff9f4;
+  box-shadow: 0 10px 18px rgba(245, 181, 197, 0.45);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.react-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 22px rgba(245, 181, 197, 0.6);
 }
 
 .reaction-area .react-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  box-shadow: none;
 }
 
 
