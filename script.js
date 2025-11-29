@@ -1687,7 +1687,7 @@ function renderComments(postcardId, container) {
     const reactBtn = document.createElement('button');
     reactBtn.type = 'button';
     reactBtn.className = 'react-btn';
-    reactBtn.textContent = 'Send Sparks';
+    reactBtn.textContent = 'React';
     reactBtn.disabled = !state.user;
     reactBtn.addEventListener('click', (evt) => {
       evt.stopPropagation();
