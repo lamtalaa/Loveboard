@@ -62,6 +62,7 @@ const state = {
   comments: {},
   commentReactions: {},
   commentUserReactions: {},
+  moodTimes: {},
   activeOptions: new Set(['message']),
   moodMenuListener: null,
   notificationsAllowed: notificationsSupported && Notification.permission === 'granted',
@@ -74,6 +75,7 @@ const state = {
   pendingCommentBroadcasts: [],
   editingComment: null,
   commentUpdatedAtSupported: true,
+  moodUpdatedAtSupported: true,
   menuOpen: false,
   menuClickListener: null,
   menuKeyListener: null,
@@ -351,7 +353,10 @@ async function loadMoods() {
     showToast(`Couldn't load moods: ${error.message}`, 'error');
     return;
   }
-  (data || []).forEach((entry) => setMood(entry.user, entry.emoji));
+  (data || []).forEach((entry) => {
+    const changedAt = entry.updated_at || entry.created_at;
+    setMood(entry.user, entry.emoji, changedAt);
+  });
 }
 
 async function loadReactions() {
@@ -411,12 +416,27 @@ async function loadCommentReactions() {
   (data || []).forEach(applyCommentReactionRow);
 }
 
-function setMood(user, emoji) {
+function setMood(user, emoji, changedAt) {
   const btn = document.querySelector(`.mood-btn[data-user="${user}"]`);
   if (!btn) return;
   const mood = getMoodMeta(emoji, user);
   btn.dataset.mood = emoji;
   btn.innerHTML = `${emoji} <span>${mood ? mood.label : ''}</span>`;
+  if (changedAt) {
+    state.moodTimes[user] = changedAt;
+  }
+  updateMoodTimestamp(user);
+}
+
+function updateMoodTimestamp(user) {
+  const timeEl = document.querySelector(`.mood-updated[data-user="${user}"]`);
+  if (!timeEl) return;
+  const timestamp = state.moodTimes[user];
+  if (timestamp) {
+    timeEl.textContent = `Updated ${formatDate(timestamp)}`;
+  } else {
+    timeEl.textContent = 'Updated —';
+  }
 }
 
 function openMoodPicker(anchorBtn) {
@@ -448,20 +468,34 @@ function closeMoodMenus() {
 
 async function saveMood(emoji) {
   const today = new Date().toISOString().slice(0, 10);
-  const { error } = await supabase.from('moods').upsert(
-    {
-      user: state.user,
-      date: today,
-      emoji
-    },
-    { onConflict: 'user,date' }
-  );
+  const changedAt = new Date().toISOString();
+  const payload = {
+    user: state.user,
+    date: today,
+    emoji
+  };
+  if (state.moodUpdatedAtSupported) {
+    payload.updated_at = changedAt;
+  }
+  let error;
+  ({ error } = await supabase.from('moods').upsert(payload, { onConflict: 'user,date' }));
+  if (error && state.moodUpdatedAtSupported && isUpdatedAtMissing(error)) {
+    state.moodUpdatedAtSupported = false;
+    ({ error } = await supabase.from('moods').upsert(
+      {
+        user: state.user,
+        date: today,
+        emoji
+      },
+      { onConflict: 'user,date' }
+    ));
+  }
   if (error) {
     console.error('mood save', error);
     showToast(`Couldn't save mood: ${error.message}`, 'error');
     return;
   }
-  setMood(state.user, emoji);
+  setMood(state.user, emoji, changedAt);
   const target = getOtherUser();
   if (target) {
     const mood = getMoodMeta(emoji, state.user);
@@ -1033,7 +1067,8 @@ function subscribeRealtime() {
       });
     })
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'moods' }, (payload) => {
-      setMood(payload.new.user, payload.new.emoji);
+      const changedAt = payload.new.updated_at || payload.new.created_at;
+      setMood(payload.new.user, payload.new.emoji, changedAt);
       notifyMood(payload.new);
       logActivity({
         type: 'mood',
@@ -1043,7 +1078,8 @@ function subscribeRealtime() {
       });
     })
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'moods' }, (payload) => {
-      setMood(payload.new.user, payload.new.emoji);
+      const changedAt = payload.new.updated_at || payload.new.created_at;
+      setMood(payload.new.user, payload.new.emoji, changedAt);
       notifyMood(payload.new);
       logActivity({
         type: 'mood',
