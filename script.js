@@ -433,9 +433,9 @@ function updateMoodTimestamp(user) {
   if (!timeEl) return;
   const timestamp = state.moodTimes[user];
   if (timestamp) {
-    timeEl.textContent = `Updated ${formatDate(timestamp)}`;
+    timeEl.textContent = formatDate(timestamp);
   } else {
-    timeEl.textContent = 'Updated —';
+    timeEl.textContent = '—';
   }
 }
 
