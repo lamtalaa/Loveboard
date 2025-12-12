@@ -244,33 +244,51 @@ button:disabled {
 }
 
 .moods {
-  display: flex;
-  gap: 0.75rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.85rem;
   margin-bottom: 1.5rem;
+  background: linear-gradient(120deg, #ffafbd 0%, #ffc3a0 100%);
+  padding: 0.75rem;
+  border-radius: 22px;
+  position: relative;
+  overflow: hidden;
+}
+
+.moods::after {
+  content: '';
+  position: absolute;
+  inset: 12px;
+  border-radius: 18px;
+  background: radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.22), transparent 45%),
+    radial-gradient(circle at 80% 60%, rgba(255, 255, 255, 0.22), transparent 40%);
+  pointer-events: none;
 }
 
 .mood {
   flex: 1;
-  background: var(--blush);
-  border-radius: 18px;
-  padding: 0.5rem 0.75rem;
-  box-shadow: 0 8px 20px var(--shadow);
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 16px;
+  padding: 0.7rem 0.85rem;
+  box-shadow: 0 10px 24px rgba(255, 126, 167, 0.2);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.75rem;
   position: relative;
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
 }
 
 .mood-meta {
   display: flex;
   flex-direction: column;
-  gap: 0.1rem;
+  gap: 0.05rem;
 }
 
 .mood-meta .user-label {
   font-weight: 700;
-  font-size: 1.05rem;
+  font-size: 1.15rem;
   color: var(--ink);
 }
 
@@ -279,47 +297,106 @@ button:disabled {
   color: rgba(70, 50, 60, 0.65);
 }
 
-.mood-btn {
+.mood-change {
+  padding: 0;
   border: none;
   background: transparent;
-  font-size: 1.8rem;
+  font-size: 0.8rem;
+  color: rgba(70, 50, 60, 0.75);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+.mood-btn {
+  border: none;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.65), rgba(255, 255, 255, 0.35));
+  font-size: 2rem;
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.6rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 14px;
+  box-shadow: 0 10px 22px rgba(255, 126, 167, 0.25);
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.mood-btn:hover,
+.mood-btn:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 26px rgba(255, 126, 167, 0.35);
 }
 
 .mood-btn span {
   font-size: 0.95rem;
-  color: rgba(70, 50, 60, 0.8);
+  color: rgba(70, 50, 60, 0.85);
+  display: block;
+  line-height: 1.2;
 }
 
 .mood-menu {
+  --mood-shift: 0px;
   position: absolute;
-  top: calc(100% + 0.25rem);
+  top: calc(100% + 0.35rem);
   right: 0;
-  background: #fff;
+  background: rgba(255, 255, 255, 0.96);
   border-radius: 16px;
-  box-shadow: 0 16px 30px var(--shadow);
+  box-shadow: 0 18px 36px rgba(255, 126, 167, 0.4);
   display: flex;
-  gap: 0.25rem;
-  padding: 0.3rem;
-  z-index: 5;
+  gap: 0.35rem;
+  padding: 0.5rem 0.6rem;
+  z-index: 12;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(8px);
+  transform: translateX(var(--mood-shift));
+  animation: moodMenuIn 180ms ease;
 }
 
 .mood-menu button {
   border: none;
   background: transparent;
-  font-size: 1.3rem;
+  font-size: 1.4rem;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 0.3rem 0.4rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 12px;
+  position: relative;
+  cursor: pointer;
+  transition: transform 140ms ease, background 140ms ease, box-shadow 140ms ease;
 }
 
-.mood-menu small {
+.mood-menu button:hover,
+.mood-menu button:focus-visible {
+  transform: translateY(-2px);
+  background: rgba(255, 175, 189, 0.2);
+  box-shadow: 0 10px 18px rgba(255, 126, 167, 0.25);
+}
+
+.mood-menu button small {
+  font-size: 0.7rem;
+  color: rgba(70, 50, 60, 0.75);
+}
+
+.mood-menu .mood-random {
+  border: 1px dashed rgba(70, 50, 60, 0.25);
+  background: rgba(255, 175, 189, 0.12);
+}
+
+.mood-menu .mood-random:hover,
+.mood-menu .mood-random:focus-visible {
+  background: rgba(255, 175, 189, 0.25);
+}
+
+.mood-menu .mood-ghost-label {
+  position: absolute;
+  bottom: -1.1rem;
+  left: 50%;
+  transform: translateX(-50%);
   font-size: 0.65rem;
-  color: rgba(70, 50, 60, 0.8);
+  color: rgba(70, 50, 60, 0.6);
 }
 
 .board {
@@ -333,6 +410,31 @@ button:disabled {
   .board {
     grid-template-columns: 1fr;
   }
+
+  .mood-menu {
+    position: fixed;
+    left: 50%;
+    bottom: 12px;
+    top: auto;
+    transform: translateX(-50%);
+    width: min(480px, calc(100% - 16px));
+    justify-content: space-between;
+    flex-wrap: wrap;
+    row-gap: 0.25rem;
+    box-shadow: 0 18px 36px rgba(255, 126, 167, 0.5);
+  }
+}
+
+@keyframes moodMenuIn {
+  from {
+    opacity: 0;
+    transform: translateX(var(--mood-shift)) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(var(--mood-shift)) translateY(0);
+  }
+}
 }
 
 .empty-state {

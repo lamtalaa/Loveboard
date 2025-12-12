@@ -121,7 +121,8 @@ const ui = {
   currentAvatar: document.getElementById('current-user-avatar'),
   toast: document.getElementById('toast'),
   optionButtons: document.querySelectorAll('.option-btn'),
-  optionSections: document.querySelectorAll('.option-section')
+  optionSections: document.querySelectorAll('.option-section'),
+  moodChangeButtons: document.querySelectorAll('.mood-change')
 };
 
 const template = document.getElementById('postcard-template');
@@ -149,6 +150,15 @@ function init() {
   setupAudioRecorder();
   ui.moodButtons.forEach((btn) =>
     btn.addEventListener('click', () => openMoodPicker(btn))
+  );
+  ui.moodChangeButtons.forEach((btn) =>
+    btn.addEventListener('click', () => {
+      const user = btn.dataset.user;
+      const target = document.querySelector(`.mood-btn[data-user="${user}"]`);
+      if (target) {
+        openMoodPicker(target);
+      }
+    })
   );
   if (ui.menuToggle) {
     ui.menuToggle.addEventListener('click', toggleMenuPanel);
@@ -450,12 +460,26 @@ function openMoodPicker(anchorBtn) {
     const option = document.createElement('button');
     option.type = 'button';
     option.innerHTML = `${emoji}<small>${label}</small>`;
+    option.title = label;
     option.addEventListener('click', async () => {
       await saveMood(emoji);
       closeMoodMenus();
     });
     menu.appendChild(option);
   });
+  const randomBtn = document.createElement('button');
+  randomBtn.type = 'button';
+  randomBtn.className = 'mood-random';
+  randomBtn.innerHTML = '🎲<small>Surprise me</small>';
+  randomBtn.title = 'Pick a random vibe';
+  randomBtn.addEventListener('click', async () => {
+    const random = options[Math.floor(Math.random() * options.length)];
+    if (random) {
+      await saveMood(random.emoji);
+    }
+    closeMoodMenus();
+  });
+  menu.appendChild(randomBtn);
   anchorBtn.parentElement.appendChild(menu);
   attachMoodClickAway();
   positionMoodMenu(menu);
@@ -2334,9 +2358,7 @@ function positionMoodMenu(menu) {
     } else if (rect.left < padding) {
       shift = padding - rect.left;
     }
-    if (shift !== 0) {
-      menu.style.transform = `translateX(${shift}px)`;
-    }
+    menu.style.setProperty('--mood-shift', `${shift}px`);
   });
 }
 
