@@ -7,20 +7,24 @@ const USER_PASSCODES = {
 
 const MOOD_PRESETS = {
   Yassine: [
-    { emoji: '🛡️', label: 'Right now I’m your protective king' },
-    { emoji: '😎', label: 'Slow-breath confidence in this moment' },
-    { emoji: '🔥', label: 'Focused on seducing you this very second' },
-    { emoji: '🌹', label: 'Romantic protector mode is on' },
-    { emoji: '🃏', label: 'Playful dominant tease right now' },
-    { emoji: '💪', label: 'Your alpha cuddle magnet this moment' }
+    { emoji: '🛡️', label: 'Your guard, in control' },
+    { emoji: '😎', label: 'Calm and commanding' },
+    { emoji: '🔥', label: 'On you, all heat' },
+    { emoji: '🌹', label: 'Dominant, gentle touch' },
+    { emoji: '🃏', label: 'Playful but boss' },
+    { emoji: '💪', label: 'Strong arms ready' },
+    { emoji: '✨', label: 'Here to make you smile' },
+    { emoji: '🎧', label: 'Chill, come close' }
   ],
   Nihal: [
-    { emoji: '🌸', label: 'Feeling soft + obedient for you now' },
-    { emoji: '💃', label: 'In this moment I’m your seductive muse' },
-    { emoji: '🤍', label: 'Ready to please you right now' },
-    { emoji: '💗', label: 'Romantic sweetheart mood this second' },
-    { emoji: '😈', label: 'Playful temptress energy at the moment' },
-    { emoji: '🫦', label: 'Kissable doll waiting on you now' }
+    { emoji: '🌸', label: 'Soft and obedient' },
+    { emoji: '💃', label: 'Dancing for you' },
+    { emoji: '🤍', label: 'Ready to please' },
+    { emoji: '💗', label: 'Sweet and yours' },
+    { emoji: '😈', label: 'Flirty and yielding' },
+    { emoji: '🫦', label: 'Quiet, kiss me' },
+    { emoji: '🌙', label: 'Dreamy and compliant' },
+    { emoji: '🧸', label: 'Cuddle and follow' }
   ]
 };
 const FALLBACK_MOODS = [{ emoji: '💗', label: 'So in love with you' }];
