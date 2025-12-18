@@ -39,6 +39,7 @@ const REACTIONS = [
 ];
 const BUCKET = 'loveboard-assets';
 const AUTH_KEY = 'loveboard-user';
+const MOOD_TIMES_KEY = 'loveboard-moodTimes';
 const DEFAULT_NOTE_IMG = './assets/default-note.svg';
 const NOTIFICATION_ICON = './assets/heart.svg';
 const notificationsSupported = 'Notification' in window;
@@ -46,6 +47,21 @@ const storedSurprise = localStorage.getItem('loveboard-surprise');
 const initialSurprise = storedSurprise === null ? true : storedSurprise === 'true';
 if (storedSurprise === null) {
   localStorage.setItem('loveboard-surprise', 'true');
+}
+
+function readStoredJSON(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    const value = JSON.parse(raw);
+    return value && typeof value === 'object' ? value : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function persistMoodTimes() {
+  localStorage.setItem(MOOD_TIMES_KEY, JSON.stringify(state.moodTimes));
 }
 
 const state = {
@@ -66,7 +82,7 @@ const state = {
   comments: {},
   commentReactions: {},
   commentUserReactions: {},
-  moodTimes: {},
+  moodTimes: readStoredJSON(MOOD_TIMES_KEY, {}),
   activeOptions: new Set(['message']),
   moodMenuListener: null,
   notificationsAllowed: notificationsSupported && Notification.permission === 'granted',
@@ -347,18 +363,22 @@ function renderBoard() {
 }
 
 async function loadMoods() {
-  const today = new Date().toISOString().slice(0, 10);
-  const { data, error } = await supabase
-    .from('moods')
-    .select('*')
-    .eq('date', today);
+  Object.keys(MOOD_PRESETS).forEach(updateMoodTimestamp);
+  const users = Object.keys(MOOD_PRESETS);
+  const results = await Promise.all(
+    users.map((user) =>
+      supabase.from('moods').select('*').eq('user', user).order('date', { ascending: false }).limit(1)
+    )
+  );
+  const data = results.flatMap((result) => result.data || []);
+  const error = results.find((result) => result.error)?.error;
   if (error) {
     console.error('moods load', error);
     showToast(`Couldn't load moods: ${error.message}`, 'error');
     return;
   }
   (data || []).forEach((entry) => {
-    const changedAt = entry.updated_at || entry.created_at;
+    const changedAt = entry.updated_at || entry.created_at || entry.date;
     setMood(entry.user, entry.emoji, changedAt);
   });
 }
@@ -428,6 +448,7 @@ function setMood(user, emoji, changedAt) {
   btn.innerHTML = `${emoji} <span>${mood ? mood.label : ''}</span>`;
   if (changedAt) {
     state.moodTimes[user] = changedAt;
+    persistMoodTimes();
   }
   updateMoodTimestamp(user);
 }
@@ -437,7 +458,7 @@ function updateMoodTimestamp(user) {
   if (!timeEl) return;
   const timestamp = state.moodTimes[user];
   if (timestamp) {
-    timeEl.textContent = formatDate(timestamp);
+    timeEl.textContent = formatMoodTimestamp(timestamp);
   } else {
     timeEl.textContent = '—';
   }
@@ -1071,7 +1092,7 @@ function subscribeRealtime() {
       });
     })
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'moods' }, (payload) => {
-      const changedAt = payload.new.updated_at || payload.new.created_at;
+      const changedAt = payload.new.updated_at || payload.new.created_at || new Date().toISOString();
       setMood(payload.new.user, payload.new.emoji, changedAt);
       notifyMood(payload.new);
       logActivity({
@@ -1082,7 +1103,7 @@ function subscribeRealtime() {
       });
     })
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'moods' }, (payload) => {
-      const changedAt = payload.new.updated_at || payload.new.created_at;
+      const changedAt = payload.new.updated_at || payload.new.created_at || new Date().toISOString();
       setMood(payload.new.user, payload.new.emoji, changedAt);
       notifyMood(payload.new);
       logActivity({
@@ -2495,6 +2516,18 @@ function formatDate(value) {
     hour: 'numeric',
     minute: '2-digit'
   }).format(new Date(value));
+}
+
+function formatMoodTimestamp(value) {
+  if (!value) return '—';
+  const raw = String(value);
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return '—';
+  const hasTime = raw.includes('T') || raw.includes(':');
+  if (!hasTime) {
+    return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(date);
+  }
+  return formatDate(date);
 }
 
 function formatCommentTime(value) {

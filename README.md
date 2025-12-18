@@ -49,6 +49,8 @@ create table public.moods (
   "user" text not null,
   "date" date not null,
   emoji text not null,
+  created_at timestamp with time zone default timezone('utc', now()) not null,
+  updated_at timestamp with time zone default timezone('utc', now()) not null,
   primary key ("user", "date")
 );
 
