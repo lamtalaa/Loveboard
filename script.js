@@ -643,6 +643,18 @@ function switchView(showEl, hideEl, onComplete) {
   clean(showEl);
   clean(hideEl);
 
+  const focusableSelector = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+  const nextFocus =
+    (showEl && showEl.querySelector(focusableSelector)) ||
+    (showEl === ui.loveboardView ? ui.ldAppToggle : ui.menuToggle) ||
+    document.body;
+
+  const active = document.activeElement;
+  const shouldMoveFocus = hideEl && active && hideEl.contains(active);
+  if (shouldMoveFocus && nextFocus) {
+    nextFocus.focus({ preventScroll: true });
+  }
+
   if (hideEl) {
     hideEl.classList.add('view-exit');
     hideEl.setAttribute('aria-hidden', 'true');
