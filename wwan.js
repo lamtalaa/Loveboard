@@ -48,7 +48,8 @@ const state = {
   weather: { A: null, B: null },
   lastQuote: null,
   currentUser: null,
-  skipPersistUser: null
+  skipPersistUser: null,
+  photoTimer: null
 };
 
 const elements = {
@@ -163,6 +164,7 @@ export function applyRemoteCity(row) {
     saveSettings(state.settings);
     updateLabels();
     fetchWeather('A', state.settings.personA.city, state.settings.personA.countryCode);
+    refreshCityPhotos('A');
   } else if (isB) {
     state.settings.personB.city = row.city || state.settings.personB.city;
     state.settings.personB.country = row.country || state.settings.personB.country;
@@ -172,7 +174,25 @@ export function applyRemoteCity(row) {
     saveSettings(state.settings);
     updateLabels();
     fetchWeather('B', state.settings.personB.city, state.settings.personB.countryCode);
+    refreshCityPhotos('B');
   }
+}
+
+function refreshCityPhotos(target) {
+  if (!elements.photoA || !elements.photoB) return;
+  if (target === 'A' || !target) {
+    fetchCityPhoto('A', state.settings.personA.city, state.settings.personA.country);
+  }
+  if (target === 'B' || !target) {
+    fetchCityPhoto('B', state.settings.personB.city, state.settings.personB.country);
+  }
+}
+
+function startPhotoRefresh() {
+  if (state.photoTimer) {
+    clearInterval(state.photoTimer);
+  }
+  state.photoTimer = setInterval(() => refreshCityPhotos(), 2 * 60 * 1000);
 }
 
 function formatTime(date, timeZone) {
@@ -653,6 +673,7 @@ async function init() {
   fetchWeather('A', state.settings.personA.city, state.settings.personA.countryCode);
   fetchWeather('B', state.settings.personB.city, state.settings.personB.countryCode);
   fetchQuote();
+  refreshCityPhotos();
   hydrateForm();
 
   elements.openSettings?.addEventListener('click', () => {
@@ -664,6 +685,7 @@ async function init() {
   elements.form?.addEventListener('submit', handleSubmit);
   setInterval(fetchQuote, 5 * 60 * 1000);
   setInterval(updateTimes, 60000);
+  startPhotoRefresh();
 }
 
 export function setWwanUser(user) {
