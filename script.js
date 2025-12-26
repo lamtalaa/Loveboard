@@ -271,7 +271,8 @@ async function loadPostcards() {
   renderBoard();
 }
 
-function renderBoard() {
+function renderBoard(options = {}) {
+  const { revealFromIndex } = options;
   ui.board.innerHTML = '';
   state.openReactionPicker = null;
   if (!state.postcards.length) {
@@ -282,11 +283,15 @@ function renderBoard() {
     return;
   }
   const visible = state.postcards.slice(0, state.postcardLimit || DEFAULT_POSTCARD_BATCH);
-  visible.forEach((card) => {
+  visible.forEach((card, index) => {
     const node = template.content.firstElementChild.cloneNode(true);
     node.dataset.id = card.id;
     if (card.user === state.user) {
       node.classList.add('own');
+    }
+    if (Number.isInteger(revealFromIndex) && index >= revealFromIndex) {
+      node.classList.add('new-card');
+      node.style.animationDelay = `${Math.min(index - revealFromIndex, 6) * 40}ms`;
     }
     node.style.setProperty('--tilt', getTilt(card.id));
     node.querySelectorAll('.meta').forEach((metaEl) => {
@@ -394,7 +399,12 @@ function renderBoard() {
     const loadMore = document.createElement('button');
     loadMore.type = 'button';
     loadMore.className = 'load-more';
-    loadMore.textContent = `Load more postcards (${remaining})`;
+    const label = document.createElement('span');
+    label.textContent = 'Load more postcards';
+    const count = document.createElement('span');
+    count.className = 'load-more-count';
+    count.textContent = `${remaining}`;
+    loadMore.append(label, count);
     loadMore.addEventListener('click', handleLoadMore);
     ui.board.appendChild(loadMore);
   }
@@ -402,8 +412,14 @@ function renderBoard() {
 
 function handleLoadMore() {
   const current = state.postcardLimit || DEFAULT_POSTCARD_BATCH;
-  state.postcardLimit = Math.min(state.postcards.length, current + DEFAULT_POSTCARD_BATCH);
-  renderBoard();
+  const nextLimit = Math.min(state.postcards.length, current + DEFAULT_POSTCARD_BATCH);
+  if (nextLimit === current) return;
+  const scrollTop = window.scrollY;
+  state.postcardLimit = nextLimit;
+  renderBoard({ revealFromIndex: current });
+  requestAnimationFrame(() => {
+    window.scrollTo({ top: scrollTop, behavior: 'auto' });
+  });
 }
 
 async function loadMoods() {
