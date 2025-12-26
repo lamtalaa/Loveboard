@@ -8,24 +8,24 @@ const USER_PASSCODES = {
 
 const MOOD_PRESETS = {
   Yassine: [
-    { emoji: '🛡️', label: 'Your guard, in control' },
-    { emoji: '😎', label: 'Calm and commanding' },
-    { emoji: '🔥', label: 'On you, all heat' },
-    { emoji: '🌹', label: 'Dominant, gentle touch' },
-    { emoji: '🃏', label: 'Playful but boss' },
-    { emoji: '💪', label: 'Strong arms ready' },
-    { emoji: '✨', label: 'Here to make you smile' },
-    { emoji: '🎧', label: 'Chill, come close' }
+    { emoji: '🛡️', label: 'Guard' },
+    { emoji: '😎', label: 'Confident' },
+    { emoji: '🔥', label: 'Commanding' },
+    { emoji: '🌹', label: 'Dominant' },
+    { emoji: '🃏', label: 'Playful' },
+    { emoji: '💪', label: 'Strong' },
+    { emoji: '✨', label: 'Bright' },
+    { emoji: '🎧', label: 'Chill' }
   ],
   Nihal: [
-    { emoji: '🌸', label: 'Soft and obedient' },
-    { emoji: '💃', label: 'Dancing for you' },
-    { emoji: '🤍', label: 'Ready to please' },
-    { emoji: '💗', label: 'Sweet and yours' },
-    { emoji: '😈', label: 'Flirty and yielding' },
-    { emoji: '🫦', label: 'Quiet, kiss me' },
-    { emoji: '🌙', label: 'Dreamy and compliant' },
-    { emoji: '🧸', label: 'Cuddle and follow' }
+    { emoji: '🌸', label: 'Soft' },
+    { emoji: '💃', label: 'Devoted' },
+    { emoji: '🤍', label: 'Gentle' },
+    { emoji: '💗', label: 'Yours' },
+    { emoji: '😈', label: 'Playful' },
+    { emoji: '🫦', label: 'Quiet' },
+    { emoji: '🌙', label: 'Dreamy' },
+    { emoji: '🧸', label: 'Cuddly' }
   ]
 };
 const FALLBACK_MOODS = [{ emoji: '💗', label: 'So in love with you' }];
