@@ -9,7 +9,7 @@ const DEFAULT_PHOTO_A = './assets/placeholder-a.svg';
 const DEFAULT_PHOTO_B = './assets/placeholder-b.svg';
 const STORAGE_KEY = 'wwan-settings';
 const WWAN_TABLE = 'wwan_cities';
-const TIME_REFRESH_MS = 5000;
+const TIME_REFRESH_MS = 1000;
 
 const defaults = {
   personA: {
