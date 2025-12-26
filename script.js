@@ -99,6 +99,8 @@ const state = {
   menuOpen: false,
   menuClickListener: null,
   menuKeyListener: null,
+  ldAppOpen: false,
+  ldAppKeyListener: null,
   activityFeed: [],
   unreadActivityCount: 0,
   notificationsPanelOpen: false
@@ -141,7 +143,11 @@ const ui = {
   currentAvatar: document.getElementById('current-user-avatar'),
   toast: document.getElementById('toast'),
   optionButtons: document.querySelectorAll('.option-btn'),
-  optionSections: document.querySelectorAll('.option-section')
+  optionSections: document.querySelectorAll('.option-section'),
+  ldAppToggle: document.getElementById('ldapp-toggle'),
+  ldAppBack: document.getElementById('ldapp-back'),
+  ldAppView: document.getElementById('ldapp-view'),
+  loveboardView: document.getElementById('loveboard-view')
 };
 
 const template = document.getElementById('postcard-template');
@@ -181,6 +187,12 @@ function init() {
   }
   if (ui.notificationEnable) {
     ui.notificationEnable.addEventListener('click', handleNotificationEnableClick);
+  }
+  if (ui.ldAppToggle) {
+    ui.ldAppToggle.addEventListener('click', openLdApp);
+  }
+  if (ui.ldAppBack) {
+    ui.ldAppBack.addEventListener('click', closeLdApp);
   }
   ui.surpriseToggle.addEventListener('change', handleSurpriseToggle);
   ui.logoutBtn.addEventListener('click', handleLogout);
@@ -598,6 +610,60 @@ function detachMenuListeners() {
   if (state.menuKeyListener) {
     document.removeEventListener('keydown', state.menuKeyListener, true);
     state.menuKeyListener = null;
+  }
+}
+
+function openLdApp() {
+  if (!ui.ldAppView || !ui.loveboardView) return;
+  closeMenuPanel();
+  switchView(ui.ldAppView, ui.loveboardView);
+  state.ldAppOpen = true;
+  if (!state.ldAppKeyListener) {
+    state.ldAppKeyListener = (evt) => {
+      if (evt.key === 'Escape') {
+        closeLdApp();
+      }
+    };
+    document.addEventListener('keydown', state.ldAppKeyListener, true);
+  }
+}
+
+function closeLdApp() {
+  if (!ui.ldAppView || !ui.loveboardView) return;
+  switchView(ui.loveboardView, ui.ldAppView, () => ui.menuToggle?.focus());
+  state.ldAppOpen = false;
+  if (state.ldAppKeyListener) {
+    document.removeEventListener('keydown', state.ldAppKeyListener, true);
+    state.ldAppKeyListener = null;
+  }
+}
+
+function switchView(showEl, hideEl, onComplete) {
+  const clean = (el) => el && el.classList.remove('view-enter', 'view-exit');
+  clean(showEl);
+  clean(hideEl);
+
+  if (hideEl) {
+    hideEl.classList.add('view-exit');
+    hideEl.setAttribute('aria-hidden', 'true');
+    const handleHideEnd = () => {
+      hideEl.hidden = true;
+      hideEl.classList.remove('view-exit');
+      hideEl.removeEventListener('animationend', handleHideEnd);
+    };
+    hideEl.addEventListener('animationend', handleHideEnd);
+  }
+
+  if (showEl) {
+    showEl.hidden = false;
+    showEl.setAttribute('aria-hidden', 'false');
+    showEl.classList.add('view-enter');
+    const handleShowEnd = () => {
+      showEl.classList.remove('view-enter');
+      showEl.removeEventListener('animationend', handleShowEnd);
+      if (typeof onComplete === 'function') onComplete();
+    };
+    showEl.addEventListener('animationend', handleShowEnd);
   }
 }
 

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" role="img" aria-label="City placeholder">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f3e4c8" />
+      <stop offset="100%" stop-color="#f1d6b4" />
+    </linearGradient>
+  </defs>
+  <rect width="800" height="450" fill="url(#sky)" />
+  <circle cx="140" cy="110" r="50" fill="#fff4d8" opacity="0.9" />
+  <rect x="90" y="240" width="140" height="150" fill="#f1d2a8" />
+  <rect x="250" y="210" width="170" height="180" fill="#eab88e" />
+  <rect x="450" y="200" width="160" height="190" fill="#e3aa82" />
+  <rect x="640" y="230" width="120" height="160" fill="#edc7a2" />
+  <rect x="0" y="360" width="800" height="90" fill="#e2b590" />
+</svg>

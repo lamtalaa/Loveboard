@@ -25,6 +25,10 @@ body {
   margin: 0 auto;
 }
 
+.view-panel {
+  position: relative;
+}
+
 .board-header {
   display: flex;
   justify-content: space-between;
@@ -59,6 +63,8 @@ body {
 .header-actions {
   position: relative;
   align-items: flex-start;
+  display: flex;
+  gap: 0.4rem;
 }
 
 .menu-toggle {
@@ -72,6 +78,23 @@ body {
   cursor: pointer;
   position: relative;
   z-index: 16;
+}
+
+.ldapp-toggle {
+  border: none;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--ink);
+  font-size: 1.2rem;
+  border-radius: 12px;
+  padding: 0.25rem 0.55rem;
+  box-shadow: 0 6px 14px rgba(70, 50, 60, 0.12);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.ldapp-toggle:active {
+  transform: translateY(1px);
+  box-shadow: 0 4px 10px rgba(70, 50, 60, 0.12);
 }
 
 .menu-panel[hidden],
@@ -1118,6 +1141,85 @@ button:disabled {
 .error-text {
   color: #b42323;
   min-height: 1.5rem;
+}
+
+.ldapp-view[hidden] {
+  display: none !important;
+}
+
+.ldapp-view {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1rem 0.75rem 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.ldapp-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
+.ldapp-back {
+  border: none;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--ink);
+  padding: 0.5rem 0.85rem;
+  border-radius: 12px;
+  box-shadow: 0 6px 14px rgba(70, 50, 60, 0.12);
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.ldapp-title {
+  margin: 0;
+  font-size: 1rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: rgba(70, 50, 60, 0.65);
+}
+
+.ldapp-view iframe {
+  width: 100%;
+  height: calc(100vh - 140px);
+  border: none;
+  border-radius: 16px;
+  box-shadow: 0 16px 36px rgba(70, 50, 60, 0.18);
+  background: #fff;
+}
+
+.view-enter {
+  animation: viewIn 320ms cubic-bezier(0.17, 0.67, 0.29, 1) forwards;
+}
+
+.view-exit {
+  animation: viewOut 260ms cubic-bezier(0.35, 0, 0.2, 1) forwards;
+  pointer-events: none;
+}
+
+@keyframes viewIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes viewOut {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
 }
 
 .toast {

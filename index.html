@@ -11,7 +11,12 @@
       href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap"
       rel="stylesheet"
     />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Work+Sans:wght@300;400;500&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="wwan.css" />
     <script>
       const cfg = {
         supabaseUrl: '{{SUPABASE_URL}}',
@@ -58,7 +63,7 @@
       </div>
     </div>
 
-    <main class="app" aria-hidden="true">
+    <main class="app view-panel" aria-hidden="true" id="loveboard-view">
       <header class="board-header">
         <div>
           <p class="tagline">Yassine ❤️ Nihal</p>
@@ -67,6 +72,14 @@
           </div>
         </div>
         <div class="header-actions">
+          <button
+            id="ldapp-toggle"
+            class="ldapp-toggle"
+            type="button"
+            aria-label="Open Where We Are Now"
+          >
+            🗺️
+          </button>
           <button
             id="menu-toggle"
             class="menu-toggle"
@@ -131,6 +144,122 @@
 
       <button id="create-btn" class="create-btn" disabled>Create Postcard</button>
     </main>
+
+    <section id="ldapp-view" class="ldapp-view view-panel" hidden aria-hidden="true">
+      <header class="wwan-bar">
+        <p class="wwan-bar-title">Where We Are Now</p>
+        <button
+          id="ldapp-back"
+          class="ldapp-toggle wwan-toggle"
+          type="button"
+          aria-label="Back to Loveboard"
+        >
+          🏠
+        </button>
+      </header>
+
+      <main class="wwan-app" aria-live="polite">
+        <header class="wwan-header">
+          <p class="wwan-eyebrow">Where We Are Now</p>
+          <h1 class="wwan-title">Yassine ❤️ Nihal — Where We Are Now</h1>
+          <p class="wwan-subtitle">Two hearts, two time zones, one cozy space.</p>
+        </header>
+
+        <section class="wwan-cards" aria-label="Couple status">
+          <article class="wwan-profile-card" id="wwan-person-a" aria-live="polite">
+            <div class="wwan-profile-header">
+              <div>
+                <p class="wwan-label" id="wwan-label-a">Yassine's Time</p>
+                <h2 class="wwan-name" id="wwan-name-a">Yassine</h2>
+              </div>
+              <span class="wwan-badge" id="wwan-diff-badge">Loading…</span>
+            </div>
+            <div class="wwan-time" id="wwan-time-a">--:--</div>
+            <p class="wwan-location" id="wwan-city-a">New York City, USA</p>
+            <p class="wwan-suggestion" id="wwan-suggestion-a"></p>
+            <div class="wwan-photo" aria-hidden="true">
+              <img id="wwan-photo-a" alt="" />
+            </div>
+
+            <div class="wwan-weather-card" id="wwan-weather-a">
+              <div class="wwan-weather-main">
+                <span class="wwan-weather-emoji" id="wwan-icon-a" aria-hidden="true">⛅️</span>
+                <div>
+                  <p class="wwan-temp" id="wwan-temp-a">--°</p>
+                  <p class="wwan-desc" id="wwan-desc-a">Waiting for weather…</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="wwan-doing-card" id="wwan-doing-a">
+              <p class="wwan-doing-title" id="wwan-doing-title-a">What Yassine's Probably Doing</p>
+              <p class="wwan-doing-text" id="wwan-doing-text-a">Loading…</p>
+            </div>
+          </article>
+
+          <article class="wwan-profile-card" id="wwan-person-b" aria-live="polite">
+            <div class="wwan-profile-header">
+              <div>
+                <p class="wwan-label" id="wwan-label-b">Nihal's Time</p>
+                <h2 class="wwan-name" id="wwan-name-b">Nihal</h2>
+              </div>
+              <span class="wwan-badge" id="wwan-diff-badge-secondary">Loading…</span>
+            </div>
+            <div class="wwan-time" id="wwan-time-b">--:--</div>
+            <p class="wwan-location" id="wwan-city-b">Meknes, Morocco</p>
+            <p class="wwan-suggestion" id="wwan-suggestion-b"></p>
+            <div class="wwan-photo" aria-hidden="true">
+              <img id="wwan-photo-b" alt="" />
+            </div>
+
+            <div class="wwan-weather-card" id="wwan-weather-b">
+              <div class="wwan-weather-main">
+                <span class="wwan-weather-emoji" id="wwan-icon-b" aria-hidden="true">⛅️</span>
+                <div>
+                  <p class="wwan-temp" id="wwan-temp-b">--°</p>
+                  <p class="wwan-desc" id="wwan-desc-b">Waiting for weather…</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="wwan-doing-card" id="wwan-doing-b">
+              <p class="wwan-doing-title" id="wwan-doing-title-b">What Nihal's Probably Doing</p>
+              <p class="wwan-doing-text" id="wwan-doing-text-b">Loading…</p>
+            </div>
+          </article>
+        </section>
+
+        <section class="wwan-quote-card" aria-live="polite">
+          <p class="wwan-quote-eyebrow">Love Note</p>
+          <p class="wwan-quote-text" id="wwan-quote-text">Loading a sweet thought…</p>
+          <p class="wwan-quote-author" id="wwan-quote-author"></p>
+          <button class="wwan-ghost-button" id="wwan-new-quote" type="button">New quote</button>
+        </section>
+
+        <button class="wwan-settings-button" id="wwan-open-settings" type="button">Settings</button>
+      </main>
+
+      <div class="wwan-modal" id="wwan-settings-modal" aria-hidden="true" role="dialog">
+        <div class="wwan-modal-overlay" id="wwan-modal-overlay"></div>
+        <div class="wwan-modal-panel" role="document">
+          <div class="wwan-modal-header">
+            <h3>Personalize</h3>
+            <button class="wwan-close-button" id="wwan-close-settings" type="button">Close</button>
+          </div>
+          <form class="wwan-settings-form" id="wwan-settings-form">
+            <label>
+              Yassine's City
+              <input type="text" id="wwan-input-city-a" placeholder="New York City" />
+            </label>
+            <label>
+              Nihal's City
+              <input type="text" id="wwan-input-city-b" placeholder="Meknes" />
+            </label>
+            <button class="wwan-save-button" type="submit">Save</button>
+          </form>
+        </div>
+      </div>
+    </section>
 
     <dialog id="postcard-modal" class="modal">
       <form method="dialog" class="modal-content" id="postcard-form">
@@ -247,6 +376,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script type="module" src="supabase.js"></script>
+    <script type="module" src="wwan.js"></script>
     <script type="module" src="script.js"></script>
   </body>
 </html>
