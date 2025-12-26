@@ -299,9 +299,9 @@ function renderBoard() {
     const audioPanel = node.querySelector('.audio-only');
     const audioPlayer = node.querySelector('.audio-player');
     const deleteBtn = node.querySelector('.delete-card');
-  const reactionCounts = node.querySelectorAll('.reaction-counts');
-  const reactButtons = node.querySelectorAll('.react-btn');
-  const reactionPickers = node.querySelectorAll('.reaction-picker');
+    const reactionCounts = node.querySelectorAll('.reaction-counts');
+    const reactButtons = node.querySelectorAll('.react-btn');
+    const reactionPickers = node.querySelectorAll('.reaction-picker');
   const commentLists = node.querySelectorAll('.comment-list');
   const commentForms = node.querySelectorAll('.comment-form');
 
@@ -321,6 +321,12 @@ function renderBoard() {
         audioPlayer.src = card.asset_url;
         audioPlayer.load();
       }
+      const viz = document.createElement('div');
+      viz.className = 'audio-visual';
+      viz.innerHTML = '<span></span><span></span><span></span><span></span><span></span>';
+      audioPanel.insertBefore(viz, audioPanel.firstChild);
+      audioPlayer.addEventListener('play', () => viz.classList.add('playing'));
+      ['pause', 'ended'].forEach((evt) => audioPlayer.addEventListener(evt, () => viz.classList.remove('playing')));
       needsMeasure = false;
       requestAnimationFrame(() => measureCardHeight(node));
     } else if (isVisual && card.asset_url) {

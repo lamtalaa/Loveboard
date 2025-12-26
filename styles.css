@@ -498,24 +498,78 @@ button:disabled {
 .audio-only {
   display: none;
   flex-direction: column;
-  gap: 0.75rem;
-  padding: 1.2rem;
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.9);
-  border: 1px dashed rgba(70, 50, 60, 0.08);
+  gap: 0.6rem;
+  padding: 1.1rem;
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(245, 181, 197, 0.18), rgba(227, 212, 249, 0.22));
+  border: 1px solid rgba(70, 50, 60, 0.08);
+  box-shadow: 0 12px 28px rgba(70, 50, 60, 0.12);
 }
 
 .audio-label {
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  letter-spacing: 0.01em;
 }
 
 .audio-player {
   width: 100%;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 14px;
 }
 
 .postcard.audio-mode .audio-only {
   display: flex;
+}
+
+.audio-visual {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 26px;
+}
+
+.audio-visual span {
+  width: 6px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #f05d90, #5f4fb3);
+  opacity: 0.6;
+  transform-origin: center bottom;
+  animation: audioPulse 1.2s ease-in-out infinite;
+}
+
+.audio-visual span:nth-child(2) {
+  animation-delay: 0.08s;
+}
+.audio-visual span:nth-child(3) {
+  animation-delay: 0.16s;
+}
+.audio-visual span:nth-child(4) {
+  animation-delay: 0.24s;
+}
+.audio-visual span:nth-child(5) {
+  animation-delay: 0.32s;
+}
+
+.audio-visual:not(.playing) span {
+  animation: none;
+  height: 8px;
+}
+
+@keyframes audioPulse {
+  0%,
+  100% {
+    height: 8px;
+  }
+  40% {
+    height: 22px;
+  }
+  60% {
+    height: 14px;
+  }
 }
 
 .postcard .note {
