@@ -42,7 +42,8 @@ const fallbackQuotes = [
 const state = {
   settings: { ...defaults },
   offsets: { personA: null, personB: null },
-  weather: { A: null, B: null }
+  weather: { A: null, B: null },
+  lastQuote: null
 };
 
 const elements = {
@@ -484,21 +485,31 @@ async function fetchCityPhoto(id, city, country) {
 }
 
 async function fetchQuote() {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 6000);
   try {
-    const response = await fetch(QUOTE_URL);
+    const response = await fetch(QUOTE_URL, { signal: controller.signal });
     if (!response.ok) {
       throw new Error('Quote unavailable');
     }
     const data = await response.json();
     const quote = Array.isArray(data) ? data[0] : data;
-    elements.quoteText.textContent = quote.q || quote.content || '';
+    const text = quote.q || quote.content || '';
     const author = quote.a || quote.author;
-    elements.quoteAuthor.textContent = author ? `— ${author}` : '';
+    applyQuote(text, author);
   } catch (error) {
-    const pick = fallbackQuotes[Math.floor(Math.random() * fallbackQuotes.length)];
-    elements.quoteText.textContent = pick.content;
-    elements.quoteAuthor.textContent = pick.author ? `— ${pick.author}` : '';
+    const candidates = fallbackQuotes.filter((q) => q.content !== state.lastQuote);
+    const pick =
+      candidates.length > 0 ? candidates[Math.floor(Math.random() * candidates.length)] : fallbackQuotes[0];
+    applyQuote(pick.content, pick.author);
   }
+  clearTimeout(timeout);
+}
+
+function applyQuote(text, author) {
+  state.lastQuote = text;
+  elements.quoteText.textContent = text || '';
+  elements.quoteAuthor.textContent = author ? `— ${author}` : '';
 }
 
 function openModal() {
