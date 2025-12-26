@@ -86,6 +86,15 @@ create table public.comment_reactions (
   "user" text not null,
   reaction text not null
 );
+
+create table public.wwan_cities (
+  "user" text primary key,
+  city text not null,
+  country text,
+  country_code text,
+  time_zone text,
+  updated_at timestamp with time zone default timezone('utc', now()) not null
+);
 ```
 
 3. Enable Row Level Security and add simple policies such as:

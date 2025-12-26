@@ -1,4 +1,5 @@
 import { supabase } from './supabase.js';
+import { setWwanUser } from './wwan.js';
 
 const USER_PASSCODES = {
   Yassine: 'iloven',
@@ -223,6 +224,7 @@ function handleAuth(event) {
   ui.app.setAttribute('aria-hidden', 'false');
   enableCreateButton();
   updateAvatar();
+  setWwanUser(state.user);
   startApp();
   initNotifications();
 }
@@ -243,6 +245,7 @@ function restoreSession() {
   ui.app.setAttribute('aria-hidden', 'false');
   enableCreateButton();
   updateAvatar();
+  setWwanUser(state.user);
   startApp();
   initNotifications();
 }
@@ -914,6 +917,7 @@ function handleLogout() {
   state.started = false;
   state.user = null;
   updateAvatar();
+  setWwanUser(null);
   location.reload();
 }
 

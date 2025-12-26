@@ -1,3 +1,5 @@
+import { supabase } from './supabase.js';
+
 const OPEN_METEO_WEATHER_URL = 'https://api.open-meteo.com/v1/forecast';
 const OPEN_METEO_GEO_URL = 'https://geocoding-api.open-meteo.com/v1/search';
 const UNSPLASH_ACCESS_KEY = 'MJINNu4GwhlXbpGNgEgAqoswqv2I3HBs5E-ZbS1REwU';
@@ -6,6 +8,7 @@ const QUOTE_URL = 'https://api.allorigins.win/raw?url=https%3A%2F%2Fzenquotes.io
 const DEFAULT_PHOTO_A = './assets/placeholder-a.svg';
 const DEFAULT_PHOTO_B = './assets/placeholder-b.svg';
 const STORAGE_KEY = 'wwan-settings';
+const WWAN_TABLE = 'wwan_cities';
 
 const defaults = {
   personA: {
@@ -43,7 +46,8 @@ const state = {
   settings: { ...defaults },
   offsets: { personA: null, personB: null },
   weather: { A: null, B: null },
-  lastQuote: null
+  lastQuote: null,
+  currentUser: null
 };
 
 const elements = {
@@ -83,8 +87,7 @@ const elements = {
   photoA: document.getElementById('wwan-photo-a'),
   photoB: document.getElementById('wwan-photo-b'),
   quoteText: document.getElementById('wwan-quote-text'),
-  quoteAuthor: document.getElementById('wwan-quote-author'),
-  newQuote: document.getElementById('wwan-new-quote')
+  quoteAuthor: document.getElementById('wwan-quote-author')
 };
 
 const countryNames =
@@ -112,6 +115,37 @@ function loadSettings() {
 
 function saveSettings(nextSettings) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(nextSettings));
+}
+
+async function hydrateRemoteSettings() {
+  try {
+    const { data, error } = await supabase.from(WWAN_TABLE).select('*');
+    if (error || !data) return;
+    data.forEach((row) => {
+      if (row.user === defaults.personA.name) {
+        state.settings.personA.city = row.city || state.settings.personA.city;
+        state.settings.personA.country = row.country || state.settings.personA.country;
+        state.settings.personA.countryCode = row.country_code || state.settings.personA.countryCode;
+        state.settings.personA.timeZone = row.time_zone || state.settings.personA.timeZone;
+      } else if (row.user === defaults.personB.name) {
+        state.settings.personB.city = row.city || state.settings.personB.city;
+        state.settings.personB.country = row.country || state.settings.personB.country;
+        state.settings.personB.countryCode = row.country_code || state.settings.personB.countryCode;
+        state.settings.personB.timeZone = row.time_zone || state.settings.personB.timeZone;
+      }
+    });
+    saveSettings(state.settings);
+  } catch (error) {
+    console.warn('wwan settings load', error);
+  }
+}
+
+async function persistCityRow(user, payload) {
+  try {
+    await supabase.from(WWAN_TABLE).upsert({ user, ...payload, updated_at: new Date().toISOString() });
+  } catch (error) {
+    console.warn('wwan settings save', error);
+  }
 }
 
 function formatTime(date, timeZone) {
@@ -231,6 +265,7 @@ function updateLabels() {
   elements.cityB.textContent = `${state.settings.personB.city}, ${state.settings.personB.country}`;
   elements.doingTitleA.textContent = `What ${state.settings.personA.name}'s Probably Doing`;
   elements.doingTitleB.textContent = `What ${state.settings.personB.name}'s Probably Doing`;
+  updateEditingAccess();
 }
 
 function setCardTheme(id, condition, isNight) {
@@ -425,6 +460,16 @@ function handleWeatherSuccess(id, data, originalQuery, resolved) {
   updateLabels();
   fetchCityPhoto(id, cityName, country);
 
+  const actor = id === 'A' ? defaults.personA.name : defaults.personB.name;
+  if (state.currentUser === actor) {
+    persistCityRow(actor, {
+      city: id === 'A' ? state.settings.personA.city : state.settings.personB.city,
+      country: id === 'A' ? state.settings.personA.country : state.settings.personB.country,
+      country_code: id === 'A' ? state.settings.personA.countryCode : state.settings.personB.countryCode,
+      time_zone: id === 'A' ? state.settings.personA.timeZone : state.settings.personB.timeZone
+    });
+  }
+
   const normalizedQuery = normalizeQuery(originalQuery);
   const normalizedCity = normalizeQuery(cityName);
   const showSuggestion = normalizedQuery && normalizedCity && normalizedQuery !== normalizedCity;
@@ -529,19 +574,47 @@ function hydrateForm() {
 
 function handleSubmit(event) {
   event.preventDefault();
-  state.settings.personA.city = elements.inputCityA.value.trim() || defaults.personA.city;
-  state.settings.personB.city = elements.inputCityB.value.trim() || defaults.personB.city;
+  const isA = state.currentUser === defaults.personA.name;
+  const isB = state.currentUser === defaults.personB.name;
+  if (!isA && !isB) return;
+
+  if (isA) {
+    state.settings.personA.city = elements.inputCityA.value.trim() || defaults.personA.city;
+  }
+  if (isB) {
+    state.settings.personB.city = elements.inputCityB.value.trim() || defaults.personB.city;
+  }
 
   saveSettings(state.settings);
   updateLabels();
-  fetchWeather('A', state.settings.personA.city, state.settings.personA.countryCode);
-  fetchWeather('B', state.settings.personB.city, state.settings.personB.countryCode);
+  if (isA) {
+    fetchWeather('A', state.settings.personA.city, state.settings.personA.countryCode);
+  }
+  if (isB) {
+    fetchWeather('B', state.settings.personB.city, state.settings.personB.countryCode);
+  }
   closeModal();
 }
 
-function init() {
+function updateEditingAccess() {
+  const isA = state.currentUser === defaults.personA.name;
+  const isB = state.currentUser === defaults.personB.name;
+  if (elements.openSettings) {
+    elements.openSettings.disabled = !state.currentUser;
+    elements.openSettings.textContent = state.currentUser ? 'Change my city' : 'Change city (log in)';
+  }
+  if (elements.inputCityA) {
+    elements.inputCityA.disabled = !isA;
+  }
+  if (elements.inputCityB) {
+    elements.inputCityB.disabled = !isB;
+  }
+}
+
+async function init() {
   if (!elements.root) return;
   state.settings = loadSettings();
+  await hydrateRemoteSettings();
   updateLabels();
   updateTimes();
   fetchWeather('A', state.settings.personA.city, state.settings.personA.countryCode);
@@ -556,6 +629,11 @@ function init() {
   elements.closeSettings?.addEventListener('click', closeModal);
   elements.modalOverlay?.addEventListener('click', closeModal);
   elements.form?.addEventListener('submit', handleSubmit);
-  elements.newQuote?.addEventListener('click', fetchQuote);
+  setInterval(fetchQuote, 5 * 60 * 1000);
   setInterval(updateTimes, 60000);
+}
+
+export function setWwanUser(user) {
+  state.currentUser = user;
+  updateEditingAccess();
 }
