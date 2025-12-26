@@ -43,6 +43,7 @@ const AUTH_KEY = 'loveboard-user';
 const MOOD_TIMES_KEY = 'loveboard-moodTimes';
 const DEFAULT_NOTE_IMG = './assets/default-note.svg';
 const NOTIFICATION_ICON = './assets/heart.svg';
+const DEFAULT_POSTCARD_BATCH = 3;
 const notificationsSupported = 'Notification' in window;
 const storedSurprise = localStorage.getItem('loveboard-surprise');
 const initialSurprise = storedSurprise === null ? true : storedSurprise === 'true';
@@ -83,6 +84,7 @@ const state = {
   comments: {},
   commentReactions: {},
   commentUserReactions: {},
+  postcardLimit: DEFAULT_POSTCARD_BATCH,
   moodTimes: readStoredJSON(MOOD_TIMES_KEY, {}),
   activeOptions: new Set(['message']),
   moodMenuListener: null,
@@ -261,6 +263,10 @@ async function loadPostcards() {
     return;
   }
   state.postcards = data || [];
+  state.postcardLimit = Math.min(
+    Math.max(state.postcardLimit || DEFAULT_POSTCARD_BATCH, DEFAULT_POSTCARD_BATCH),
+    state.postcards.length || DEFAULT_POSTCARD_BATCH
+  );
   await Promise.all([loadReactions(), loadComments(), loadCommentReactions()]);
   renderBoard();
 }
@@ -275,7 +281,8 @@ function renderBoard() {
     ui.board.appendChild(empty);
     return;
   }
-  state.postcards.forEach((card) => {
+  const visible = state.postcards.slice(0, state.postcardLimit || DEFAULT_POSTCARD_BATCH);
+  visible.forEach((card) => {
     const node = template.content.firstElementChild.cloneNode(true);
     node.dataset.id = card.id;
     if (card.user === state.user) {
@@ -375,6 +382,22 @@ function renderBoard() {
       scheduleCardMeasurement(node);
     }
   });
+
+  const remaining = state.postcards.length - visible.length;
+  if (remaining > 0) {
+    const loadMore = document.createElement('button');
+    loadMore.type = 'button';
+    loadMore.className = 'load-more';
+    loadMore.textContent = `Load more postcards (${remaining})`;
+    loadMore.addEventListener('click', handleLoadMore);
+    ui.board.appendChild(loadMore);
+  }
+}
+
+function handleLoadMore() {
+  const current = state.postcardLimit || DEFAULT_POSTCARD_BATCH;
+  state.postcardLimit = Math.min(state.postcards.length, current + DEFAULT_POSTCARD_BATCH);
+  renderBoard();
 }
 
 async function loadMoods() {
