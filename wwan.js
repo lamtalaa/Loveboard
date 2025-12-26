@@ -47,7 +47,8 @@ const state = {
   offsets: { personA: null, personB: null },
   weather: { A: null, B: null },
   lastQuote: null,
-  currentUser: null
+  currentUser: null,
+  skipPersistUser: null
 };
 
 const elements = {
@@ -145,6 +146,32 @@ async function persistCityRow(user, payload) {
     await supabase.from(WWAN_TABLE).upsert({ user, ...payload, updated_at: new Date().toISOString() });
   } catch (error) {
     console.warn('wwan settings save', error);
+  }
+}
+
+export function applyRemoteCity(row) {
+  if (!row || !row.user) return;
+  const isA = row.user === defaults.personA.name;
+  const isB = row.user === defaults.personB.name;
+  if (!isA && !isB) return;
+  if (isA) {
+    state.settings.personA.city = row.city || state.settings.personA.city;
+    state.settings.personA.country = row.country || state.settings.personA.country;
+    state.settings.personA.countryCode = row.country_code || state.settings.personA.countryCode;
+    state.settings.personA.timeZone = row.time_zone || state.settings.personA.timeZone;
+    state.skipPersistUser = row.user;
+    saveSettings(state.settings);
+    updateLabels();
+    fetchWeather('A', state.settings.personA.city, state.settings.personA.countryCode);
+  } else if (isB) {
+    state.settings.personB.city = row.city || state.settings.personB.city;
+    state.settings.personB.country = row.country || state.settings.personB.country;
+    state.settings.personB.countryCode = row.country_code || state.settings.personB.countryCode;
+    state.settings.personB.timeZone = row.time_zone || state.settings.personB.timeZone;
+    state.skipPersistUser = row.user;
+    saveSettings(state.settings);
+    updateLabels();
+    fetchWeather('B', state.settings.personB.city, state.settings.personB.countryCode);
   }
 }
 
@@ -461,13 +488,19 @@ function handleWeatherSuccess(id, data, originalQuery, resolved) {
   fetchCityPhoto(id, cityName, country);
 
   const actor = id === 'A' ? defaults.personA.name : defaults.personB.name;
-  if (state.currentUser === actor) {
+  if (state.currentUser === actor && state.skipPersistUser !== actor) {
     persistCityRow(actor, {
       city: id === 'A' ? state.settings.personA.city : state.settings.personB.city,
       country: id === 'A' ? state.settings.personA.country : state.settings.personB.country,
       country_code: id === 'A' ? state.settings.personA.countryCode : state.settings.personB.countryCode,
       time_zone: id === 'A' ? state.settings.personA.timeZone : state.settings.personB.timeZone
     });
+  }
+  if (state.skipPersistUser === actor) {
+    state.skipPersistUser = null;
+  }
+  if (state.skipPersistUser === actor) {
+    state.skipPersistUser = null;
   }
 
   const normalizedQuery = normalizeQuery(originalQuery);

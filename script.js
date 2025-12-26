@@ -1,5 +1,5 @@
 import { supabase } from './supabase.js';
-import { setWwanUser } from './wwan.js';
+import { setWwanUser, applyRemoteCity } from './wwan.js';
 
 const USER_PASSCODES = {
   Yassine: 'iloven',
@@ -1237,6 +1237,12 @@ function subscribeRealtime() {
         body: '',
         target: `comment:${payload.old.postcard_id}:${payload.old.comment_id}`
       });
+    })
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'wwan_cities' }, (payload) => {
+      applyRemoteCity(payload.new);
+    })
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'wwan_cities' }, (payload) => {
+      applyRemoteCity(payload.new);
     })
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'postcard_comments' }, (payload) => {
       applyCommentRow(payload.new);
