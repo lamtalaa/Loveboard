@@ -42,15 +42,7 @@ const BUCKET = 'loveboard-assets';
 const AUTH_KEY = 'loveboard-user';
 const MOOD_TIMES_KEY = 'loveboard-moodTimes';
 const DEFAULT_NOTE_IMG = './assets/default-note.svg';
-const NOTIFICATION_ICON = './assets/heart.svg';
 const DEFAULT_POSTCARD_BATCH = 3;
-const notificationsSupported = 'Notification' in window;
-const storedSurprise = localStorage.getItem('loveboard-surprise');
-const initialSurprise = storedSurprise === null ? true : storedSurprise === 'true';
-if (storedSurprise === null) {
-  localStorage.setItem('loveboard-surprise', 'true');
-}
-
 function readStoredJSON(key, fallback) {
   try {
     const raw = localStorage.getItem(key);
@@ -69,7 +61,6 @@ function persistMoodTimes() {
 const state = {
   user: null,
   postcards: [],
-  surprise: initialSurprise,
   doodleDirty: false,
   doodleCtx: null,
   recording: {
@@ -88,9 +79,6 @@ const state = {
   moodTimes: readStoredJSON(MOOD_TIMES_KEY, {}),
   activeOptions: new Set(['message']),
   moodMenuListener: null,
-  notificationsAllowed: notificationsSupported && Notification.permission === 'granted',
-  swRegistration: null,
-  pushSubscription: null,
   openReactionPicker: null,
   realtimeChannel: null,
   commentChannel: null,
@@ -99,14 +87,12 @@ const state = {
   editingComment: null,
   commentUpdatedAtSupported: true,
   moodUpdatedAtSupported: true,
-  menuOpen: false,
-  menuClickListener: null,
-  menuKeyListener: null,
   ldAppOpen: false,
   ldAppKeyListener: null,
-  activityFeed: [],
-  unreadActivityCount: 0,
-  notificationsPanelOpen: false
+  constellationOpen: false,
+  constellationKeyListener: null,
+  constellationResizeListener: null,
+  constellationActiveId: null,
 };
 
 const ui = {
@@ -119,6 +105,9 @@ const ui = {
   authSubmit: document.getElementById('auth-submit'),
   board: document.getElementById('board'),
   modal: document.getElementById('postcard-modal'),
+  logoutModal: document.getElementById('logout-modal'),
+  logoutConfirm: document.getElementById('logout-confirm'),
+  logoutCancel: document.getElementById('logout-cancel'),
   postcardForm: document.getElementById('postcard-form'),
   createBtn: document.getElementById('create-btn'),
   closeModal: document.getElementById('close-modal'),
@@ -133,24 +122,24 @@ const ui = {
   sendBtn: document.getElementById('send-btn'),
   sendHint: document.getElementById('send-hint'),
   moodButtons: document.querySelectorAll('.mood-btn'),
-  surpriseToggle: document.getElementById('surprise-toggle'),
-  menuToggle: document.getElementById('menu-toggle'),
-  menuPanel: document.getElementById('menu-panel'),
-  notificationBtn: document.getElementById('menu-notifications'),
-  notificationCount: document.getElementById('notification-count'),
-  notificationPanel: document.getElementById('notification-panel'),
-  notificationItems: document.getElementById('notification-items'),
-  notificationEmpty: document.getElementById('notification-empty'),
-  notificationEnable: document.getElementById('notification-enable'),
-  logoutBtn: document.getElementById('logout-btn'),
+  logoutButtons: document.querySelectorAll('.logout-btn'),
   currentAvatar: document.getElementById('current-user-avatar'),
   toast: document.getElementById('toast'),
   optionButtons: document.querySelectorAll('.option-btn'),
   optionSections: document.querySelectorAll('.option-section'),
-  ldAppToggle: document.getElementById('ldapp-toggle'),
-  ldAppBack: document.getElementById('ldapp-back'),
   ldAppView: document.getElementById('ldapp-view'),
-  loveboardView: document.getElementById('loveboard-view')
+  loveboardView: document.getElementById('loveboard-view'),
+  constellationView: document.getElementById('constellation-view'),
+  constellationSky: document.getElementById('constellation-sky'),
+  constellationCanvas: document.getElementById('constellation-canvas'),
+  constellationStars: document.getElementById('constellation-stars'),
+  constellationDetail: document.getElementById('constellation-detail'),
+  constellationClose: document.getElementById('constellation-close'),
+  constellationMeta: document.getElementById('constellation-meta'),
+  constellationMessage: document.getElementById('constellation-message'),
+  constellationMedia: document.getElementById('constellation-media'),
+  constellationHint: document.getElementById('constellation-hint'),
+  viewSwitchButtons: document.querySelectorAll('.view-switch')
 };
 
 const template = document.getElementById('postcard-template');
@@ -158,16 +147,27 @@ const template = document.getElementById('postcard-template');
 init();
 
 function init() {
-  if (ui.menuPanel) {
-    ui.menuPanel.hidden = true;
-  }
-  if (ui.notificationPanel) {
-    ui.notificationPanel.hidden = true;
-  }
-  ui.surpriseToggle.checked = state.surprise;
   ui.authForm.addEventListener('submit', handleAuth);
   ui.createBtn.addEventListener('click', openModal);
   ui.closeModal.addEventListener('click', () => ui.modal.close());
+  if (ui.currentAvatar) {
+    ui.currentAvatar.addEventListener('click', () => {
+      const name = state.user || 'Unknown';
+      showToast(`Signed in as ${name}`, 'info', ui.currentAvatar);
+    });
+  }
+  if (ui.logoutModal) {
+    ui.logoutModal.addEventListener('cancel', (evt) => {
+      evt.preventDefault();
+      closeLogoutModal();
+    });
+  }
+  if (ui.logoutCancel) {
+    ui.logoutCancel.addEventListener('click', closeLogoutModal);
+  }
+  if (ui.logoutConfirm) {
+    ui.logoutConfirm.addEventListener('click', confirmLogout);
+  }
   ui.postcardForm.addEventListener('submit', handlePostcardSubmit);
   ui.clearDoodle.addEventListener('click', clearDoodle);
   ui.userSelect.addEventListener('change', updateAuthButton);
@@ -179,32 +179,21 @@ function init() {
   ui.moodButtons.forEach((btn) =>
     btn.addEventListener('click', () => openMoodPicker(btn))
   );
-  if (ui.menuToggle) {
-    ui.menuToggle.addEventListener('click', toggleMenuPanel);
+  if (ui.viewSwitchButtons) {
+    ui.viewSwitchButtons.forEach((btn) =>
+      btn.addEventListener('click', () => handleViewSwitch(btn.dataset.view))
+    );
   }
-  if (ui.notificationBtn) {
-    ui.notificationBtn.addEventListener('click', handleNotificationMenuClick);
+  if (ui.constellationClose) {
+    ui.constellationClose.addEventListener('click', closeConstellationDetail);
   }
-  if (ui.notificationItems) {
-    ui.notificationItems.addEventListener('click', handleNotificationItemClick);
-  }
-  if (ui.notificationEnable) {
-    ui.notificationEnable.addEventListener('click', handleNotificationEnableClick);
-  }
-  if (ui.ldAppToggle) {
-    ui.ldAppToggle.addEventListener('click', openLdApp);
-  }
-  if (ui.ldAppBack) {
-    ui.ldAppBack.addEventListener('click', closeLdApp);
-  }
-  ui.surpriseToggle.addEventListener('change', handleSurpriseToggle);
-  ui.logoutBtn.addEventListener('click', handleLogout);
+  ui.logoutButtons.forEach((btn) => btn.addEventListener('click', handleLogout));
   ui.optionButtons.forEach((btn) => btn.addEventListener('click', () => toggleOption(btn)));
-  updateNotificationUI();
   updateOptionVisibility();
   updateAuthButton();
   updateSendButtonState();
   setButtonState(ui.createBtn, false);
+  updateViewSwitchers('loveboard');
   restoreSession();
 }
 
@@ -228,7 +217,6 @@ function handleAuth(event) {
   updateAvatar();
   setWwanUser(state.user);
   startApp();
-  initNotifications();
 }
 
 async function startApp() {
@@ -249,7 +237,6 @@ function restoreSession() {
   updateAvatar();
   setWwanUser(state.user);
   startApp();
-  initNotifications();
 }
 
 async function loadPostcards() {
@@ -269,6 +256,10 @@ async function loadPostcards() {
   );
   await Promise.all([loadReactions(), loadComments(), loadCommentReactions()]);
   renderBoard();
+  if (state.constellationOpen) {
+    renderConstellation();
+  }
+  updateViewSwitchers(state.constellationOpen ? 'constellation' : state.ldAppOpen ? 'ldapp' : 'loveboard');
 }
 
 function renderBoard(options = {}) {
@@ -348,12 +339,6 @@ function renderBoard(options = {}) {
     } else {
       defaultVisual.hidden = false;
       defaultVisual.src = DEFAULT_NOTE_IMG;
-    }
-
-    if (state.surprise) {
-      node.classList.add('surprise');
-    } else {
-      node.classList.remove('surprise');
     }
 
     if (!isAudio) {
@@ -581,109 +566,356 @@ async function saveMood(emoji) {
     return;
   }
   setMood(state.user, emoji, changedAt);
-  const target = getOtherUser();
-  if (target) {
-    const mood = getMoodMeta(emoji, state.user);
-    triggerRemoteNotification(target, `${state.user} shared a mood`, mood ? mood.label : 'Thinking of you.');
+}
+
+function handleViewSwitch(view) {
+  if (!view) return;
+  if (view === 'loveboard') {
+    showLoveboard();
+  } else if (view === 'ldapp') {
+    showLdApp();
+  } else if (view === 'constellation') {
+    showConstellation();
   }
 }
 
-function handleSurpriseToggle() {
-  state.surprise = ui.surpriseToggle.checked;
-  localStorage.setItem('loveboard-surprise', state.surprise);
-  renderBoard();
+function getActiveView() {
+  if (state.constellationOpen) return ui.constellationView;
+  if (state.ldAppOpen) return ui.ldAppView;
+  return ui.loveboardView;
 }
 
-function toggleMenuPanel(evt) {
-  if (evt) {
-    evt.stopPropagation();
-  }
-  if (state.menuOpen) {
-    closeMenuPanel();
-  } else {
-    openMenuPanel();
-  }
+function showLoveboard() {
+  if (!ui.loveboardView) return;
+  const current = getActiveView();
+  if (current === ui.loveboardView) return;
+  const focusTarget = ui.viewSwitchButtons?.[0];
+  switchView(ui.loveboardView, current, () => focusTarget?.focus());
+  state.ldAppOpen = false;
+  state.constellationOpen = false;
+  cleanupLdAppListeners();
+  cleanupConstellationListeners();
+  updateViewSwitchers('loveboard');
 }
 
-function openMenuPanel() {
-  if (!ui.menuPanel) return;
-  ui.menuPanel.hidden = false;
-  state.menuOpen = true;
-  if (ui.menuToggle) {
-    ui.menuToggle.setAttribute('aria-expanded', 'true');
-  }
-  attachMenuListeners();
-}
-
-function closeMenuPanel() {
-  if (!ui.menuPanel) return;
-  ui.menuPanel.hidden = true;
-  state.menuOpen = false;
-  if (ui.menuToggle) {
-    ui.menuToggle.setAttribute('aria-expanded', 'false');
-  }
-  if (ui.notificationPanel) {
-    ui.notificationPanel.hidden = true;
-  }
-  state.notificationsPanelOpen = false;
-  detachMenuListeners();
-}
-
-function attachMenuListeners() {
-  if (!state.menuClickListener) {
-    state.menuClickListener = (evt) => {
-      if (!ui.menuPanel?.contains(evt.target) && evt.target !== ui.menuToggle) {
-        closeMenuPanel();
-      }
-    };
-    document.addEventListener('click', state.menuClickListener, false);
-    document.addEventListener('touchstart', state.menuClickListener, false);
-  }
-  if (!state.menuKeyListener) {
-    state.menuKeyListener = (evt) => {
-      if (evt.key === 'Escape') {
-        closeMenuPanel();
-      }
-    };
-    document.addEventListener('keydown', state.menuKeyListener, true);
-  }
-}
-
-function detachMenuListeners() {
-  if (state.menuClickListener) {
-    document.removeEventListener('click', state.menuClickListener, false);
-    document.removeEventListener('touchstart', state.menuClickListener, false);
-    state.menuClickListener = null;
-  }
-  if (state.menuKeyListener) {
-    document.removeEventListener('keydown', state.menuKeyListener, true);
-    state.menuKeyListener = null;
-  }
-}
-
-function openLdApp() {
-  if (!ui.ldAppView || !ui.loveboardView) return;
-  closeMenuPanel();
-  switchView(ui.ldAppView, ui.loveboardView);
+function showLdApp() {
+  if (!ui.ldAppView) return;
+  const current = getActiveView();
+  if (current === ui.ldAppView) return;
+  switchView(ui.ldAppView, current);
   state.ldAppOpen = true;
+  state.constellationOpen = false;
+  cleanupConstellationListeners();
+  updateViewSwitchers('ldapp');
+  attachLdAppListeners();
+}
+
+function showConstellation() {
+  if (!ui.constellationView) return;
+  const current = getActiveView();
+  if (current === ui.constellationView) return;
+  switchView(ui.constellationView, current);
+  state.constellationOpen = true;
+  state.ldAppOpen = false;
+  renderConstellation();
+  setupConstellationResize();
+  updateViewSwitchers('constellation');
+  attachConstellationListeners();
+  cleanupLdAppListeners();
+}
+
+function attachLdAppListeners() {
   if (!state.ldAppKeyListener) {
     state.ldAppKeyListener = (evt) => {
       if (evt.key === 'Escape') {
-        closeLdApp();
+        showLoveboard();
       }
     };
     document.addEventListener('keydown', state.ldAppKeyListener, true);
   }
 }
 
-function closeLdApp() {
-  if (!ui.ldAppView || !ui.loveboardView) return;
-  switchView(ui.loveboardView, ui.ldAppView, () => ui.menuToggle?.focus());
-  state.ldAppOpen = false;
+function cleanupLdAppListeners() {
   if (state.ldAppKeyListener) {
     document.removeEventListener('keydown', state.ldAppKeyListener, true);
     state.ldAppKeyListener = null;
   }
+}
+
+function attachConstellationListeners() {
+  if (!state.constellationKeyListener) {
+    state.constellationKeyListener = (evt) => {
+      if (evt.key === 'Escape') {
+        if (!ui.constellationDetail?.hidden) {
+          closeConstellationDetail();
+        } else {
+          showLoveboard();
+        }
+      }
+    };
+    document.addEventListener('keydown', state.constellationKeyListener, true);
+  }
+}
+
+function cleanupConstellationListeners() {
+  if (state.constellationKeyListener) {
+    document.removeEventListener('keydown', state.constellationKeyListener, true);
+    state.constellationKeyListener = null;
+  }
+}
+
+function updateViewSwitchers(view) {
+  if (!ui.viewSwitchButtons) return;
+  ui.viewSwitchButtons.forEach((btn) => {
+    const isActive = btn.dataset.view === view;
+    btn.classList.toggle('active', isActive);
+    btn.setAttribute('aria-current', isActive ? 'page' : 'false');
+  });
+}
+
+function setupConstellationResize() {
+  if (state.constellationResizeListener) return;
+  state.constellationResizeListener = () => {
+    if (!state.constellationOpen) return;
+    requestAnimationFrame(renderConstellation);
+  };
+  window.addEventListener('resize', state.constellationResizeListener, { passive: true });
+}
+
+function renderConstellation() {
+  if (!ui.constellationSky || !ui.constellationCanvas || !ui.constellationStars) return;
+  ui.constellationStars.innerHTML = '';
+  const cards = [...state.postcards].sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  );
+  if (!cards.length) {
+    if (ui.constellationHint) {
+      ui.constellationHint.textContent = 'No postcards yet. Your sky is waiting.';
+    }
+    clearConstellationCanvas();
+    return;
+  }
+  if (ui.constellationHint) {
+    ui.constellationHint.textContent = 'Tap a star to reveal the memory.';
+  }
+  const { width, height } = ui.constellationSky.getBoundingClientRect();
+  const layout = buildConstellationLayout(cards, width, height);
+  drawConstellationScene(layout, width, height);
+  layout.points.forEach((point) => {
+    const star = document.createElement('button');
+    star.type = 'button';
+    star.className = `constellation-star ${point.userClass}`;
+    star.style.left = `${point.x}px`;
+    star.style.top = `${point.y}px`;
+    star.style.setProperty('--star-size', `${point.size}px`);
+    star.style.setProperty('--float-delay', point.floatDelay);
+    star.style.setProperty('--float-duration', point.floatDuration);
+    star.dataset.id = point.id;
+    star.dataset.label = point.label;
+    star.setAttribute('aria-label', point.label);
+    star.addEventListener('click', () => openConstellationDetail(point.card));
+    ui.constellationStars.appendChild(star);
+  });
+}
+
+function buildConstellationLayout(cards, width, height) {
+  const centerX = width / 2;
+  const centerY = height * 0.52;
+  const isCompact = width < 520;
+  const pad = 28;
+  const verticalSpan = height * (isCompact ? 0.86 : 0.78);
+  const letterWidth = width * (isCompact ? 0.3 : 0.36);
+  const gap = width * (isCompact ? 0.08 : 0.1);
+  const startY = centerY + verticalSpan / 2;
+  const leftCenter = centerX - (letterWidth / 2 + gap / 2);
+  const rightCenter = centerX + (letterWidth / 2 + gap / 2);
+  const topY = startY - verticalSpan;
+  const midY = startY - verticalSpan * 0.5;
+  const bottomY = startY;
+  const yLeft = [
+    { x: leftCenter - letterWidth / 2, y: topY },
+    { x: leftCenter, y: midY },
+    { x: leftCenter + letterWidth / 2, y: topY },
+    { x: leftCenter, y: midY },
+    { x: leftCenter, y: bottomY }
+  ];
+  const nRight = [
+    { x: rightCenter - letterWidth / 2, y: bottomY },
+    { x: rightCenter - letterWidth / 2, y: topY },
+    { x: rightCenter + letterWidth / 2, y: bottomY },
+    { x: rightCenter + letterWidth / 2, y: topY }
+  ];
+  const yPath = buildStrokePath(yLeft);
+  const nPath = buildStrokePath(nRight);
+  const yBridge = yLeft[2];
+  const nBridge = nRight[0];
+  const points = cards.map((card, index) => {
+    const seed = hashString(card.id || card.created_at || `${index}`);
+    const rng = mulberry32(seed);
+    const progress = cards.length > 1 ? index / (cards.length - 1) : 0.5;
+    const wobbleX = (rng() - 0.5) * (isCompact ? 6 : 9);
+    const wobbleY = (rng() - 0.5) * (isCompact ? 8 : 12);
+    let x;
+    let y;
+    if (progress < 0.48) {
+      const local = progress / 0.48;
+      ({ x, y } = sampleStroke(yPath, local));
+    } else if (progress < 0.52) {
+      const local = (progress - 0.48) / 0.04;
+      x = yBridge.x + (nBridge.x - yBridge.x) * local;
+      y = yBridge.y + (nBridge.y - yBridge.y) * local;
+    } else {
+      const local = (progress - 0.52) / 0.48;
+      ({ x, y } = sampleStroke(nPath, local));
+    }
+    x += wobbleX;
+    y += wobbleY;
+    x = Math.max(pad, Math.min(width - pad, x));
+    y = Math.max(pad, Math.min(height - pad, y));
+    const minSize = isCompact ? 10 : 7;
+    const size = minSize + rng() * (isCompact ? 8 : 7);
+    const userClass = card.user === 'Yassine' ? 'user-yassine' : 'user-nihal';
+    return {
+      id: card.id,
+      x,
+      y,
+      size,
+      card,
+      userClass,
+      order: index,
+      label: `${card.user} · ${formatDate(card.created_at)}`,
+      floatDelay: `${rng() * 2.4}s`,
+      floatDuration: `${3.8 + rng() * 2.8}s`
+    };
+  });
+  return { points, centerX, centerY };
+}
+
+function buildStrokePath(nodes) {
+  const segments = [];
+  let total = 0;
+  for (let i = 0; i < nodes.length - 1; i += 1) {
+    const a = nodes[i];
+    const b = nodes[i + 1];
+    const len = Math.hypot(b.x - a.x, b.y - a.y);
+    segments.push({ a, b, len });
+    total += len;
+  }
+  return { segments, total: Math.max(total, 1) };
+}
+
+function sampleStroke(path, t) {
+  let distance = t * path.total;
+  for (let i = 0; i < path.segments.length; i += 1) {
+    const seg = path.segments[i];
+    if (distance <= seg.len || i === path.segments.length - 1) {
+      const ratio = seg.len === 0 ? 0 : distance / seg.len;
+      return {
+        x: seg.a.x + (seg.b.x - seg.a.x) * ratio,
+        y: seg.a.y + (seg.b.y - seg.a.y) * ratio
+      };
+    }
+    distance -= seg.len;
+  }
+  return { x: path.segments[0].a.x, y: path.segments[0].a.y };
+}
+
+function drawConstellationScene(layout, width, height) {
+  if (!ui.constellationCanvas) return;
+  const canvas = ui.constellationCanvas;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.max(1, Math.floor(width * dpr));
+  canvas.height = Math.max(1, Math.floor(height * dpr));
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, width, height);
+  if (!layout.points.length) return;
+  const glow = ctx.createRadialGradient(layout.centerX, layout.centerY, 0, layout.centerX, layout.centerY, 200);
+  glow.addColorStop(0, 'rgba(255, 255, 255, 0.18)');
+  glow.addColorStop(1, 'rgba(255, 255, 255, 0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(layout.centerX, layout.centerY, 200, 0, Math.PI * 2);
+  ctx.fill();
+  const points = layout.points;
+  if (points.length < 2) return;
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const start = points[i];
+    const end = points[i + 1];
+    const midX = (start.x + end.x) / 2;
+    const midY = (start.y + end.y) / 2;
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const len = Math.max(1, Math.hypot(dx, dy));
+    const offset = ((i % 2 === 0 ? 1 : -1) * 0.08) * len;
+    const ctrlX = midX - (dy / len) * offset;
+    const ctrlY = midY + (dx / len) * offset;
+    ctx.beginPath();
+    ctx.moveTo(start.x, start.y);
+    ctx.quadraticCurveTo(ctrlX, ctrlY, end.x, end.y);
+    ctx.stroke();
+  }
+}
+
+function clearConstellationCanvas() {
+  if (!ui.constellationCanvas) return;
+  const canvas = ui.constellationCanvas;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+function openConstellationDetail(card) {
+  if (!ui.constellationDetail || !ui.constellationMeta || !ui.constellationMessage) return;
+  state.constellationActiveId = card.id;
+  ui.constellationMeta.textContent = `${card.user} · ${formatDate(card.created_at)}`;
+  ui.constellationMessage.textContent = card.message || 'No message, just vibes.';
+  if (ui.constellationMedia) {
+    ui.constellationMedia.innerHTML = '';
+    if ((card.type === 'image' || card.type === 'doodle') && card.asset_url) {
+      const img = document.createElement('img');
+      img.src = card.asset_url;
+      img.alt = `${card.type} from ${card.user}`;
+      ui.constellationMedia.appendChild(img);
+    } else if (card.type === 'audio' && card.asset_url) {
+      const audio = document.createElement('audio');
+      audio.controls = true;
+      audio.src = card.asset_url;
+      ui.constellationMedia.appendChild(audio);
+    }
+  }
+  ui.constellationDetail.hidden = false;
+  ui.constellationDetail.setAttribute('aria-hidden', 'false');
+}
+
+function closeConstellationDetail() {
+  if (!ui.constellationDetail) return;
+  ui.constellationDetail.hidden = true;
+  ui.constellationDetail.setAttribute('aria-hidden', 'true');
+  state.constellationActiveId = null;
+}
+
+function hashString(value) {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i += 1) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function mulberry32(seed) {
+  let t = seed;
+  return () => {
+    t += 0x6d2b79f5;
+    let r = Math.imul(t ^ (t >>> 15), t | 1);
+    r ^= r + Math.imul(r ^ (r >>> 7), r | 61);
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
 function switchView(showEl, hideEl, onComplete) {
@@ -692,10 +924,9 @@ function switchView(showEl, hideEl, onComplete) {
   clean(hideEl);
 
   const focusableSelector = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+  const fallbackFocus = ui.viewSwitchButtons?.[0] || document.body;
   const nextFocus =
-    (showEl && showEl.querySelector(focusableSelector)) ||
-    (showEl === ui.loveboardView ? ui.ldAppToggle : ui.menuToggle) ||
-    document.body;
+    (showEl && showEl.querySelector(focusableSelector)) || fallbackFocus;
 
   const active = document.activeElement;
   const shouldMoveFocus = hideEl && active && hideEl.contains(active);
@@ -727,209 +958,6 @@ function switchView(showEl, hideEl, onComplete) {
   }
 }
 
-function renderNotificationList() {
-  if (!ui.notificationItems || !ui.notificationPanel) return;
-  ui.notificationItems.innerHTML = '';
-  if (!state.activityFeed.length) {
-    if (ui.notificationEmpty) {
-      ui.notificationEmpty.hidden = false;
-    }
-    return;
-  }
-  if (ui.notificationEmpty) {
-    ui.notificationEmpty.hidden = true;
-  }
-  state.activityFeed.forEach((entry) => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'notification-item';
-    if (!entry.read) {
-      btn.classList.add('unread');
-    }
-    btn.dataset.activityId = entry.id;
-    const title = document.createElement('p');
-    title.className = 'notification-item-title';
-    title.textContent = entry.title;
-    const body = document.createElement('p');
-    body.className = 'notification-item-body';
-    body.textContent = entry.body || '';
-    const time = document.createElement('span');
-    time.className = 'notification-item-time';
-    time.textContent = formatCommentTime(entry.timestamp);
-    btn.append(title);
-    if (entry.body) {
-      btn.append(body);
-    }
-    btn.append(time);
-    ui.notificationItems.appendChild(btn);
-  });
-}
-
-function markNotificationsRead() {
-  let changed = false;
-  state.activityFeed.forEach((entry) => {
-    if (!entry.read) {
-      entry.read = true;
-      changed = true;
-    }
-  });
-  if (changed) {
-    updateNotificationUI();
-  }
-}
-
-function logActivity({ type, title, body, target }) {
-  if (!title) return;
-  const normalizedBody = body || '';
-  const latest = state.activityFeed[0];
-  if (
-    latest &&
-    latest.type === type &&
-    latest.target === target &&
-    latest.body === normalizedBody &&
-    Date.now() - new Date(latest.timestamp).getTime() < 1500
-  ) {
-    return;
-  }
-  const entry = {
-    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    type,
-    title,
-    body: normalizedBody,
-    target,
-    timestamp: new Date().toISOString(),
-    read: state.notificationsPanelOpen
-  };
-  state.activityFeed = [entry, ...state.activityFeed].slice(0, 40);
-  updateNotificationUI();
-}
-
-function getActivityActor(user) {
-  if (!user) return 'Someone';
-  return user === state.user ? 'You' : user;
-}
-
-function focusNotification(activityId) {
-  if (!activityId) return;
-  const entry = state.activityFeed.find((item) => item.id === activityId);
-  if (!entry) return;
-  entry.read = true;
-  updateNotificationUI();
-  closeMenuPanel();
-  focusActivityTarget(entry);
-}
-
-function focusActivityTarget(entry) {
-  if (!entry?.target) return;
-  const parts = entry.target.split(':');
-  const type = parts[0];
-  let element = null;
-  if (type === 'postcard') {
-    element = findPostcardElement(parts[1]);
-  } else if (type === 'comment') {
-    element = findCommentElement(parts[1], parts[2]);
-  } else if (type === 'mood') {
-    element = document.querySelector(`.mood-btn[data-user="${parts[1]}"]`);
-  }
-  if (element) {
-    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    highlightElement(element);
-  } else {
-    showToast('Cannot find that update on the board.', 'error');
-  }
-}
-
-function findPostcardElement(postcardId) {
-  if (!postcardId) return null;
-  return document.querySelector(`[data-id="${postcardId}"]`);
-}
-
-function findCommentElement(postcardId, commentId) {
-  if (!postcardId || !commentId) return null;
-  const card = findPostcardElement(postcardId);
-  if (!card) return null;
-  return card.querySelector(`[data-comment-id="${commentId}"]`) || card;
-}
-
-function highlightElement(element) {
-  if (!element || !element.animate) return;
-  element.animate(
-    [
-      { transform: 'scale(1)', boxShadow: '0 0 0 rgba(245, 181, 197, 0)' },
-      { transform: 'scale(1.02)', boxShadow: '0 0 0 6px rgba(245, 181, 197, 0.4)' },
-      { transform: 'scale(1)', boxShadow: '0 0 0 rgba(245, 181, 197, 0)' }
-    ],
-    { duration: 800 }
-  );
-}
-
-function handleNotificationMenuClick(evt) {
-  evt?.stopPropagation();
-  if (!ui.notificationPanel) return;
-  const willOpen = ui.notificationPanel.hidden;
-  ui.notificationPanel.hidden = !willOpen;
-  state.notificationsPanelOpen = willOpen;
-  if (willOpen) {
-    markNotificationsRead();
-    renderNotificationList();
-  }
-}
-
-function handleNotificationItemClick(evt) {
-  const item = evt.target.closest('.notification-item');
-  if (!item) return;
-  evt.stopPropagation();
-  const activityId = item.dataset.activityId;
-  focusNotification(activityId);
-}
-
-async function handleNotificationEnableClick(evt) {
-  evt?.stopPropagation();
-  const allowed = await initNotifications();
-  updateNotificationUI();
-  if (allowed) {
-    showToast('Push alerts enabled ✨');
-  }
-}
-
-function updateNotificationUI() {
-  const unread = state.activityFeed.filter((entry) => !entry.read).length;
-  state.unreadActivityCount = unread;
-  if (ui.notificationCount) {
-    if (unread > 0) {
-      ui.notificationCount.textContent = unread > 9 ? '9+' : String(unread);
-      ui.notificationCount.hidden = false;
-    } else {
-      ui.notificationCount.hidden = true;
-    }
-  }
-  updateNotificationControls();
-  if (state.notificationsPanelOpen) {
-    renderNotificationList();
-  }
-}
-
-function updateNotificationControls() {
-  if (!ui.notificationEnable) return;
-  if (!notificationsSupported) {
-    ui.notificationEnable.textContent = 'Push not supported';
-    ui.notificationEnable.disabled = true;
-    return;
-  }
-  if (Notification.permission === 'denied') {
-    ui.notificationEnable.textContent = 'Push blocked in browser';
-    ui.notificationEnable.disabled = true;
-    return;
-  }
-  if (Notification.permission === 'granted' || state.notificationsAllowed) {
-    ui.notificationEnable.textContent = 'Push alerts on';
-    ui.notificationEnable.disabled = true;
-    return;
-  }
-  ui.notificationEnable.textContent = 'Enable push alerts';
-  ui.notificationEnable.disabled = false;
-}
-
 function getMoodMeta(emoji, user) {
   return getMoodOptions(user).find((m) => m.emoji === emoji) || FALLBACK_MOODS.find((m) => m.emoji === emoji);
 }
@@ -938,26 +966,35 @@ function getMoodOptions(user) {
   return MOOD_PRESETS[user] || FALLBACK_MOODS;
 }
 
-function notifyMood(moodRow) {
-  if (moodRow.user === state.user) return;
-  const mood = getMoodMeta(moodRow.emoji, moodRow.user);
-  const label = mood ? mood.label : 'a new feeling';
-  notifyUser(`${moodRow.user} shared a mood`, label);
-}
-
-function getOtherUser() {
-  if (state.user === 'Yassine') return 'Nihal';
-  if (state.user === 'Nihal') return 'Yassine';
-  return null;
-}
-
 function updateAvatar() {
   if (!ui.currentAvatar) return;
   ui.currentAvatar.textContent = state.user ? state.user[0] : '?';
 }
 
 function handleLogout() {
-  closeMenuPanel();
+  if (!ui.logoutModal) {
+    confirmLogout();
+    return;
+  }
+  ui.logoutModal.classList.remove('closing');
+  ui.logoutModal.showModal();
+}
+
+function confirmLogout() {
+  closeLogoutModal(performLogout);
+}
+
+function closeLogoutModal(onClosed) {
+  if (!ui.logoutModal || !ui.logoutModal.open) {
+    if (typeof onClosed === 'function') onClosed();
+    return;
+  }
+  ui.logoutModal.close();
+  ui.logoutModal.classList.remove('closing');
+  if (typeof onClosed === 'function') onClosed();
+}
+
+function performLogout() {
   localStorage.removeItem(AUTH_KEY);
   state.started = false;
   state.user = null;
@@ -1154,10 +1191,6 @@ async function handlePostcardSubmit(event) {
     renderBoard();
     gentlePulse(`[data-id="${data.id}"]`);
     await broadcastCommentEvent('postcard:new', { postcard: data, sender: state.user });
-    const target = getOtherUser();
-    if (target) {
-      triggerRemoteNotification(target, `New postcard from ${state.user}`, describePostcard(data));
-    }
   }
   ui.modal.close();
   ui.postcardForm.reset();
@@ -1198,90 +1231,34 @@ function subscribeRealtime() {
       upsertPostcard(payload.new);
       renderBoard();
       gentlePulse(`[data-id="${payload.new.id}"]`);
-      if (payload.new.user !== state.user) {
-        notifyUser(`New postcard from ${payload.new.user}`, describePostcard(payload.new));
-      }
-      logActivity({
-        type: 'postcard:new',
-        title: `${getActivityActor(payload.new.user)} posted a postcard`,
-        body: describePostcard(payload.new),
-        target: `postcard:${payload.new.id}`
-      });
     })
     .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'postcards' }, (payload) => {
       removePostcard(payload.old.id);
       renderBoard();
-      logActivity({
-        type: 'postcard:delete',
-        title: `${getActivityActor(payload.old?.user)} deleted a postcard`,
-        body: '',
-        target: `postcard:${payload.old.id}`
-      });
     })
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'moods' }, (payload) => {
       const changedAt = payload.new.updated_at || payload.new.created_at || new Date().toISOString();
       setMood(payload.new.user, payload.new.emoji, changedAt);
-      notifyMood(payload.new);
-      logActivity({
-        type: 'mood',
-        title: `${getActivityActor(payload.new.user)} set their mood`,
-        body: getMoodMeta(payload.new.emoji, payload.new.user)?.label || payload.new.emoji,
-        target: `mood:${payload.new.user}`
-      });
     })
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'moods' }, (payload) => {
       const changedAt = payload.new.updated_at || payload.new.created_at || new Date().toISOString();
       setMood(payload.new.user, payload.new.emoji, changedAt);
-      notifyMood(payload.new);
-      logActivity({
-        type: 'mood',
-        title: `${getActivityActor(payload.new.user)} updated their mood`,
-        body: getMoodMeta(payload.new.emoji, payload.new.user)?.label || payload.new.emoji,
-        target: `mood:${payload.new.user}`
-      });
     })
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'postcard_reactions' }, (payload) => {
       applyReactionRow(payload.new);
       updateReactionUI(payload.new.postcard_id);
-      if (payload.new.user !== state.user) {
-        notifyUser('New postcard reaction', `${payload.new.user} reacted ${payload.new.reaction}`);
-      }
-      logActivity({
-        type: 'reaction:add',
-        title: `${getActivityActor(payload.new.user)} reacted ${payload.new.reaction}`,
-        body: '',
-        target: `postcard:${payload.new.postcard_id}`
-      });
     })
     .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'postcard_reactions' }, (payload) => {
       removeReactionRow(payload.old);
       updateReactionUI(payload.old.postcard_id);
-      logActivity({
-        type: 'reaction:remove',
-        title: `${getActivityActor(payload.old?.user)} removed a reaction`,
-        body: '',
-        target: `postcard:${payload.old.postcard_id}`
-      });
     })
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comment_reactions' }, (payload) => {
       applyCommentReactionRow(payload.new);
       updateCommentUI(payload.new.postcard_id);
-      logActivity({
-        type: 'commentReaction:add',
-        title: `${getActivityActor(payload.new.user)} reacted ${payload.new.reaction} to a comment`,
-        body: '',
-        target: `comment:${payload.new.postcard_id}:${payload.new.comment_id}`
-      });
     })
     .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'comment_reactions' }, (payload) => {
       removeCommentReactionRow(payload.old);
       updateCommentUI(payload.old.postcard_id);
-      logActivity({
-        type: 'commentReaction:remove',
-        title: `${getActivityActor(payload.old?.user)} removed a comment reaction`,
-        body: '',
-        target: `comment:${payload.old.postcard_id}:${payload.old.comment_id}`
-      });
     })
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'wwan_cities' }, (payload) => {
       applyRemoteCity(payload.new);
@@ -1292,37 +1269,14 @@ function subscribeRealtime() {
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'postcard_comments' }, (payload) => {
       applyCommentRow(payload.new);
       updateCommentUI(payload.new.postcard_id);
-      if (payload.new.user !== state.user) {
-        const raw = payload.new.comment || '';
-        const snippet = raw.length > 60 ? `${raw.slice(0, 57)}…` : raw;
-        notifyUser('New postcard comment', `${payload.new.user}: ${snippet}`);
-      }
-      logActivity({
-        type: 'comment:new',
-        title: `${getActivityActor(payload.new.user)} commented`,
-        body: payload.new.comment || '',
-        target: `comment:${payload.new.postcard_id}:${payload.new.id}`
-      });
     })
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'postcard_comments' }, (payload) => {
       applyCommentRow(payload.new);
       updateCommentUI(payload.new.postcard_id);
-      logActivity({
-        type: 'comment:update',
-        title: `${getActivityActor(payload.new.user)} edited a comment`,
-        body: payload.new.comment || '',
-        target: `comment:${payload.new.postcard_id}:${payload.new.id}`
-      });
     })
     .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'postcard_comments' }, (payload) => {
       removeCommentRow(payload.old);
       updateCommentUI(payload.old.postcard_id);
-      logActivity({
-        type: 'comment:delete',
-        title: `${getActivityActor(payload.old?.user)} deleted a comment`,
-        body: '',
-        target: `comment:${payload.old.postcard_id}:${payload.old.id}`
-      });
     })
     .subscribe();
 }
@@ -1339,101 +1293,47 @@ function subscribeCommentBroadcast() {
       if (!payload) return;
       applyCommentRow(payload);
       updateCommentUI(payload.postcard_id);
-      logActivity({
-        type: 'comment:new',
-        title: `${getActivityActor(payload.user)} commented`,
-        body: payload.comment || '',
-        target: `comment:${payload.postcard_id}:${payload.id}`
-      });
     })
     .on('broadcast', { event: 'comment:update' }, ({ payload }) => {
       if (!payload) return;
       applyCommentRow(payload);
       updateCommentUI(payload.postcard_id);
-      logActivity({
-        type: 'comment:update',
-        title: `${getActivityActor(payload.user)} edited a comment`,
-        body: payload.comment || '',
-        target: `comment:${payload.postcard_id}:${payload.id}`
-      });
     })
     .on('broadcast', { event: 'comment:delete' }, ({ payload }) => {
       if (!payload) return;
       removeCommentRow(payload);
       updateCommentUI(payload.postcard_id);
-      logActivity({
-        type: 'comment:delete',
-        title: `${getActivityActor(payload.user)} deleted a comment`,
-        body: '',
-        target: `comment:${payload.postcard_id}:${payload.id}`
-      });
     })
     .on('broadcast', { event: 'reaction:add' }, ({ payload }) => {
       if (!payload?.row || payload?.sender === state.user) return;
       applyReactionRow(payload.row);
       updateReactionUI(payload.row.postcard_id);
-      logActivity({
-        type: 'reaction:add',
-        title: `${getActivityActor(payload.row.user)} reacted ${payload.row.reaction}`,
-        body: '',
-        target: `postcard:${payload.row.postcard_id}`
-      });
     })
     .on('broadcast', { event: 'reaction:remove' }, ({ payload }) => {
       if (!payload?.row || payload?.sender === state.user) return;
       removeReactionRow(payload.row);
       updateReactionUI(payload.row.postcard_id);
-      logActivity({
-        type: 'reaction:remove',
-        title: `${getActivityActor(payload.row.user)} removed a reaction`,
-        body: '',
-        target: `postcard:${payload.row.postcard_id}`
-      });
     })
     .on('broadcast', { event: 'commentReaction:add' }, ({ payload }) => {
       if (!payload?.row || payload?.sender === state.user) return;
       applyCommentReactionRow(payload.row);
       updateCommentUI(payload.row.postcard_id);
-      logActivity({
-        type: 'commentReaction:add',
-        title: `${getActivityActor(payload.row.user)} reacted ${payload.row.reaction} to a comment`,
-        body: '',
-        target: `comment:${payload.row.postcard_id}:${payload.row.comment_id}`
-      });
     })
     .on('broadcast', { event: 'commentReaction:remove' }, ({ payload }) => {
       if (!payload?.row || payload?.sender === state.user) return;
       removeCommentReactionRow(payload.row);
       updateCommentUI(payload.row.postcard_id);
-      logActivity({
-        type: 'commentReaction:remove',
-        title: `${getActivityActor(payload.row.user)} removed a comment reaction`,
-        body: '',
-        target: `comment:${payload.row.postcard_id}:${payload.row.comment_id}`
-      });
     })
     .on('broadcast', { event: 'postcard:new' }, ({ payload }) => {
       if (!payload?.postcard || payload?.sender === state.user) return;
       upsertPostcard(payload.postcard);
       renderBoard();
       gentlePulse(`[data-id="${payload.postcard.id}"]`);
-      logActivity({
-        type: 'postcard:new',
-        title: `${getActivityActor(payload.postcard.user)} posted a postcard`,
-        body: describePostcard(payload.postcard),
-        target: `postcard:${payload.postcard.id}`
-      });
     })
     .on('broadcast', { event: 'postcard:delete' }, ({ payload }) => {
       if (!payload?.postcard_id) return;
       removePostcard(payload.postcard_id);
       renderBoard();
-      logActivity({
-        type: 'postcard:delete',
-        title: 'A postcard was deleted',
-        body: '',
-        target: `postcard:${payload.postcard_id}`
-      });
     })
     .subscribe((status) => {
       if (status === 'SUBSCRIBED') {
@@ -2016,10 +1916,6 @@ async function addReaction(postcardId, reaction) {
     applyReactionRow(row);
     updateReactionUI(postcardId);
     await broadcastCommentEvent('reaction:add', { row, sender: state.user });
-    const target = getOtherUser();
-    if (target) {
-      triggerRemoteNotification(target, `${state.user} reacted`, `Reaction: ${reaction}`);
-    }
   }
 }
 
@@ -2137,11 +2033,6 @@ async function handleCommentSubmit(postcardId, input, form) {
       await broadcastCommentEvent('comment:new', data);
     }
     input.value = '';
-    const target = getOtherUser();
-    if (target) {
-      const preview = text.length > 60 ? `${text.slice(0, 57)}…` : text;
-      triggerRemoteNotification(target, `${state.user} replied`, preview);
-    }
   } catch (err) {
     console.error('comment save', err);
     showToast('Could not send comment. Try again?', 'error');
@@ -2264,120 +2155,32 @@ async function confirmDeleteComment(postcardId, commentId) {
   }
 }
 
-async function initNotifications() {
-  if (!('serviceWorker' in navigator) || !notificationsSupported) {
-    return false;
-  }
-  if (!state.swRegistration) {
-    try {
-      state.swRegistration = await navigator.serviceWorker.register('/sw.js');
-    } catch (err) {
-      console.error('service worker registration failed', err);
-      updateNotificationUI();
-      return false;
-    }
-  }
-  if (Notification.permission === 'default') {
-    try {
-      const permission = await Notification.requestPermission();
-      state.notificationsAllowed = permission === 'granted';
-    } catch (err) {
-      console.error('notification permission', err);
-      state.notificationsAllowed = false;
-    }
-  } else {
-    state.notificationsAllowed = Notification.permission === 'granted';
-  }
-  updateNotificationUI();
-  if (!state.notificationsAllowed) {
-    return false;
-  }
-  await ensurePushSubscription();
-  return true;
-}
-
-async function notifyUser(title, body) {
-  if (!state.notificationsAllowed) return;
-  try {
-    const registration =
-      state.swRegistration || (await navigator.serviceWorker.getRegistration());
-    if (registration) {
-      await registration.showNotification(title, {
-        body,
-        icon: NOTIFICATION_ICON,
-        badge: NOTIFICATION_ICON
-      });
-    } else if (notificationsSupported && Notification.permission === 'granted') {
-      new Notification(title, { body, icon: NOTIFICATION_ICON });
-    }
-  } catch (err) {
-    console.error('notify error', err);
-  }
-}
-
-async function ensurePushSubscription() {
-  if (!state.notificationsAllowed || !state.swRegistration) return;
-  const existing = await state.swRegistration.pushManager.getSubscription();
-  if (existing) {
-    state.pushSubscription = existing;
-    await saveSubscription(existing);
-    return;
-  }
-  const vapidKey = window.__VAPID_PUBLIC_KEY__;
-  if (!vapidKey) return;
-  try {
-    const subscription = await state.swRegistration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(vapidKey)
-    });
-    state.pushSubscription = subscription;
-    await saveSubscription(subscription);
-  } catch (err) {
-    console.error('push subscribe failed', err);
-  }
-}
-
-async function saveSubscription(subscription) {
-  if (!state.user) return;
-  const { error } = await supabase.from('push_subscriptions').upsert(
-    {
-      user: state.user,
-      endpoint: subscription.endpoint,
-      subscription
-    },
-    { onConflict: 'endpoint' }
-  );
-  if (error) {
-    console.error('subscription save', error);
-  }
-}
-
-function urlBase64ToUint8Array(base64String) {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-  const rawData = window.atob(base64);
-  const outputArray = new Uint8Array(rawData.length);
-  for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i);
-  }
-  return outputArray;
-}
-
-async function triggerRemoteNotification(targetUser, title, body) {
-  if (!targetUser) return;
-  try {
-    await supabase.functions.invoke('notify-push', {
-      body: { targetUser, title, body }
-    });
-  } catch (err) {
-    console.error('remote notify', err);
-  }
-}
-
-function showToast(message, mode = 'info') {
+function showToast(message, mode = 'info', anchorEl = null) {
   if (!ui.toast) return;
   ui.toast.textContent = message;
   ui.toast.dataset.mode = mode;
+  ui.toast.classList.toggle('toast-anchored', Boolean(anchorEl));
+  if (anchorEl) {
+    const rect = anchorEl.getBoundingClientRect();
+    const padding = 12;
+    const toastRect = ui.toast.getBoundingClientRect();
+    let left = rect.right + 10;
+    let top = rect.top + rect.height / 2 - toastRect.height / 2;
+    if (left + toastRect.width > window.innerWidth - padding) {
+      left = rect.left - toastRect.width - 10;
+    }
+    left = Math.max(padding, Math.min(window.innerWidth - toastRect.width - padding, left));
+    top = Math.max(padding, Math.min(window.innerHeight - toastRect.height - padding, top));
+    ui.toast.style.left = `${left}px`;
+    ui.toast.style.top = `${top}px`;
+    ui.toast.style.bottom = 'auto';
+    ui.toast.style.transform = 'translate(0, 0)';
+  } else {
+    ui.toast.style.left = '';
+    ui.toast.style.top = '';
+    ui.toast.style.bottom = '';
+    ui.toast.style.transform = '';
+  }
   ui.toast.classList.add('show');
   clearTimeout(ui.toast._timer);
   ui.toast._timer = setTimeout(() => {

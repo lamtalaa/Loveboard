@@ -64,58 +64,33 @@
     </div>
 
     <main class="app view-panel" aria-hidden="true" id="loveboard-view">
-      <header class="board-header">
-        <div>
-          <p class="tagline">Yassine ❤️ Nihal</p>
-          <div class="avatars" aria-label="Who is here">
-            <span class="avatar" id="current-user-avatar">?</span>
-          </div>
-        </div>
-        <div class="header-actions">
-          <button
-            id="ldapp-toggle"
-            class="ldapp-toggle"
-            type="button"
-            aria-label="Open Where We Are Now"
-          >
+      <nav class="view-switcher" aria-label="Switch view">
+        <div class="view-switch-group">
+          <button type="button" class="view-switch active" data-view="loveboard" aria-label="Loveboard">
+            🏠
+          </button>
+          <button type="button" class="view-switch" data-view="ldapp" aria-label="Where We Are Now">
             🗺️
           </button>
           <button
-            id="menu-toggle"
-            class="menu-toggle"
             type="button"
-            aria-label="Open quick menu"
-            aria-expanded="false"
-            aria-controls="menu-panel"
+            class="view-switch"
+            data-view="constellation"
+            aria-label="Time Capsule Constellation"
           >
-            ☰
+            🌌
           </button>
-          <div id="menu-panel" class="menu-panel" hidden>
-            <p class="menu-title">Quick actions</p>
-            <button type="button" id="menu-notifications" class="menu-item menu-notifications">
-              <span>Notifications</span>
-              <span id="notification-count" class="notification-count" hidden>0</span>
-            </button>
-            <div id="notification-panel" class="notification-panel" hidden>
-              <div class="notification-actions">
-                <button type="button" id="notification-enable" class="notification-enable">
-                  Enable push alerts
-                </button>
-              </div>
-              <p id="notification-empty" class="notification-empty">No activity yet.</p>
-              <div id="notification-items" class="notification-items" role="list"></div>
-            </div>
-            <label class="menu-item menu-toggle-row">
-              <div>
-                <span class="menu-item-title">Surprise Mode</span>
-                <span class="menu-item-sub">Blur postcards until tapped</span>
-              </div>
-              <input type="checkbox" id="surprise-toggle" />
-            </label>
-            <button id="logout-btn" class="menu-item menu-danger" type="button">
-              Log out
-            </button>
-          </div>
+        </div>
+        <button class="nav-logout logout-btn" type="button" aria-label="Log out">
+          ⏻
+        </button>
+      </nav>
+      <header class="board-header">
+        <div class="board-title">
+          <p class="tagline view-title">Yassine ❤️ Nihal</p>
+        </div>
+        <div class="avatars" aria-label="Who is here">
+          <span class="avatar" id="current-user-avatar">?</span>
         </div>
       </header>
 
@@ -146,16 +121,29 @@
     </main>
 
     <section id="ldapp-view" class="ldapp-view view-panel" hidden aria-hidden="true">
-      <header class="wwan-bar">
-        <p class="wwan-bar-title">Where We Are Now</p>
-        <button
-          id="ldapp-back"
-          class="ldapp-toggle wwan-toggle"
-          type="button"
-          aria-label="Back to Loveboard"
-        >
-          🏠
+      <nav class="view-switcher" aria-label="Switch view">
+        <div class="view-switch-group">
+          <button type="button" class="view-switch" data-view="loveboard" aria-label="Loveboard">
+            🏠
+          </button>
+          <button type="button" class="view-switch active" data-view="ldapp" aria-label="Where We Are Now">
+            🗺️
+          </button>
+          <button
+            type="button"
+            class="view-switch"
+            data-view="constellation"
+            aria-label="Time Capsule Constellation"
+          >
+            🌌
+          </button>
+        </div>
+        <button class="nav-logout logout-btn" type="button" aria-label="Log out">
+          ⏻
         </button>
+      </nav>
+      <header class="wwan-bar">
+        <p class="wwan-bar-title view-title">Where We Are Now</p>
       </header>
 
       <main class="wwan-app" aria-live="polite">
@@ -260,6 +248,58 @@
       </div>
     </section>
 
+    <section id="constellation-view" class="constellation-view view-panel" hidden aria-hidden="true">
+      <nav class="view-switcher" aria-label="Switch view">
+        <div class="view-switch-group">
+          <button type="button" class="view-switch" data-view="loveboard" aria-label="Loveboard">
+            🏠
+          </button>
+          <button type="button" class="view-switch" data-view="ldapp" aria-label="Where We Are Now">
+            🗺️
+          </button>
+          <button
+            type="button"
+            class="view-switch active"
+            data-view="constellation"
+            aria-label="Time Capsule Constellation"
+          >
+            🌌
+          </button>
+        </div>
+        <button class="nav-logout logout-btn" type="button" aria-label="Log out">
+          ⏻
+        </button>
+      </nav>
+      <header class="constellation-bar">
+        <p class="constellation-title view-title">Time Capsule Constellation</p>
+      </header>
+      <main class="constellation-main">
+        <div class="constellation-sky" id="constellation-sky" aria-label="Postcard constellation">
+          <div class="constellation-aurora" aria-hidden="true"></div>
+          <div class="constellation-whispers" aria-hidden="true">
+            <span>love</span>
+            <span>always</span>
+            <span>near</span>
+            <span>ours</span>
+            <span>forever</span>
+          </div>
+          <canvas class="constellation-canvas" id="constellation-canvas"></canvas>
+          <div class="constellation-stars" id="constellation-stars"></div>
+        </div>
+        <p class="constellation-hint" id="constellation-hint">Tap a star to reveal the memory.</p>
+      </main>
+      <div class="constellation-detail" id="constellation-detail" hidden aria-hidden="true">
+        <div class="constellation-detail-inner">
+          <button id="constellation-close" class="constellation-close" type="button" aria-label="Close">
+            ×
+          </button>
+          <p class="constellation-meta" id="constellation-meta"></p>
+          <p class="constellation-message" id="constellation-message"></p>
+          <div class="constellation-media" id="constellation-media"></div>
+        </div>
+      </div>
+    </section>
+
     <dialog id="postcard-modal" class="modal">
       <form method="dialog" class="modal-content" id="postcard-form">
         <header>
@@ -311,8 +351,20 @@
       </form>
     </dialog>
 
+    <dialog id="logout-modal" class="modal">
+      <div class="modal-content logout-modal">
+        <header>
+          <h2>Are you sure you want to log out?</h2>
+        </header>
+        <div class="logout-actions">
+          <button type="button" class="ghost" id="logout-cancel">Stay</button>
+          <button type="button" class="primary" id="logout-confirm">Log out</button>
+        </div>
+      </div>
+    </dialog>
+
     <template id="postcard-template">
-      <article class="postcard surprise">
+      <article class="postcard">
         <button class="delete-card" type="button" aria-label="Delete postcard">✕</button>
         <div class="postcard-front">
           <img class="visual" alt="Postcard visual" />
