@@ -1519,10 +1519,10 @@ button:disabled {
 .constellation-detail {
   position: fixed;
   left: 50%;
-  top: 1.25rem;
   bottom: 1.25rem;
   transform: translateX(-50%);
   width: min(520px, calc(100% - 2rem));
+  max-height: calc(100vh - 2.5rem);
   z-index: 30;
 }
 
@@ -1537,7 +1537,7 @@ button:disabled {
   gap: 0.6rem;
   backdrop-filter: blur(10px);
   border: 1px solid rgba(70, 50, 60, 0.08);
-  max-height: 100%;
+  max-height: calc(100vh - 2.5rem);
   overflow-y: auto;
 }
 
