@@ -1599,6 +1599,440 @@ button:disabled {
   box-shadow: 0 12px 20px rgba(245, 181, 197, 0.35);
 }
 
+.valentine-view[hidden] {
+  display: none !important;
+}
+
+.valentine-view {
+  padding: 1rem 1rem 2.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.valentine-view::before {
+  content: '';
+  position: absolute;
+  inset: -20% -10% auto;
+  height: 60%;
+  background: radial-gradient(circle at 25% 25%, rgba(245, 105, 138, 0.32), transparent 55%),
+    radial-gradient(circle at 70% 30%, rgba(255, 206, 222, 0.28), transparent 60%);
+  filter: blur(10px);
+  z-index: 0;
+  pointer-events: none;
+}
+
+.valentine-bar {
+  background: linear-gradient(120deg, rgba(245, 105, 138, 0.28), rgba(255, 230, 238, 0.9));
+  border-radius: 20px;
+  padding: 0.9rem 1rem;
+  box-shadow: 0 18px 34px rgba(245, 105, 138, 0.25);
+  position: relative;
+  z-index: 1;
+}
+
+.valentine-title {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.valentine-subtitle {
+  margin: 0.25rem 0 0;
+  color: rgba(70, 50, 60, 0.7);
+}
+
+.valentine-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+  position: relative;
+  z-index: 1;
+}
+
+.valentine-hero {
+  background: rgba(255, 255, 255, 0.82);
+  border-radius: 22px;
+  padding: 1.1rem 1.2rem;
+  box-shadow: 0 18px 34px rgba(245, 105, 138, 0.14);
+  border: 1px solid rgba(245, 105, 138, 0.25);
+}
+
+.valentine-hero h1 {
+  margin: 0.4rem 0 0.5rem;
+  font-size: 1.5rem;
+}
+
+.valentine-eyebrow {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.75rem;
+  color: rgba(70, 50, 60, 0.6);
+}
+
+.valentine-countdown {
+  margin: 0;
+  font-size: 0.95rem;
+  color: rgba(70, 50, 60, 0.8);
+}
+
+.valentine-orbit {
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 24px;
+  padding: 1.2rem 1.2rem 1.4rem;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(245, 105, 138, 0.25);
+  box-shadow: 0 20px 40px rgba(245, 105, 138, 0.18);
+}
+
+.valentine-orbit::before {
+  content: '';
+  position: absolute;
+  inset: -20%;
+  background: radial-gradient(circle at 20% 20%, rgba(245, 105, 138, 0.18), transparent 55%),
+    radial-gradient(circle at 80% 80%, rgba(255, 206, 222, 0.22), transparent 60%);
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+.orbit-stage {
+  position: relative;
+  height: 220px;
+  border-radius: 20px;
+  background: radial-gradient(circle at 30% 30%, rgba(245, 105, 138, 0.2), transparent 55%),
+    radial-gradient(circle at 70% 70%, rgba(255, 206, 222, 0.22), transparent 55%),
+    linear-gradient(160deg, rgba(255, 230, 238, 0.7), rgba(245, 105, 138, 0.2));
+  border: 1px solid rgba(245, 105, 138, 0.35);
+  overflow: hidden;
+  margin-bottom: 0.8rem;
+}
+
+.orbit-stage::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.7) 1px, transparent 1px),
+    radial-gradient(rgba(245, 105, 138, 0.25) 2px, transparent 2px);
+  background-size: 36px 36px, 120px 120px;
+  opacity: 0.25;
+  pointer-events: none;
+}
+
+.orbit-line {
+  position: absolute;
+  top: 50%;
+  height: 16px;
+  transform: translateY(-50%);
+  overflow: visible;
+  animation: heartbeat 2.6s ease-in-out infinite;
+  z-index: 2;
+}
+
+.orbit-line path {
+  fill: none;
+  stroke: rgba(245, 105, 138, 0.55);
+  stroke-width: 2;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 8px rgba(245, 105, 138, 0.35));
+  stroke-dasharray: 6 6;
+  animation: lineWave 3.2s ease-in-out infinite;
+}
+
+.orbit-orb {
+  position: absolute;
+  top: 50%;
+  width: 48px;
+  height: 44px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  color: #fff;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 18px 32px rgba(245, 105, 138, 0.35);
+  animation: orbFloat 6s ease-in-out infinite;
+  z-index: 3;
+}
+
+.orbit-orb.heart {
+  border-radius: 12px;
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 0 10px rgba(245, 105, 138, 0.45))
+    drop-shadow(0 0 18px rgba(245, 105, 138, 0.35));
+  transition: opacity 0.4s ease;
+}
+
+.orbit-orb.hidden {
+  opacity: 0;
+}
+
+.orbit-orb.heart {
+  font-size: 0.9rem;
+}
+
+.orbit-orb.heart .heart-label {
+  transform: none;
+  position: relative;
+  z-index: 1;
+  font-weight: 700;
+  font-size: 1.15rem;
+  text-shadow: 0 2px 6px rgba(70, 50, 60, 0.35);
+}
+
+.orbit-orb.orb-a {
+  background: transparent;
+}
+
+.orbit-orb.orb-b {
+  background: transparent;
+  animation-delay: -3s;
+}
+
+.heart-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.4))
+    drop-shadow(0 0 12px rgba(245, 105, 138, 0.5));
+  z-index: 0;
+}
+
+.orbit-orb.orb-a,
+.orbit-orb.orb-b,
+.orbit-merge {
+  color: #fff;
+}
+
+
+.orbit-merge {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 110px;
+  height: 100px;
+  background: radial-gradient(circle at 30% 30%, #fff4d8, #f76b92 60%, #f24575);
+  transform: translate(-50%, -50%) scale(0.3);
+  opacity: 0;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 20px 40px rgba(245, 105, 138, 0.45);
+  transition: opacity 0.4s ease, transform 0.5s ease;
+  z-index: 4;
+}
+
+.orbit-merge span {
+  transform: none;
+  position: relative;
+  z-index: 1;
+  font-size: 1.05rem;
+}
+
+.orbit-merge.active {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+  animation: mergePulse 1.6s ease-in-out infinite;
+}
+
+.orbit-spark-field {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  font-size: 0.85rem;
+  color: rgba(70, 50, 60, 0.75);
+  z-index: 5;
+}
+
+.orbit-location {
+  position: absolute;
+  top: calc(50% + 40px);
+  transform: translateX(-50%);
+  font-size: 0.78rem;
+  color: rgba(70, 50, 60, 0.7);
+  text-align: center;
+  white-space: nowrap;
+  z-index: 4;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 6px 14px rgba(70, 50, 60, 0.12);
+}
+
+.orbit-location.hidden {
+  opacity: 0;
+}
+
+.orbit-spark {
+  position: absolute;
+  top: 12%;
+  transform: translateX(-50%);
+  opacity: 0;
+  animation: orbitSpark 3.2s ease-out forwards;
+  background: rgba(255, 255, 255, 0.85);
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  box-shadow: 0 8px 20px rgba(70, 50, 60, 0.12);
+}
+
+.orbit-status {
+  margin: 0 0 0.6rem;
+  color: rgba(70, 50, 60, 0.7);
+  text-align: center;
+}
+
+.orbit-reveal {
+  margin-top: 0.9rem;
+  background: rgba(245, 181, 197, 0.18);
+  border-radius: 18px;
+  padding: 0.9rem 1rem;
+  border: 1px solid rgba(245, 181, 197, 0.35);
+}
+
+.orbit-reveal h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1.1rem;
+}
+
+.orbit-reveal p {
+  margin: 0;
+}
+
+.valentine-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.valentine-melt-btn {
+  border: none;
+  border-radius: 999px;
+  padding: 0.5rem 1.1rem;
+  background: linear-gradient(120deg, #f5b5c5, #f8d7d0);
+  color: #fff;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 14px 24px rgba(245, 181, 197, 0.35);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.valentine-melt-btn.is-active {
+  transform: translateY(-1px) scale(1.02);
+  box-shadow: 0 16px 32px rgba(245, 105, 138, 0.4);
+  animation: heartPulse 1s ease-in-out infinite;
+}
+
+.valentine-send-btn {
+  border: none;
+  border-radius: 999px;
+  padding: 0.5rem 1.1rem;
+  background: linear-gradient(120deg, #46323c, #6b4255);
+  color: #fff;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 14px 24px rgba(70, 50, 60, 0.25);
+}
+
+ .valentine-send-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+@keyframes orbitSpark {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(0) scale(0.9);
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(50px) scale(1.1);
+  }
+}
+
+@keyframes orbFloat {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) translateY(-4px);
+  }
+  50% {
+    transform: translate(-50%, -50%) translateY(6px);
+  }
+}
+
+@keyframes mergePulse {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 8px rgba(245, 105, 138, 0.45));
+  }
+  50% {
+    filter: drop-shadow(0 0 18px rgba(245, 105, 138, 0.75));
+  }
+}
+
+@keyframes heartbeat {
+  0%,
+  100% {
+    transform: translateY(-50%) scaleX(1);
+    opacity: 0.85;
+  }
+  45% {
+    transform: translateY(-50%) scaleX(1.08);
+    opacity: 1;
+  }
+  65% {
+    transform: translateY(-50%) scaleX(0.96);
+    opacity: 0.75;
+  }
+}
+
+@keyframes lineWave {
+  0%,
+  100% {
+    stroke-dashoffset: 0;
+  }
+  50% {
+    stroke-dashoffset: -12;
+  }
+}
+
+@keyframes heartPulse {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 6px rgba(245, 105, 138, 0.45));
+  }
+  50% {
+    filter: drop-shadow(0 0 12px rgba(245, 105, 138, 0.7));
+  }
+}
+
+@media (max-width: 520px) {
+  .valentine-view {
+    padding: 0.85rem 0.75rem 2rem;
+  }
+
+  .valentine-actions {
+    flex-direction: column;
+  }
+
+  .valentine-melt-btn,
+  .valentine-send-btn {
+    width: 100%;
+  }
+}
+
 @media (max-width: 520px) {
   .constellation-view {
     padding: 0.85rem 0.75rem 2rem;

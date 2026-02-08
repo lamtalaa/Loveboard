@@ -38,6 +38,14 @@ const REACTIONS = [
   { emoji: '🌙', label: 'Dreaming of you' },
   { emoji: '🌸', label: 'Blooming love' }
 ];
+const ORBIT_SPARKS = [
+  'Your voice feels like home.',
+  'I feel you even across oceans.',
+  'Every call is a kiss.',
+  'I keep you in my pocket.',
+  'You are my favorite time zone.',
+  'Closer with every heartbeat.'
+];
 const BUCKET = 'loveboard-assets';
 const AUTH_KEY = 'loveboard-user';
 const MOOD_TIMES_KEY = 'loveboard-moodTimes';
@@ -93,6 +101,13 @@ const state = {
   constellationKeyListener: null,
   constellationResizeListener: null,
   constellationActiveId: null,
+  valentineOpen: false,
+  valentineKeyListener: null,
+  orbitProgress: 0,
+  orbitHolding: false,
+  orbitFrame: null,
+  orbitSparkTimer: null,
+  orbitReached: false,
 };
 
 const ui = {
@@ -139,6 +154,22 @@ const ui = {
   constellationMessage: document.getElementById('constellation-message'),
   constellationMedia: document.getElementById('constellation-media'),
   constellationHint: document.getElementById('constellation-hint'),
+  valentineView: document.getElementById('valentine-view'),
+  valentineCountdown: document.getElementById('valentine-countdown'),
+  orbitStage: document.getElementById('orbit-stage'),
+  orbitLine: document.getElementById('orbit-line'),
+  orbitLinePath: document.getElementById('orbit-line-path'),
+  orbitSparkField: document.getElementById('orbit-spark-field'),
+  orbitOrbA: document.getElementById('orbit-orb-a'),
+  orbitOrbB: document.getElementById('orbit-orb-b'),
+  orbitLocA: document.getElementById('orbit-loc-a'),
+  orbitLocB: document.getElementById('orbit-loc-b'),
+  orbitMerge: document.getElementById('orbit-merge'),
+  orbitStatus: document.getElementById('orbit-status'),
+  orbitHoldBtn: document.getElementById('orbit-hold-btn'),
+  orbitSendBtn: document.getElementById('orbit-send-btn'),
+  orbitReveal: document.getElementById('orbit-reveal'),
+  orbitMessage: document.getElementById('orbit-message'),
   viewSwitchButtons: document.querySelectorAll('.view-switch')
 };
 
@@ -148,7 +179,7 @@ init();
 
 function init() {
   ui.authForm.addEventListener('submit', handleAuth);
-  ui.createBtn.addEventListener('click', openModal);
+  ui.createBtn.addEventListener('click', () => openModal());
   ui.closeModal.addEventListener('click', () => ui.modal.close());
   if (ui.currentAvatar) {
     ui.currentAvatar.addEventListener('click', () => {
@@ -176,6 +207,7 @@ function init() {
   ui.photoInput.addEventListener('change', updateSendButtonState);
   setupDoodleCanvas();
   setupAudioRecorder();
+  setupValentine();
   ui.moodButtons.forEach((btn) =>
     btn.addEventListener('click', () => openMoodPicker(btn))
   );
@@ -197,6 +229,195 @@ function init() {
   restoreSession();
 }
 
+function setupValentine() {
+  if (!ui.valentineView) return;
+  updateOrbitLocations();
+  if (ui.orbitHoldBtn) {
+    const start = () => startOrbitHold();
+    const stop = () => stopOrbitHold();
+    ui.orbitHoldBtn.addEventListener('pointerdown', start);
+    ui.orbitHoldBtn.addEventListener('pointerup', stop);
+    ui.orbitHoldBtn.addEventListener('pointerleave', stop);
+    ui.orbitHoldBtn.addEventListener('pointercancel', stop);
+    document.addEventListener('pointerup', stop);
+  }
+  if (ui.orbitSendBtn) {
+    ui.orbitSendBtn.addEventListener('click', sendOrbitPostcard);
+  }
+  updateValentineCountdown();
+  resetOrbitState();
+}
+
+function updateOrbitLocations() {
+  const locA = document.getElementById('wwan-city-a')?.textContent;
+  const locB = document.getElementById('wwan-city-b')?.textContent;
+  if (ui.orbitLocA && locA) ui.orbitLocA.textContent = locA;
+  if (ui.orbitLocB && locB) ui.orbitLocB.textContent = locB;
+}
+
+function startOrbitHold() {
+  if (state.orbitHolding) return;
+  state.orbitHolding = true;
+  if (ui.orbitHoldBtn) ui.orbitHoldBtn.classList.add('is-active');
+  if (!state.orbitFrame) {
+    state.orbitFrame = window.requestAnimationFrame(stepOrbit);
+  }
+  if (!state.orbitSparkTimer) {
+    state.orbitSparkTimer = window.setInterval(spawnOrbitSpark, 1300);
+  }
+}
+
+function stopOrbitHold() {
+  if (!state.orbitHolding) return;
+  state.orbitHolding = false;
+  if (ui.orbitHoldBtn) ui.orbitHoldBtn.classList.remove('is-active');
+  if (state.orbitSparkTimer) {
+    clearInterval(state.orbitSparkTimer);
+    state.orbitSparkTimer = null;
+  }
+  if (!state.orbitFrame) {
+    state.orbitFrame = window.requestAnimationFrame(stepOrbit);
+  }
+}
+
+function stepOrbit() {
+  const target = state.orbitHolding ? 1 : 0;
+  const speed = state.orbitHolding ? 0.018 : 0.012;
+  state.orbitProgress = moveToward(state.orbitProgress, target, speed);
+  updateOrbitUI();
+  if (Math.abs(state.orbitProgress - target) > 0.001) {
+    state.orbitFrame = window.requestAnimationFrame(stepOrbit);
+  } else {
+    state.orbitFrame = null;
+  }
+}
+
+function moveToward(value, target, delta) {
+  if (value < target) return Math.min(target, value + delta);
+  if (value > target) return Math.max(target, value - delta);
+  return value;
+}
+
+function updateOrbitUI() {
+  if (ui.orbitStage) {
+    ui.orbitStage.style.setProperty('--orbit-progress', state.orbitProgress.toFixed(3));
+    const width = ui.orbitStage.clientWidth || 320;
+    const center = width / 2;
+    const maxDistance = Math.min(260, width * 0.7);
+    const minDistance = 70;
+    const distance = maxDistance - (maxDistance - minDistance) * state.orbitProgress;
+    const leftX = center - distance / 2;
+    const rightX = center + distance / 2;
+    if (ui.orbitOrbA) ui.orbitOrbA.style.left = `${leftX}px`;
+    if (ui.orbitOrbB) ui.orbitOrbB.style.left = `${rightX}px`;
+    if (ui.orbitLocA) ui.orbitLocA.style.left = `${leftX}px`;
+    if (ui.orbitLocB) ui.orbitLocB.style.left = `${rightX}px`;
+    if (ui.orbitLine) {
+      ui.orbitLine.style.left = `${leftX}px`;
+      ui.orbitLine.style.width = `${distance}px`;
+    }
+  }
+  if (ui.orbitStatus) {
+    ui.orbitStatus.textContent =
+      state.orbitProgress >= 0.98 ? 'Stay here a moment.' : 'Hold the button to pull closer.';
+  }
+  if (state.orbitProgress >= 0.98 && !state.orbitReached) {
+    revealOrbit();
+  }
+  if (ui.orbitMerge) {
+    if (state.orbitProgress >= 0.98) {
+      ui.orbitMerge.classList.add('active');
+      ui.orbitMerge.setAttribute('aria-hidden', 'false');
+      if (ui.orbitOrbA) ui.orbitOrbA.classList.add('hidden');
+      if (ui.orbitOrbB) ui.orbitOrbB.classList.add('hidden');
+      if (ui.orbitLocA) ui.orbitLocA.classList.add('hidden');
+      if (ui.orbitLocB) ui.orbitLocB.classList.add('hidden');
+    } else {
+      ui.orbitMerge.classList.remove('active');
+      ui.orbitMerge.setAttribute('aria-hidden', 'true');
+      if (ui.orbitOrbA) ui.orbitOrbA.classList.remove('hidden');
+      if (ui.orbitOrbB) ui.orbitOrbB.classList.remove('hidden');
+      if (ui.orbitLocA) ui.orbitLocA.classList.remove('hidden');
+      if (ui.orbitLocB) ui.orbitLocB.classList.remove('hidden');
+    }
+  }
+}
+
+function resetOrbitState() {
+  state.orbitHolding = false;
+  state.orbitProgress = 0;
+  state.orbitReached = false;
+  if (state.orbitFrame) {
+    cancelAnimationFrame(state.orbitFrame);
+    state.orbitFrame = null;
+  }
+  if (state.orbitSparkTimer) {
+    clearInterval(state.orbitSparkTimer);
+    state.orbitSparkTimer = null;
+  }
+  if (ui.orbitHoldBtn) ui.orbitHoldBtn.classList.remove('is-active');
+  if (ui.orbitReveal) {
+    ui.orbitReveal.hidden = true;
+    ui.orbitReveal.setAttribute('aria-hidden', 'true');
+  }
+  if (ui.orbitMerge) {
+    ui.orbitMerge.classList.remove('active');
+    ui.orbitMerge.setAttribute('aria-hidden', 'true');
+  }
+  if (ui.orbitLocA) ui.orbitLocA.classList.remove('hidden');
+  if (ui.orbitLocB) ui.orbitLocB.classList.remove('hidden');
+  if (ui.orbitSendBtn) ui.orbitSendBtn.disabled = true;
+  if (ui.orbitSparkField) ui.orbitSparkField.innerHTML = '';
+  updateOrbitUI();
+}
+
+function revealOrbit() {
+  state.orbitReached = true;
+  if (ui.orbitReveal) {
+    ui.orbitReveal.hidden = false;
+    ui.orbitReveal.setAttribute('aria-hidden', 'false');
+  }
+  const message = buildOrbitMessage();
+  if (ui.orbitMessage) ui.orbitMessage.textContent = message;
+  if (ui.orbitSendBtn) ui.orbitSendBtn.disabled = false;
+}
+
+function buildOrbitMessage() {
+  const signature = state.user || 'Your love';
+  return `Across every mile, I still end up right here with you. — ${signature}`;
+}
+
+function sendOrbitPostcard() {
+  const message = ui.orbitMessage?.textContent?.trim();
+  if (!message) return;
+  openModal(message);
+}
+
+function spawnOrbitSpark() {
+  if (!ui.orbitSparkField) return;
+  const spark = document.createElement('span');
+  spark.className = 'orbit-spark';
+  const message = ORBIT_SPARKS[Math.floor(Math.random() * ORBIT_SPARKS.length)];
+  const x = Math.random() * 70 + 15;
+  spark.textContent = message;
+  spark.style.left = `${x}%`;
+  ui.orbitSparkField.appendChild(spark);
+  setTimeout(() => spark.remove(), 3200);
+}
+
+function updateValentineCountdown() {
+  if (!ui.valentineCountdown) return;
+  const now = new Date();
+  const year = now.getFullYear();
+  let target = new Date(year, 1, 14);
+  if (now > target) {
+    target = new Date(year + 1, 1, 14);
+  }
+  const msPerDay = 1000 * 60 * 60 * 24;
+  const diff = Math.ceil((target - now) / msPerDay);
+  ui.valentineCountdown.textContent = diff <= 0 ? '0' : String(diff);
+}
+
 function handleAuth(event) {
   event.preventDefault();
   const user = document.getElementById('user-select').value;
@@ -216,6 +437,7 @@ function handleAuth(event) {
   enableCreateButton();
   updateAvatar();
   setWwanUser(state.user);
+  resetOrbitState();
   startApp();
 }
 
@@ -236,6 +458,7 @@ function restoreSession() {
   enableCreateButton();
   updateAvatar();
   setWwanUser(state.user);
+  resetOrbitState();
   startApp();
 }
 
@@ -259,7 +482,15 @@ async function loadPostcards() {
   if (state.constellationOpen) {
     renderConstellation();
   }
-  updateViewSwitchers(state.constellationOpen ? 'constellation' : state.ldAppOpen ? 'ldapp' : 'loveboard');
+  updateViewSwitchers(
+    state.constellationOpen
+      ? 'constellation'
+      : state.ldAppOpen
+        ? 'ldapp'
+        : state.valentineOpen
+          ? 'valentine'
+          : 'loveboard'
+  );
 }
 
 function renderBoard(options = {}) {
@@ -576,12 +807,15 @@ function handleViewSwitch(view) {
     showLdApp();
   } else if (view === 'constellation') {
     showConstellation();
+  } else if (view === 'valentine') {
+    showValentine();
   }
 }
 
 function getActiveView() {
   if (state.constellationOpen) return ui.constellationView;
   if (state.ldAppOpen) return ui.ldAppView;
+  if (state.valentineOpen) return ui.valentineView;
   return ui.loveboardView;
 }
 
@@ -593,8 +827,10 @@ function showLoveboard() {
   switchView(ui.loveboardView, current, () => focusTarget?.focus());
   state.ldAppOpen = false;
   state.constellationOpen = false;
+  state.valentineOpen = false;
   cleanupLdAppListeners();
   cleanupConstellationListeners();
+  cleanupValentineListeners();
   updateViewSwitchers('loveboard');
 }
 
@@ -605,7 +841,9 @@ function showLdApp() {
   switchView(ui.ldAppView, current);
   state.ldAppOpen = true;
   state.constellationOpen = false;
+  state.valentineOpen = false;
   cleanupConstellationListeners();
+  cleanupValentineListeners();
   updateViewSwitchers('ldapp');
   attachLdAppListeners();
 }
@@ -617,11 +855,27 @@ function showConstellation() {
   switchView(ui.constellationView, current);
   state.constellationOpen = true;
   state.ldAppOpen = false;
+  state.valentineOpen = false;
   renderConstellation();
   setupConstellationResize();
   updateViewSwitchers('constellation');
   attachConstellationListeners();
   cleanupLdAppListeners();
+  cleanupValentineListeners();
+}
+
+function showValentine() {
+  if (!ui.valentineView) return;
+  const current = getActiveView();
+  if (current === ui.valentineView) return;
+  switchView(ui.valentineView, current);
+  state.valentineOpen = true;
+  state.ldAppOpen = false;
+  state.constellationOpen = false;
+  updateViewSwitchers('valentine');
+  cleanupLdAppListeners();
+  cleanupConstellationListeners();
+  attachValentineListeners();
 }
 
 function attachLdAppListeners() {
@@ -661,6 +915,24 @@ function cleanupConstellationListeners() {
   if (state.constellationKeyListener) {
     document.removeEventListener('keydown', state.constellationKeyListener, true);
     state.constellationKeyListener = null;
+  }
+}
+
+function attachValentineListeners() {
+  if (!state.valentineKeyListener) {
+    state.valentineKeyListener = (evt) => {
+      if (evt.key === 'Escape') {
+        showLoveboard();
+      }
+    };
+    document.addEventListener('keydown', state.valentineKeyListener, true);
+  }
+}
+
+function cleanupValentineListeners() {
+  if (state.valentineKeyListener) {
+    document.removeEventListener('keydown', state.valentineKeyListener, true);
+    state.valentineKeyListener = null;
   }
 }
 
@@ -2440,8 +2712,12 @@ function resetOptionPicker() {
   updateSendButtonState();
 }
 
-function openModal() {
+function openModal(message) {
   resetOptionPicker();
+  if (message && ui.messageInput) {
+    ui.messageInput.value = message.slice(0, 150);
+  }
+  updateSendButtonState();
   ui.modal.showModal();
 }
 
