@@ -8,24 +8,18 @@ const USER_PASSCODES = {
 
 const MOOD_PRESETS = {
   Yassine: [
-    { emoji: '🛡️', label: 'Guard' },
-    { emoji: '😎', label: 'Confident' },
-    { emoji: '🔥', label: 'Commanding' },
-    { emoji: '🌹', label: 'Dominant' },
-    { emoji: '🃏', label: 'Playful' },
-    { emoji: '💪', label: 'Strong' },
-    { emoji: '✨', label: 'Bright' },
-    { emoji: '🎧', label: 'Chill' }
+    { emoji: '🛡️', label: 'Protective' },
+    { emoji: '😈', label: 'Teasing' },
+    { emoji: '🌙', label: 'Calm' }
   ],
   Nihal: [
     { emoji: '🌸', label: 'Soft' },
-    { emoji: '💃', label: 'Devoted' },
-    { emoji: '🤍', label: 'Gentle' },
-    { emoji: '💗', label: 'Yours' },
-    { emoji: '😈', label: 'Playful' },
-    { emoji: '🫦', label: 'Quiet' },
-    { emoji: '🌙', label: 'Dreamy' },
-    { emoji: '🧸', label: 'Cuddly' }
+    { emoji: '🤍', label: 'Obedient' },
+    { emoji: '🎀', label: 'Loyal' },
+    { emoji: '🕊️', label: 'Gentle' },
+    { emoji: '🫧', label: 'Quiet' },
+    { emoji: '🧸', label: 'Cuddly' },
+    { emoji: '🫦', label: 'Seductive' }
   ]
 };
 const FALLBACK_MOODS = [{ emoji: '💗', label: 'So in love with you' }];
