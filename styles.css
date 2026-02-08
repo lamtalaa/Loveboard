@@ -1744,6 +1744,7 @@ button:disabled {
 .orbit-orb {
   position: absolute;
   top: 50%;
+  left: 50%;
   width: 48px;
   height: 44px;
   border-radius: 12px;
@@ -1923,6 +1924,9 @@ button:disabled {
   cursor: pointer;
   box-shadow: 0 14px 24px rgba(245, 181, 197, 0.35);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
 }
 
 .valentine-melt-btn.is-active {

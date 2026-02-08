@@ -108,6 +108,7 @@ const state = {
   orbitFrame: null,
   orbitSparkTimer: null,
   orbitReached: false,
+  orbitResizeListener: null,
 };
 
 const ui = {
@@ -246,6 +247,7 @@ function setupValentine() {
   }
   updateValentineCountdown();
   resetOrbitState();
+  requestAnimationFrame(updateOrbitUI);
 }
 
 function updateOrbitLocations() {
@@ -301,7 +303,11 @@ function moveToward(value, target, delta) {
 function updateOrbitUI() {
   if (ui.orbitStage) {
     ui.orbitStage.style.setProperty('--orbit-progress', state.orbitProgress.toFixed(3));
-    const width = ui.orbitStage.clientWidth || 320;
+    const width = ui.orbitStage.clientWidth || 0;
+    if (width < 10) {
+      requestAnimationFrame(updateOrbitUI);
+      return;
+    }
     const center = width / 2;
     const maxDistance = Math.min(260, width * 0.7);
     const minDistance = 70;
@@ -876,6 +882,8 @@ function showValentine() {
   cleanupLdAppListeners();
   cleanupConstellationListeners();
   attachValentineListeners();
+  requestAnimationFrame(updateOrbitUI);
+  setTimeout(updateOrbitUI, 360);
 }
 
 function attachLdAppListeners() {
@@ -927,12 +935,20 @@ function attachValentineListeners() {
     };
     document.addEventListener('keydown', state.valentineKeyListener, true);
   }
+  if (!state.orbitResizeListener) {
+    state.orbitResizeListener = () => requestAnimationFrame(updateOrbitUI);
+    window.addEventListener('resize', state.orbitResizeListener, { passive: true });
+  }
 }
 
 function cleanupValentineListeners() {
   if (state.valentineKeyListener) {
     document.removeEventListener('keydown', state.valentineKeyListener, true);
     state.valentineKeyListener = null;
+  }
+  if (state.orbitResizeListener) {
+    window.removeEventListener('resize', state.orbitResizeListener);
+    state.orbitResizeListener = null;
   }
 }
 
