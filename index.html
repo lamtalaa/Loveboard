@@ -80,6 +80,9 @@
           >
             🌌
           </button>
+          <button type="button" class="view-switch" data-view="valentine" aria-label="Shared Orbit">
+            💞
+          </button>
         </div>
         <button class="nav-logout logout-btn" type="button" aria-label="Log out">
           ⏻
@@ -136,6 +139,9 @@
             aria-label="Time Capsule Constellation"
           >
             🌌
+          </button>
+          <button type="button" class="view-switch" data-view="valentine" aria-label="Shared Orbit">
+            💞
           </button>
         </div>
         <button class="nav-logout logout-btn" type="button" aria-label="Log out">
@@ -265,6 +271,9 @@
           >
             🌌
           </button>
+          <button type="button" class="view-switch" data-view="valentine" aria-label="Shared Orbit">
+            💞
+          </button>
         </div>
         <button class="nav-logout logout-btn" type="button" aria-label="Log out">
           ⏻
@@ -298,6 +307,123 @@
           <div class="constellation-media" id="constellation-media"></div>
         </div>
       </div>
+    </section>
+
+    <section id="valentine-view" class="valentine-view view-panel" hidden aria-hidden="true">
+      <nav class="view-switcher" aria-label="Switch view">
+        <div class="view-switch-group">
+          <button type="button" class="view-switch" data-view="loveboard" aria-label="Loveboard">
+            🏠
+          </button>
+          <button type="button" class="view-switch" data-view="ldapp" aria-label="Where We Are Now">
+            🗺️
+          </button>
+          <button
+            type="button"
+            class="view-switch"
+            data-view="constellation"
+            aria-label="Time Capsule Constellation"
+          >
+            🌌
+          </button>
+          <button
+            type="button"
+            class="view-switch active"
+            data-view="valentine"
+            aria-label="Shared Orbit"
+          >
+            💞
+          </button>
+        </div>
+        <button class="nav-logout logout-btn" type="button" aria-label="Log out">
+          ⏻
+        </button>
+      </nav>
+      <header class="valentine-bar">
+        <p class="valentine-title view-title">Shared Orbit</p>
+        <p class="valentine-subtitle">Hold to pull your hearts together.</p>
+      </header>
+      <main class="valentine-main">
+        <section class="valentine-hero">
+          <p class="valentine-eyebrow">Valentine's Week</p>
+          <h1>Two orbits, one gravity.</h1>
+          <p class="valentine-countdown">
+            Valentine's Day is in <span id="valentine-countdown">—</span> days.
+          </p>
+        </section>
+
+        <section class="valentine-orbit">
+          <div class="orbit-stage" id="orbit-stage" aria-hidden="true">
+            <svg class="orbit-line" id="orbit-line" viewBox="0 0 100 12" preserveAspectRatio="none" aria-hidden="true">
+              <path id="orbit-line-path" d="M0 6 Q25 2 50 6 T100 6" />
+            </svg>
+            <div class="orbit-spark-field" id="orbit-spark-field"></div>
+            <div class="orbit-orb orb-a heart" id="orbit-orb-a">
+              <svg class="heart-svg" viewBox="0 0 64 58" aria-hidden="true">
+                <defs>
+                  <radialGradient id="heart-grad-a" cx="30%" cy="30%" r="70%">
+                    <stop offset="0%" stop-color="#fff1c1" />
+                    <stop offset="60%" stop-color="#f76b92" />
+                    <stop offset="100%" stop-color="#f24575" />
+                  </radialGradient>
+                </defs>
+                <path
+                  fill="url(#heart-grad-a)"
+                  d="M32 54s-18-12.2-26-22C-2 22 2 6.5 16 4.6 23 3.6 29 7.4 32 12.4 35 7.4 41 3.6 48 4.6 62 6.5 66 22 58 32 50 41.8 32 54 32 54z"
+                />
+              </svg>
+              <span class="heart-label">Y</span>
+            </div>
+            <div class="orbit-location" id="orbit-loc-a">New York City, USA</div>
+            <div class="orbit-orb orb-b heart" id="orbit-orb-b">
+              <svg class="heart-svg" viewBox="0 0 64 58" aria-hidden="true">
+                <defs>
+                  <radialGradient id="heart-grad-b" cx="30%" cy="30%" r="70%">
+                    <stop offset="0%" stop-color="#ffd2e2" />
+                    <stop offset="60%" stop-color="#b38bff" />
+                    <stop offset="100%" stop-color="#8a5bd6" />
+                  </radialGradient>
+                </defs>
+                <path
+                  fill="url(#heart-grad-b)"
+                  d="M32 54s-18-12.2-26-22C-2 22 2 6.5 16 4.6 23 3.6 29 7.4 32 12.4 35 7.4 41 3.6 48 4.6 62 6.5 66 22 58 32 50 41.8 32 54 32 54z"
+                />
+              </svg>
+              <span class="heart-label">N</span>
+            </div>
+            <div class="orbit-location" id="orbit-loc-b">Meknes, Morocco</div>
+            <div class="orbit-merge" id="orbit-merge" aria-hidden="true">
+              <svg class="heart-svg" viewBox="0 0 64 58" aria-hidden="true">
+                <defs>
+                  <radialGradient id="heart-grad-merge" cx="30%" cy="30%" r="70%">
+                    <stop offset="0%" stop-color="#fff4d8" />
+                    <stop offset="60%" stop-color="#f76b92" />
+                    <stop offset="100%" stop-color="#f24575" />
+                  </radialGradient>
+                </defs>
+                <path
+                  fill="url(#heart-grad-merge)"
+                  d="M32 54s-18-12.2-26-22C-2 22 2 6.5 16 4.6 23 3.6 29 7.4 32 12.4 35 7.4 41 3.6 48 4.6 62 6.5 66 22 58 32 50 41.8 32 54 32 54z"
+                />
+              </svg>
+              <span>Y + N</span>
+            </div>
+          </div>
+          <p class="orbit-status" id="orbit-status">Hold the button to pull closer.</p>
+          <div class="valentine-actions">
+            <button type="button" class="valentine-melt-btn" id="orbit-hold-btn">
+              Hold together
+            </button>
+            <button type="button" class="valentine-send-btn" id="orbit-send-btn" disabled>
+              Send as postcard
+            </button>
+          </div>
+          <div class="orbit-reveal" id="orbit-reveal" hidden aria-hidden="true">
+            <h2>We're Here</h2>
+            <p id="orbit-message"></p>
+          </div>
+        </section>
+      </main>
     </section>
 
     <dialog id="postcard-modal" class="modal">
