@@ -1105,7 +1105,7 @@ function updateStoryLanguageUI() {
     ui.storyOutput.classList.toggle('storymirror-output-rtl', state.storyLanguage === 'ar');
   }
   if (ui.storyLangToggle) {
-    ui.storyLangToggle.textContent = state.storyLanguage === 'ar' ? 'EN' : 'AR';
+    ui.storyLangToggle.textContent = state.storyLanguage === 'ar' ? 'EN' : 'Darija';
     ui.storyLangToggle.setAttribute('aria-pressed', state.storyLanguage === 'ar' ? 'true' : 'false');
     ui.storyLangToggle.hidden = state.storyChapters.length === 0;
     ui.storyLangToggle.disabled = false;
@@ -1621,7 +1621,7 @@ function renderChronicleModal() {
     ui.chronicleModalBody.appendChild(card);
   });
   if (ui.chronicleLangToggle) {
-    ui.chronicleLangToggle.textContent = state.chronicleLanguage === 'ar' ? 'EN' : 'AR';
+    ui.chronicleLangToggle.textContent = state.chronicleLanguage === 'ar' ? 'EN' : 'Darija';
   }
   if (ui.chronicleLangSpinner) ui.chronicleLangSpinner.hidden = !state.chronicleTranslating;
   if (ui.chronicleLangStatus) ui.chronicleLangStatus.hidden = !state.chronicleTranslating;
