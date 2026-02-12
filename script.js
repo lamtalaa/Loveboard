@@ -96,6 +96,7 @@ const state = {
   user: null,
   userDisplay: null,
   appConfig: { ...DEFAULT_APP_CONFIG },
+  appConfigLoaded: false,
   moodPresets: { ...DEFAULT_APP_CONFIG.moodPresets },
   userIds: {
     a: DEFAULT_APP_CONFIG.users.a.id,
@@ -436,6 +437,7 @@ async function loadAppConfig() {
     b: state.appConfig.users.b.id
   };
   state.moodPresets = buildMoodPresets(state.appConfig);
+  state.appConfigLoaded = true;
 }
 
 function normalizeAppConfig(value) {
@@ -1345,13 +1347,31 @@ async function applySessionUser(session) {
   updateAvatar();
   setWwanUser(state.user);
   resetOrbitState();
+  if (!state.appConfigLoaded) {
+    await loadAppConfig();
+    applyAppConfig();
+    const isAllowed = state.user === state.userIds.a || state.user === state.userIds.b;
+    if (!isAllowed) {
+      ui.authError.textContent =
+        'Account not configured. Ask the Loveboard owner to set your name in Supabase Auth metadata.';
+      await supabase.auth.signOut();
+      return;
+    }
+    state.userDisplay = getDisplayName(state.user);
+    updateAvatar();
+    setWwanUser(state.user);
+  }
   startApp();
 }
 
 function resolveUserName(user) {
   const meta = user.user_metadata || {};
   const candidate = meta.loveboard_name || meta.display_name || '';
-  if (candidate === state.userIds.a || candidate === state.userIds.b) return candidate;
+  if (state.appConfigLoaded) {
+    if (candidate === state.userIds.a || candidate === state.userIds.b) return candidate;
+    return null;
+  }
+  if (candidate) return candidate;
   return null;
 }
 
