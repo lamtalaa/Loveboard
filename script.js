@@ -148,11 +148,8 @@ const state = {
   storyMirrorKeyListener: null,
   storyMirrorBusy: false,
   storyStep: 1,
-  storyLanguage: 'en',
   storyChapters: [],
-  storyTranslations: null,
   storyImages: [],
-  storyTranslating: false,
   storyImagesComplete: false,
   storySaved: false,
   storyDefaults: {
@@ -161,8 +158,6 @@ const state = {
   },
   chronicles: [],
   activeChronicle: null,
-  chronicleLanguage: 'en',
-  chronicleTranslating: false,
   ritualProgress: 0,
   ritualFrame: null,
   ritualTimer: null,
@@ -237,9 +232,6 @@ const ui = {
   orbitMessage: document.getElementById('orbit-message'),
   viewSwitchButtons: document.querySelectorAll('.view-switch'),
   storyMirrorView: document.getElementById('storymirror-view'),
-  storyLangToggle: document.getElementById('story-lang-toggle'),
-  storyLangSpinner: document.getElementById('story-lang-spinner'),
-  storyLangStatus: document.getElementById('story-lang-status'),
   storyHeroTitle: document.querySelector('.storymirror-hero h1'),
   storyHeroSubtitle: document.querySelector('.storymirror-subtitle'),
   storyHeroEyebrow: document.querySelector('.storymirror-hero .storymirror-eyebrow'),
@@ -282,9 +274,6 @@ const ui = {
   chronicleDeleteModal: document.getElementById('chronicle-delete-modal'),
   chronicleDeleteCancel: document.getElementById('chronicle-delete-cancel'),
   chronicleDeleteConfirm: document.getElementById('chronicle-delete-confirm'),
-  chronicleLangToggle: document.getElementById('chronicle-lang-toggle'),
-  chronicleLangSpinner: document.getElementById('chronicle-lang-spinner'),
-  chronicleLangStatus: document.getElementById('chronicle-lang-status')
 };
 
 const template = document.getElementById('postcard-template');
@@ -330,9 +319,6 @@ async function init() {
   }
   if (ui.chronicleDeleteConfirm) {
     ui.chronicleDeleteConfirm.addEventListener('click', confirmChronicleDelete);
-  }
-  if (ui.chronicleLangToggle) {
-    ui.chronicleLangToggle.addEventListener('click', toggleChronicleLanguage);
   }
   ui.postcardForm.addEventListener('submit', handlePostcardSubmit);
   ui.clearDoodle.addEventListener('click', clearDoodle);
@@ -419,10 +405,6 @@ function setupStoryMirror() {
   if (ui.storyFragmentsN) {
     ui.storyFragmentsN.addEventListener('input', updateChapterEstimate);
   }
-  if (ui.storyLangToggle) {
-    ui.storyLangToggle.addEventListener('click', toggleStoryLanguage);
-  }
-  updateStoryLanguageUI();
   if (ui.storyGenerate) {
     ui.storyGenerate.addEventListener('click', () => runStoryGeneration('full'));
   }
@@ -782,12 +764,9 @@ function resetStoryFlow() {
     ui.storyFooter.hidden = true;
   }
   state.storyChapters = [];
-  state.storyTranslations = null;
   state.storyImages = [];
   state.storyImagesComplete = false;
-  state.storyLanguage = 'en';
   state.storySaved = false;
-  updateStoryLanguageUI();
   renderStoryChapters();
   resetStoryHero();
   setStoryStep(1);
@@ -837,7 +816,6 @@ async function saveStoryChronicle() {
       moment: ''
     },
     chapters: state.storyChapters,
-    chapters_ar: state.storyTranslations || null,
     images: state.storyImages,
     user: state.user || 'Unknown'
   };
@@ -914,12 +892,9 @@ async function runStoryGeneration(mode) {
     setStoryStatus('Add at least one future fragment to begin.', 'error');
     return;
   }
-  state.storyLanguage = 'en';
-  state.storyTranslations = null;
   state.storyImages = [];
   state.storyChapters = [];
   state.storyImagesComplete = false;
-  updateStoryLanguageUI();
   if (ui.storyMirrorView) {
     ui.storyMirrorView.classList.remove('storymirror-generated');
   }
@@ -1025,10 +1000,7 @@ async function requestStoryText({
 
 function renderStoryChapters() {
   if (!ui.storyChapters || !ui.storyEmpty) return;
-  const source =
-    state.storyLanguage === 'ar' && state.storyTranslations
-      ? state.storyTranslations
-      : state.storyChapters;
+  const source = state.storyChapters;
   if (!source || source.length === 0) {
     ui.storyEmpty.hidden = false;
     ui.storyEmpty.setAttribute('aria-hidden', 'false');
@@ -1096,76 +1068,6 @@ async function requestStoryImage(prompt) {
   return data?.image || '';
 }
 
-function updateStoryLanguageUI() {
-  if (ui.storyMirrorView) {
-    ui.storyMirrorView.removeAttribute('dir');
-  }
-  if (ui.storyOutput) {
-    ui.storyOutput.setAttribute('dir', state.storyLanguage === 'ar' ? 'rtl' : 'ltr');
-    ui.storyOutput.classList.toggle('storymirror-output-rtl', state.storyLanguage === 'ar');
-  }
-  if (ui.storyLangToggle) {
-    ui.storyLangToggle.textContent = state.storyLanguage === 'ar' ? 'EN' : 'Darija';
-    ui.storyLangToggle.setAttribute('aria-pressed', state.storyLanguage === 'ar' ? 'true' : 'false');
-    ui.storyLangToggle.hidden = state.storyChapters.length === 0;
-    ui.storyLangToggle.disabled = false;
-  }
-  if (ui.storyLangSpinner) {
-    ui.storyLangSpinner.hidden = !state.storyTranslating;
-  }
-  if (ui.storyLangStatus) {
-    ui.storyLangStatus.hidden = !state.storyTranslating;
-  }
-}
-
-async function toggleStoryLanguage() {
-  if (!state.storyChapters.length) return;
-  if (state.storyTranslating) {
-    setStoryStatus('Translating…', 'info');
-    return;
-  }
-  if (state.storyLanguage === 'en') {
-    if (!state.storyTranslations) {
-      await translateStoryChapters();
-    }
-    if (state.storyTranslations) {
-      state.storyLanguage = 'ar';
-    } else {
-      return;
-    }
-  } else {
-    state.storyLanguage = 'en';
-  }
-  updateStoryLanguageUI();
-  renderStoryChapters();
-  if (ui.storyOutput) {
-    ui.storyOutput.classList.remove('is-switching');
-    void ui.storyOutput.offsetWidth;
-    ui.storyOutput.classList.add('is-switching');
-  }
-}
-
-async function translateStoryChapters() {
-  if (state.storyTranslating || !state.storyChapters.length) return;
-  state.storyTranslating = true;
-  updateStoryLanguageUI();
-  try {
-    const { data, error } = await supabase.functions.invoke('story-mirror', {
-      body: {
-        action: 'translate',
-        chapters: state.storyChapters
-      }
-    });
-    if (error) throw new Error(error.message || 'Translation failed.');
-    state.storyTranslations = data?.chapters || null;
-  } catch (error) {
-    console.error('translation', error);
-    setStoryStatus(error.message || 'Translation failed.', 'error');
-  } finally {
-    state.storyTranslating = false;
-    updateStoryLanguageUI();
-  }
-}
 
 function openStoryRitual() {
   if (!ui.storyRitual) return;
@@ -1564,7 +1466,6 @@ function renderChronicles() {
 function openChronicleModal(story) {
   if (!ui.chronicleModal) return;
   state.activeChronicle = story;
-  state.chronicleLanguage = 'en';
   renderChronicleModal();
   ui.chronicleModal.showModal();
 }
@@ -1595,10 +1496,7 @@ function renderChronicleModal() {
   const story = state.activeChronicle;
   ui.chronicleModalTitle.textContent = story.title || 'Story';
   ui.chronicleModalBody.innerHTML = '';
-  const chapters =
-    state.chronicleLanguage === 'ar' && story.chapters_ar ? story.chapters_ar : story.chapters;
-  ui.chronicleModalBody.classList.toggle('chronicle-rtl', state.chronicleLanguage === 'ar');
-  (chapters || []).forEach((chapter, idx) => {
+  (story.chapters || []).forEach((chapter, idx) => {
     const card = document.createElement('article');
     card.className = 'chronicle-chapter';
     const title = document.createElement('h3');
@@ -1620,44 +1518,6 @@ function renderChronicleModal() {
     card.append(title, text, caption);
     ui.chronicleModalBody.appendChild(card);
   });
-  if (ui.chronicleLangToggle) {
-    ui.chronicleLangToggle.textContent = state.chronicleLanguage === 'ar' ? 'EN' : 'Darija';
-  }
-  if (ui.chronicleLangSpinner) ui.chronicleLangSpinner.hidden = !state.chronicleTranslating;
-  if (ui.chronicleLangStatus) ui.chronicleLangStatus.hidden = !state.chronicleTranslating;
-}
-
-async function toggleChronicleLanguage() {
-  const story = state.activeChronicle;
-  if (!story) return;
-  if (state.chronicleTranslating) return;
-  if (state.chronicleLanguage === 'en') {
-    if (!story.chapters_ar) {
-      state.chronicleTranslating = true;
-      renderChronicleModal();
-      const { data, error } = await supabase.functions.invoke('story-mirror', {
-        body: {
-          action: 'translate',
-          chapters: story.chapters
-        }
-      });
-      state.chronicleTranslating = false;
-      if (error) {
-        showToast(`Translation failed: ${error.message}`, 'error');
-        renderChronicleModal();
-        return;
-      }
-      story.chapters_ar = data?.chapters || null;
-      await supabase
-        .from('story_chronicles')
-        .update({ chapters_ar: story.chapters_ar })
-        .eq('id', story.id);
-    }
-    state.chronicleLanguage = 'ar';
-  } else {
-    state.chronicleLanguage = 'en';
-  }
-  renderChronicleModal();
 }
 
 async function deleteActiveChronicle() {

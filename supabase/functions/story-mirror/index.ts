@@ -7,7 +7,6 @@ const STORY_IMAGE_MODEL = Deno.env.get('OPENAI_IMAGE_MODEL') ?? 'gpt-image-1';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 const STORY_PROMPT_KEY = 'storymirror_prompt_template';
-const STORY_TRANSLATE_KEY = 'storymirror_translate_template';
 const PROFILE_CONFIG_KEY = 'loveboard_private';
 
 const ALLOWED_ORIGINS = new Set([
@@ -58,10 +57,6 @@ serve(async (req) => {
     if (action === 'image') {
       return await handleImage(body, corsHeaders);
     }
-    if (action === 'translate') {
-      return await handleTranslate(body, corsHeaders);
-    }
-
     return new Response('Unknown action', { status: 400, headers: corsHeaders });
   } catch (error) {
     console.error('story-mirror unexpected error', error);
@@ -146,51 +141,6 @@ async function handleText(
   } catch (error) {
     console.error('story-mirror text error', error);
     return new Response('Failed to generate story', { status: 502, headers: corsHeaders });
-  }
-}
-
-async function handleTranslate(
-  body: { chapters?: Array<{ title?: string; text?: string; caption?: string }> },
-  corsHeaders: Record<string, string>
-) {
-  const chapters = Array.isArray(body.chapters) ? body.chapters : [];
-  if (!chapters.length) {
-    return new Response('Missing chapters', { status: 400, headers: corsHeaders });
-  }
-  const payload = JSON.stringify({
-    chapters: chapters.map((c) => ({
-      title: c.title || '',
-      text: c.text || '',
-      caption: c.caption || ''
-    }))
-  });
-  const config = await loadProfileConfig();
-  const nameA = config?.users?.a?.display || config?.users?.a?.id || 'Partner A';
-  const nameB = config?.users?.b?.display || config?.users?.b?.id || 'Partner B';
-  const promptTemplate = await loadPromptTemplate(
-    STORY_TRANSLATE_KEY,
-    DEFAULT_STORY_TRANSLATE_TEMPLATE
-  );
-  const prompt = renderTemplate(promptTemplate, {
-    name_a: nameA,
-    name_b: nameB,
-    payload
-  });
-  try {
-    const data = await openaiRequest('https://api.openai.com/v1/responses', {
-      model: STORY_MODEL,
-      input: prompt
-    });
-    const text = extractOutputText(data);
-    const jsonText = extractJson(text);
-    const parsed = JSON.parse(jsonText);
-    return new Response(JSON.stringify(parsed), {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
-  } catch (error) {
-    console.error('story-mirror translate error', error);
-    return new Response('Failed to translate story', { status: 502, headers: corsHeaders });
   }
 }
 
@@ -289,13 +239,6 @@ Return valid JSON only. Schema:
   ]
 }
 For moment mode, return exactly 1 chapter with 120-200 words and still include story_title. For full mode, return {{chapter_count}} chapters.
-`.trim();
-
-const DEFAULT_STORY_TRANSLATE_TEMPLATE = `
-Translate the following JSON into Modern Standard Arabic (MSA).
-Keep names ({{name_a}}, {{name_b}}) unchanged. Preserve tone and meaning.
-Return JSON only with the same structure and keys.
-{{payload}}
 `.trim();
 
 function renderTemplate(template: string, vars: Record<string, string>) {
