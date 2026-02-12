@@ -1,9 +1,9 @@
 # Loveboard
 
-Loveboard is a cozy, romantic postcard board for Yassine and Nihal. It is built with plain HTML, CSS, and vanilla JavaScript plus Supabase for realtime data, simple auth, and storage. The UI is mobile-first and thumb-friendly so both of you can swap little notes, photos, doodles, and audio snippets on the go.
+Loveboard is a cozy, romantic postcard board for a couple. It is built with plain HTML, CSS, and vanilla JavaScript plus Supabase for realtime data, auth, and storage. The UI is mobile-first and thumb-friendly so both of you can swap little notes, photos, doodles, and audio snippets on the go.
 
 ## Features
-- Password gate that lets only Yassine or Nihal in.
+- Supabase Auth so only approved users can sign in.
 - Mood stickers of the day with realtime updates.
 - Surprise mode that softly blurs every postcard until tapped.
 - Create Postcard modal with: short note (150 chars), photo upload, doodle canvas, and 15s audio recording.
@@ -25,8 +25,7 @@ assets/           # Paper texture, icons
 
 ## Local setup
 1. Clone or download this repository.
-2. Open `supabase.js` and replace the placeholder URL/key with your Supabase project values.
-3. (Optional) Update the shared passphrase(s) inside `script.js` (`USER_PASSCODES`).
+2. Inject your Supabase URL and anon key at runtime (see the `index.html` config snippet).
 4. Serve the project with any static server (e.g. `npx serve .`) or open `index.html` directly in a browser that supports `<dialog>`.
 
 > **Note:** For audio recording to work on desktop browsers, the page usually needs to be served over `https` or `http://localhost`.
@@ -39,7 +38,7 @@ assets/           # Paper texture, icons
 create table public.postcards (
   id uuid primary key default gen_random_uuid(),
   created_at timestamp with time zone default timezone('utc', now()) not null,
-  "user" text not null check ("user" in ('Yassine','Nihal')),
+  "user" text not null check ("user" in ('user_a','user_b')),
   type text not null check (type in ('text','image','audio','doodle')),
   message text,
   asset_url text

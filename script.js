@@ -1,18 +1,14 @@
 import { supabase } from './supabase.js';
-import { setWwanUser, applyRemoteCity } from './wwan.js';
+import { setWwanUser, applyRemoteCity, setWwanDefaults } from './wwan.js';
 
-const USER_PASSCODES = {
-  Yassine: 'iloven',
-  Nihal: 'ilovey'
-};
 
-const MOOD_PRESETS = {
-  Yassine: [
+const DEFAULT_MOOD_PRESETS = {
+  user_a: [
     { emoji: '🛡️', label: 'Protective' },
     { emoji: '😈', label: 'Teasing' },
     { emoji: '🌙', label: 'Calm' }
   ],
-  Nihal: [
+  user_b: [
     { emoji: '🌸', label: 'Soft' },
     { emoji: '🤍', label: 'Obedient' },
     { emoji: '🎀', label: 'Loyal' },
@@ -41,10 +37,46 @@ const ORBIT_SPARKS = [
   'Closer with every heartbeat.'
 ];
 const BUCKET = 'loveboard-assets';
-const AUTH_KEY = 'loveboard-user';
 const MOOD_TIMES_KEY = 'loveboard-moodTimes';
 const DEFAULT_NOTE_IMG = './assets/default-note.svg';
 const DEFAULT_POSTCARD_BATCH = 3;
+const STORY_MIN_CHAPTERS = 3;
+const STORY_MAX_CHAPTERS = 10;
+const STORY_STEP_COUNT = 4;
+const STORY_RITUAL_STARS = 18;
+const STORY_WAIT_TEXTS = [
+  'Every second is a step closer to the life you are building.',
+  'Hold this moment. It is turning into a chapter.',
+  'Your story is arriving, one heartbeat at a time.',
+  'A future scene is forming just for you two.',
+  'The distance is dissolving into words.'
+];
+const STORY_WAIT_DURATION = 14000;
+const DEFAULT_APP_CONFIG = {
+  users: {
+    a: { id: 'user_a', display: 'You' },
+    b: { id: 'user_b', display: 'Partner' }
+  },
+  coupleLabel: 'You ❤️ Partner',
+  storyByline: 'A love story',
+  moodPresets: DEFAULT_MOOD_PRESETS,
+  wwanDefaults: {
+    personA: {
+      name: 'You',
+      city: 'City A',
+      country: 'Country A',
+      countryCode: 'US',
+      timeZone: 'America/New_York'
+    },
+    personB: {
+      name: 'Partner',
+      city: 'City B',
+      country: 'Country B',
+      countryCode: 'MA',
+      timeZone: 'Africa/Casablanca'
+    }
+  }
+};
 function readStoredJSON(key, fallback) {
   try {
     const raw = localStorage.getItem(key);
@@ -62,6 +94,13 @@ function persistMoodTimes() {
 
 const state = {
   user: null,
+  userDisplay: null,
+  appConfig: { ...DEFAULT_APP_CONFIG },
+  moodPresets: { ...DEFAULT_APP_CONFIG.moodPresets },
+  userIds: {
+    a: DEFAULT_APP_CONFIG.users.a.id,
+    b: DEFAULT_APP_CONFIG.users.b.id
+  },
   postcards: [],
   doodleDirty: false,
   doodleCtx: null,
@@ -97,12 +136,42 @@ const state = {
   constellationActiveId: null,
   valentineOpen: false,
   valentineKeyListener: null,
+  chronicleOpen: false,
+  chronicleKeyListener: null,
   orbitProgress: 0,
   orbitHolding: false,
   orbitFrame: null,
   orbitSparkTimer: null,
   orbitReached: false,
   orbitResizeListener: null,
+  storyMirrorOpen: false,
+  storyMirrorKeyListener: null,
+  storyMirrorBusy: false,
+  storyStep: 1,
+  storyLanguage: 'en',
+  storyChapters: [],
+  storyTranslations: null,
+  storyImages: [],
+  storyTranslating: false,
+  storyImagesComplete: false,
+  storySaved: false,
+  storyDefaults: {
+    profileY: '',
+    profileN: ''
+  },
+  chronicles: [],
+  activeChronicle: null,
+  chronicleLanguage: 'en',
+  chronicleTranslating: false,
+  ritualProgress: 0,
+  ritualFrame: null,
+  ritualTimer: null,
+  ritualPromptIndex: 0,
+  ritualStart: 0,
+  ritualFinishStart: 0,
+  ritualFinishDuration: 1800,
+  ritualSpeed: 0.35,
+  ritualDrift: 0.02
 };
 
 const ui = {
@@ -110,8 +179,8 @@ const ui = {
   authGate: document.getElementById('auth-gate'),
   authForm: document.getElementById('auth-form'),
   authError: document.getElementById('auth-error'),
-  userSelect: document.getElementById('user-select'),
-  passInput: document.getElementById('passcode-input'),
+  emailInput: document.getElementById('email-input'),
+  passwordInput: document.getElementById('password-input'),
   authSubmit: document.getElementById('auth-submit'),
   board: document.getElementById('board'),
   modal: document.getElementById('postcard-modal'),
@@ -150,6 +219,7 @@ const ui = {
   constellationMedia: document.getElementById('constellation-media'),
   constellationHint: document.getElementById('constellation-hint'),
   valentineView: document.getElementById('valentine-view'),
+  chronicleView: document.getElementById('chronicle-view'),
   valentineCountdown: document.getElementById('valentine-countdown'),
   orbitStage: document.getElementById('orbit-stage'),
   orbitLine: document.getElementById('orbit-line'),
@@ -165,20 +235,69 @@ const ui = {
   orbitSendBtn: document.getElementById('orbit-send-btn'),
   orbitReveal: document.getElementById('orbit-reveal'),
   orbitMessage: document.getElementById('orbit-message'),
-  viewSwitchButtons: document.querySelectorAll('.view-switch')
+  viewSwitchButtons: document.querySelectorAll('.view-switch'),
+  storyMirrorView: document.getElementById('storymirror-view'),
+  storyLangToggle: document.getElementById('story-lang-toggle'),
+  storyLangSpinner: document.getElementById('story-lang-spinner'),
+  storyLangStatus: document.getElementById('story-lang-status'),
+  storyHeroTitle: document.querySelector('.storymirror-hero h1'),
+  storyHeroSubtitle: document.querySelector('.storymirror-subtitle'),
+  storyHeroEyebrow: document.querySelector('.storymirror-hero .storymirror-eyebrow'),
+  storyStepChips: document.querySelectorAll('.storymirror-step-chip'),
+  storyStepPanels: document.querySelectorAll('.storymirror-step-panel'),
+  storyStepBack: document.getElementById('story-step-back'),
+  storyStepNext: document.getElementById('story-step-next'),
+  storyStepIndicator: document.getElementById('story-step-indicator'),
+  storySuggestions: document.querySelectorAll('.storymirror-suggestions'),
+  storyFragmentsY: document.getElementById('story-fragments-y'),
+  storyFragmentsN: document.getElementById('story-fragments-n'),
+  storyProfileY: document.getElementById('story-profile-y'),
+  storyProfileN: document.getElementById('story-profile-n'),
+  storyLens: document.getElementById('story-lens'),
+  storyLensLabel: document.getElementById('story-lens-label'),
+  storyFantasy: document.getElementById('story-fantasy'),
+  storyFantasyLabel: document.getElementById('story-fantasy-label'),
+  storyIntimacyInputs: document.querySelectorAll('input[name="story-intimacy"]'),
+  storyPerspectiveInputs: document.querySelectorAll('input[name="story-perspective"]'),
+  storyGenerate: document.getElementById('story-generate'),
+  storyStatus: document.getElementById('story-status'),
+  storyChapterHint: document.getElementById('story-chapter-hint'),
+  storyOutput: document.getElementById('story-output'),
+  storyEmpty: document.getElementById('story-empty'),
+  storyChapters: document.getElementById('story-chapters'),
+  storyFooter: document.getElementById('story-footer'),
+  storyNewBtn: document.getElementById('story-new-btn'),
+  storySaveBtn: document.getElementById('story-save-btn'),
+  storyRitual: document.getElementById('story-ritual'),
+  storyRitualFill: document.getElementById('story-ritual-fill'),
+  storyRitualText: document.getElementById('story-ritual-text'),
+  storyRitualHint: document.getElementById('story-ritual-hint'),
+  chronicleGrid: document.getElementById('chronicle-grid'),
+  chronicleEmpty: document.getElementById('chronicle-empty'),
+  chronicleModal: document.getElementById('chronicle-modal'),
+  chronicleClose: document.getElementById('chronicle-close'),
+  chronicleModalTitle: document.getElementById('chronicle-modal-title'),
+  chronicleModalBody: document.getElementById('chronicle-modal-body'),
+  chronicleDelete: document.getElementById('chronicle-delete'),
+  chronicleDeleteModal: document.getElementById('chronicle-delete-modal'),
+  chronicleDeleteCancel: document.getElementById('chronicle-delete-cancel'),
+  chronicleDeleteConfirm: document.getElementById('chronicle-delete-confirm'),
+  chronicleLangToggle: document.getElementById('chronicle-lang-toggle'),
+  chronicleLangSpinner: document.getElementById('chronicle-lang-spinner'),
+  chronicleLangStatus: document.getElementById('chronicle-lang-status')
 };
 
 const template = document.getElementById('postcard-template');
 
-init();
+init().catch((error) => console.error('init error', error));
 
-function init() {
+async function init() {
   ui.authForm.addEventListener('submit', handleAuth);
   ui.createBtn.addEventListener('click', () => openModal());
   ui.closeModal.addEventListener('click', () => ui.modal.close());
   if (ui.currentAvatar) {
     ui.currentAvatar.addEventListener('click', () => {
-      const name = state.user || 'Unknown';
+      const name = state.userDisplay || state.user || 'Unknown';
       showToast(`Signed in as ${name}`, 'info', ui.currentAvatar);
     });
   }
@@ -194,15 +313,37 @@ function init() {
   if (ui.logoutConfirm) {
     ui.logoutConfirm.addEventListener('click', confirmLogout);
   }
+  if (ui.chronicleClose) {
+    ui.chronicleClose.addEventListener('click', closeChronicleModal);
+  }
+  if (ui.chronicleModal) {
+    ui.chronicleModal.addEventListener('cancel', (evt) => {
+      evt.preventDefault();
+      closeChronicleModal();
+    });
+  }
+  if (ui.chronicleDelete) {
+    ui.chronicleDelete.addEventListener('click', openChronicleDeleteModal);
+  }
+  if (ui.chronicleDeleteCancel) {
+    ui.chronicleDeleteCancel.addEventListener('click', closeChronicleDeleteModal);
+  }
+  if (ui.chronicleDeleteConfirm) {
+    ui.chronicleDeleteConfirm.addEventListener('click', confirmChronicleDelete);
+  }
+  if (ui.chronicleLangToggle) {
+    ui.chronicleLangToggle.addEventListener('click', toggleChronicleLanguage);
+  }
   ui.postcardForm.addEventListener('submit', handlePostcardSubmit);
   ui.clearDoodle.addEventListener('click', clearDoodle);
-  ui.userSelect.addEventListener('change', updateAuthButton);
-  ui.passInput.addEventListener('input', updateAuthButton);
+  ui.emailInput.addEventListener('input', updateAuthButton);
+  ui.passwordInput.addEventListener('input', updateAuthButton);
   ui.messageInput.addEventListener('input', updateSendButtonState);
   ui.photoInput.addEventListener('change', updateSendButtonState);
   setupDoodleCanvas();
   setupAudioRecorder();
   setupValentine();
+  setupStoryMirror();
   ui.moodButtons.forEach((btn) =>
     btn.addEventListener('click', () => openMoodPicker(btn))
   );
@@ -221,7 +362,16 @@ function init() {
   updateSendButtonState();
   setButtonState(ui.createBtn, false);
   updateViewSwitchers('loveboard');
+  await loadAppConfig();
+  applyAppConfig();
   restoreSession();
+  supabase.auth.onAuthStateChange((_event, session) => {
+    if (!session) {
+      showAuthGate();
+      return;
+    }
+    applySessionUser(session);
+  });
 }
 
 function setupValentine() {
@@ -244,11 +394,888 @@ function setupValentine() {
   requestAnimationFrame(updateOrbitUI);
 }
 
+function setupStoryMirror() {
+  if (!ui.storyMirrorView) return;
+  setupStoryStepper();
+  setupStorySuggestions();
+  setupStoryAddRows();
+  loadStoryDefaults();
+  if (ui.storyLens) {
+    ui.storyLens.addEventListener('input', () => {
+      updateStoryLensLabel();
+      updateChapterEstimate();
+    });
+    updateStoryLensLabel();
+  }
+  if (ui.storyFantasy) {
+    ui.storyFantasy.addEventListener('input', () => {
+      updateStoryFantasyLabel();
+      updateChapterEstimate();
+    });
+    updateStoryFantasyLabel();
+  }
+  if (ui.storyFragmentsY) {
+    ui.storyFragmentsY.addEventListener('input', updateChapterEstimate);
+  }
+  if (ui.storyFragmentsN) {
+    ui.storyFragmentsN.addEventListener('input', updateChapterEstimate);
+  }
+  if (ui.storyLangToggle) {
+    ui.storyLangToggle.addEventListener('click', toggleStoryLanguage);
+  }
+  updateStoryLanguageUI();
+  if (ui.storyGenerate) {
+    ui.storyGenerate.addEventListener('click', () => runStoryGeneration('full'));
+  }
+  if (ui.storyNewBtn) {
+    ui.storyNewBtn.addEventListener('click', resetStoryFlow);
+  }
+  if (ui.storySaveBtn) {
+    ui.storySaveBtn.addEventListener('click', saveStoryChronicle);
+  }
+  updateChapterEstimate();
+  cacheStoryHeroDefaults();
+}
+
+async function loadAppConfig() {
+  const { data, error } = await supabase
+    .from('app_config')
+    .select('value')
+    .eq('key', 'loveboard_private')
+    .maybeSingle();
+  if (error) {
+    console.warn('app config load', error);
+    return;
+  }
+  if (!data?.value || typeof data.value !== 'object') return;
+  state.appConfig = normalizeAppConfig(data.value);
+  state.userIds = {
+    a: state.appConfig.users.a.id,
+    b: state.appConfig.users.b.id
+  };
+  state.moodPresets = buildMoodPresets(state.appConfig);
+}
+
+function normalizeAppConfig(value) {
+  const config = JSON.parse(JSON.stringify(DEFAULT_APP_CONFIG));
+  if (value?.users?.a?.id) config.users.a.id = String(value.users.a.id);
+  if (value?.users?.b?.id) config.users.b.id = String(value.users.b.id);
+  if (value?.users?.a?.display) config.users.a.display = String(value.users.a.display);
+  if (value?.users?.b?.display) config.users.b.display = String(value.users.b.display);
+  if (value?.couple_label) config.coupleLabel = String(value.couple_label);
+  if (value?.story_byline) config.storyByline = String(value.story_byline);
+  if (value?.wwan_defaults?.personA) {
+    config.wwanDefaults.personA = { ...config.wwanDefaults.personA, ...value.wwan_defaults.personA };
+  }
+  if (value?.wwan_defaults?.personB) {
+    config.wwanDefaults.personB = { ...config.wwanDefaults.personB, ...value.wwan_defaults.personB };
+  }
+  if (value?.mood_presets) {
+    config.moodPresets = value.mood_presets;
+  }
+  return config;
+}
+
+function buildMoodPresets(config) {
+  const moodSource = config.moodPresets || DEFAULT_MOOD_PRESETS;
+  const presets = {};
+  const aKey = config.users.a.id;
+  const bKey = config.users.b.id;
+  presets[aKey] = Array.isArray(moodSource[aKey])
+    ? moodSource[aKey]
+    : Array.isArray(moodSource.a)
+      ? moodSource.a
+      : DEFAULT_MOOD_PRESETS.user_a;
+  presets[bKey] = Array.isArray(moodSource[bKey])
+    ? moodSource[bKey]
+    : Array.isArray(moodSource.b)
+      ? moodSource.b
+      : DEFAULT_MOOD_PRESETS.user_b;
+  return presets;
+}
+
+function applyAppConfig() {
+  const { users, coupleLabel, storyByline, wwanDefaults } = state.appConfig;
+  const displayA = users.a.display || users.a.id;
+  const displayB = users.b.display || users.b.id;
+  const couple = coupleLabel || `${displayA} ❤️ ${displayB}`;
+
+  document.querySelectorAll('[data-couple-tagline]').forEach((el) => {
+    el.textContent = couple;
+  });
+  document.querySelectorAll('[data-story-byline]').forEach((el) => {
+    el.textContent = storyByline || `A ${displayA} + ${displayB} Story`;
+  });
+
+  document.querySelectorAll('[data-user-label="a"]').forEach((el) => {
+    el.textContent = displayA;
+  });
+  document.querySelectorAll('[data-user-label="b"]').forEach((el) => {
+    el.textContent = displayB;
+  });
+
+  document.querySelectorAll('[data-user-slot="a"]').forEach((el) => {
+    el.dataset.user = users.a.id;
+  });
+  document.querySelectorAll('[data-user-slot="b"]').forEach((el) => {
+    el.dataset.user = users.b.id;
+  });
+
+  const moodA = (state.moodPresets[users.a.id] || FALLBACK_MOODS)[0];
+  const moodB = (state.moodPresets[users.b.id] || FALLBACK_MOODS)[0];
+  if (moodA) {
+    document.querySelectorAll('.mood-btn[data-user-slot="a"]').forEach((btn) => {
+      btn.dataset.mood = moodA.emoji;
+      btn.innerHTML = `${moodA.emoji} <span>${moodA.label}</span>`;
+    });
+  }
+  if (moodB) {
+    document.querySelectorAll('.mood-btn[data-user-slot="b"]').forEach((btn) => {
+      btn.dataset.mood = moodB.emoji;
+      btn.innerHTML = `${moodB.emoji} <span>${moodB.label}</span>`;
+    });
+  }
+
+  document.querySelectorAll('[data-wwan-title]').forEach((el) => {
+    el.textContent = `${couple} — Where We Are Now`;
+  });
+  document.querySelectorAll('[data-wwan-name="a"]').forEach((el) => {
+    el.textContent = displayA;
+  });
+  document.querySelectorAll('[data-wwan-name="b"]').forEach((el) => {
+    el.textContent = displayB;
+  });
+  document.querySelectorAll('[data-wwan-label="a"]').forEach((el) => {
+    el.textContent = `${displayA}'s Time`;
+  });
+  document.querySelectorAll('[data-wwan-label="b"]').forEach((el) => {
+    el.textContent = `${displayB}'s Time`;
+  });
+  document.querySelectorAll('[data-wwan-doing-title="a"]').forEach((el) => {
+    el.textContent = `What ${displayA}'s Probably Doing`;
+  });
+  document.querySelectorAll('[data-wwan-doing-title="b"]').forEach((el) => {
+    el.textContent = `What ${displayB}'s Probably Doing`;
+  });
+  document.querySelectorAll('[data-wwan-city-label="a"]').forEach((el) => {
+    const input = el.querySelector('input');
+    el.childNodes[0].textContent = `${displayA}'s City`;
+    if (input) input.placeholder = `${displayA}'s city`;
+  });
+  document.querySelectorAll('[data-wwan-city-label="b"]').forEach((el) => {
+    const input = el.querySelector('input');
+    el.childNodes[0].textContent = `${displayB}'s City`;
+    if (input) input.placeholder = `${displayB}'s city`;
+  });
+
+  document.querySelectorAll('[data-story-label="a"]').forEach((el) => {
+    el.textContent = `${displayA}’s moments`;
+  });
+  document.querySelectorAll('[data-story-label="b"]').forEach((el) => {
+    el.textContent = `${displayB}’s moments`;
+  });
+  document.querySelectorAll('[data-story-profile-label="a"]').forEach((el) => {
+    el.textContent = `${displayA} profile`;
+  });
+  document.querySelectorAll('[data-story-profile-label="b"]').forEach((el) => {
+    el.textContent = `${displayB} profile`;
+  });
+  document.querySelectorAll('[data-story-profile-placeholder="a"]').forEach((el) => {
+    if ('placeholder' in el) el.placeholder = `Describe ${displayA}...`;
+  });
+  document.querySelectorAll('[data-story-profile-placeholder="b"]').forEach((el) => {
+    if ('placeholder' in el) el.placeholder = `Describe ${displayB}...`;
+  });
+
+  document.querySelectorAll('input[name="story-perspective"]').forEach((input) => {
+    const label = input.parentElement;
+    if (!label || label.tagName !== 'LABEL') return;
+    if (input.value === 'a') {
+      label.lastChild.textContent = ` ${displayA}`;
+    } else if (input.value === 'b') {
+      label.lastChild.textContent = ` ${displayB}`;
+    }
+  });
+
+  if (typeof setWwanDefaults === 'function') {
+    setWwanDefaults({
+      personA: {
+        ...wwanDefaults.personA,
+        id: users.a.id,
+        name: displayA
+      },
+      personB: {
+        ...wwanDefaults.personB,
+        id: users.b.id,
+        name: displayB
+      }
+    });
+  }
+}
+
+function getDisplayName(userId) {
+  if (userId === state.userIds.a) return state.appConfig.users.a.display || userId;
+  if (userId === state.userIds.b) return state.appConfig.users.b.display || userId;
+  return userId;
+}
+
+async function loadStoryDefaults() {
+  const { data, error } = await supabase
+    .from('app_config')
+    .select('value')
+    .eq('key', 'storymirror_defaults')
+    .maybeSingle();
+  if (error) {
+    console.error('story defaults load', error);
+    return;
+  }
+  const value = data?.value || {};
+  if (typeof value.profile_y === 'string') {
+    state.storyDefaults.profileY = value.profile_y;
+  }
+  if (typeof value.profile_n === 'string') {
+    state.storyDefaults.profileN = value.profile_n;
+  }
+}
+
 function updateOrbitLocations() {
   const locA = document.getElementById('wwan-city-a')?.textContent;
   const locB = document.getElementById('wwan-city-b')?.textContent;
   if (ui.orbitLocA && locA) ui.orbitLocA.textContent = locA;
   if (ui.orbitLocB && locB) ui.orbitLocB.textContent = locB;
+}
+
+function setupStoryAddRows() {
+  const rows = document.querySelectorAll('.storymirror-add-row');
+  if (!rows.length) return;
+  rows.forEach((row) => {
+    const input = row.querySelector('.storymirror-add-input');
+    const button = row.querySelector('.storymirror-add-btn');
+    const targetId = row.dataset.target;
+    const target = targetId ? document.getElementById(targetId) : null;
+    if (!input || !button || !target || target.tagName !== 'TEXTAREA') return;
+
+    const addLine = () => {
+      const value = input.value.trim();
+      if (!value) return;
+      const current = target.value.trim();
+      target.value = current ? `${current}\n${value}` : value;
+      input.value = '';
+      input.focus();
+      updateChapterEstimate();
+    };
+
+    button.addEventListener('click', addLine);
+    input.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      addLine();
+    });
+  });
+}
+
+function setupStoryStepper() {
+  if (ui.storyStepChips) {
+    ui.storyStepChips.forEach((chip) => {
+      chip.addEventListener('click', () => {
+        const step = Number(chip.dataset.step || 1);
+        setStoryStep(step);
+      });
+    });
+  }
+  if (ui.storyStepBack) {
+    ui.storyStepBack.addEventListener('click', () => setStoryStep(state.storyStep - 1));
+  }
+  if (ui.storyStepNext) {
+    ui.storyStepNext.addEventListener('click', () => setStoryStep(state.storyStep + 1));
+  }
+  setStoryStep(state.storyStep);
+}
+
+function setStoryStep(step) {
+  const next = Math.min(Math.max(step, 1), STORY_STEP_COUNT);
+  state.storyStep = next;
+  if (ui.storyStepPanels) {
+    ui.storyStepPanels.forEach((panel) => {
+      const panelStep = Number(panel.dataset.step || 1);
+      panel.classList.toggle('active', panelStep === next);
+    });
+  }
+  if (ui.storyStepChips) {
+    ui.storyStepChips.forEach((chip) => {
+      const chipStep = Number(chip.dataset.step || 1);
+      chip.classList.toggle('active', chipStep === next);
+    });
+  }
+  if (ui.storyStepIndicator) {
+    ui.storyStepIndicator.textContent = `Step ${next} of ${STORY_STEP_COUNT}`;
+  }
+  if (ui.storyStepBack) {
+    ui.storyStepBack.disabled = next <= 1;
+  }
+  if (ui.storyStepNext) {
+    ui.storyStepNext.disabled = next >= STORY_STEP_COUNT;
+  }
+}
+
+function setupStorySuggestions() {
+  if (!ui.storySuggestions) return;
+  ui.storySuggestions.forEach((container) => {
+    container.querySelectorAll('.storymirror-suggestion').forEach((btn) => {
+      btn.addEventListener('click', () => applyStorySuggestion(container, btn.dataset.text || ''));
+    });
+  });
+}
+
+function applyStorySuggestion(container, text) {
+  if (!text) return;
+  const targetId = container.dataset.target;
+  const secondaryId = container.dataset.targetSecondary;
+  const targets = [targetId, secondaryId].filter(Boolean);
+  targets.forEach((id) => {
+    const el = document.getElementById(id);
+    if (!el || el.tagName !== 'TEXTAREA') return;
+    const current = el.value.trim();
+    el.value = current ? `${current}\n${text}` : text;
+  });
+  updateChapterEstimate();
+}
+
+function updateStoryLensLabel() {
+  if (!ui.storyLens || !ui.storyLensLabel) return;
+  const value = Number(ui.storyLens.value || 0);
+  let label = 'Soft & romantic';
+  if (value >= 70) label = 'Raw & honest';
+  else if (value >= 40) label = 'Balanced & sincere';
+  ui.storyLensLabel.textContent = label;
+}
+
+function getStoryLensProfile() {
+  if (!ui.storyLens) return 'soft & romantic';
+  const value = Number(ui.storyLens.value || 0);
+  if (value >= 70) return 'raw, honest, and emotionally direct';
+  if (value >= 40) return 'balanced, sincere, and grounded';
+  return 'soft, romantic, and tender';
+}
+
+function updateStoryFantasyLabel() {
+  if (!ui.storyFantasy || !ui.storyFantasyLabel) return;
+  const value = Number(ui.storyFantasy.value || 0);
+  let label = 'Grounded';
+  if (value >= 70) label = 'Dreamlike';
+  else if (value >= 40) label = 'Balanced';
+  ui.storyFantasyLabel.textContent = label;
+}
+
+function cacheStoryHeroDefaults() {
+  if (ui.storyHeroTitle && !ui.storyHeroTitle.dataset.defaultText) {
+    ui.storyHeroTitle.dataset.defaultText = ui.storyHeroTitle.textContent || '';
+  }
+  if (ui.storyHeroSubtitle && !ui.storyHeroSubtitle.dataset.defaultText) {
+    ui.storyHeroSubtitle.dataset.defaultText = ui.storyHeroSubtitle.textContent || '';
+  }
+  if (ui.storyHeroEyebrow && !ui.storyHeroEyebrow.dataset.defaultText) {
+    ui.storyHeroEyebrow.dataset.defaultText = ui.storyHeroEyebrow.textContent || '';
+  }
+}
+
+function setStoryHeroTitle(title) {
+  if (!ui.storyHeroTitle) return;
+  ui.storyHeroTitle.textContent = title;
+  if (ui.storyHeroEyebrow) {
+    ui.storyHeroEyebrow.hidden = true;
+  }
+  if (ui.storyHeroSubtitle) {
+    ui.storyHeroSubtitle.hidden = true;
+  }
+}
+
+function resetStoryHero() {
+  if (ui.storyHeroEyebrow?.dataset.defaultText) {
+    ui.storyHeroEyebrow.textContent = ui.storyHeroEyebrow.dataset.defaultText;
+    ui.storyHeroEyebrow.hidden = false;
+  }
+  if (ui.storyHeroTitle?.dataset.defaultText) {
+    ui.storyHeroTitle.textContent = ui.storyHeroTitle.dataset.defaultText;
+  }
+  if (ui.storyHeroSubtitle?.dataset.defaultText) {
+    ui.storyHeroSubtitle.textContent = ui.storyHeroSubtitle.dataset.defaultText;
+    ui.storyHeroSubtitle.hidden = false;
+  }
+}
+
+function resetStoryFlow() {
+  if (ui.storyMirrorView) {
+    ui.storyMirrorView.classList.remove('storymirror-generated');
+  }
+  if (ui.storyFooter) {
+    ui.storyFooter.hidden = true;
+  }
+  state.storyChapters = [];
+  state.storyTranslations = null;
+  state.storyImages = [];
+  state.storyImagesComplete = false;
+  state.storyLanguage = 'en';
+  state.storySaved = false;
+  updateStoryLanguageUI();
+  renderStoryChapters();
+  resetStoryHero();
+  setStoryStep(1);
+  updateStorySaveButton();
+  if (ui.storyOutput) {
+    ui.storyOutput.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+
+function updateStorySaveButton() {
+  if (!ui.storySaveBtn) return;
+  if (!state.storyChapters.length) {
+    ui.storySaveBtn.disabled = true;
+    return;
+  }
+  if (state.storySaved) {
+    ui.storySaveBtn.disabled = true;
+    ui.storySaveBtn.textContent = 'Saved';
+    return;
+  }
+  if (!state.storyImagesComplete) {
+    ui.storySaveBtn.disabled = true;
+    ui.storySaveBtn.textContent = 'Finishing images…';
+    return;
+  }
+  ui.storySaveBtn.disabled = false;
+  ui.storySaveBtn.textContent = 'Save & Share';
+}
+
+async function saveStoryChronicle() {
+  if (!state.storyChapters.length || !state.storyImagesComplete || state.storySaved) return;
+  if (ui.storySaveBtn) {
+    ui.storySaveBtn.disabled = true;
+    ui.storySaveBtn.textContent = 'Saving…';
+  }
+  const payload = {
+    title: ui.storyHeroTitle?.textContent || 'Our Future, Soon',
+    inputs: {
+      fragments_y: ui.storyFragmentsY?.value || '',
+      fragments_n: ui.storyFragmentsN?.value || '',
+      profile_y: ui.storyProfileY?.value || state.storyDefaults.profileY || '',
+      profile_n: ui.storyProfileN?.value || state.storyDefaults.profileN || '',
+      lens: getStoryLensProfile(),
+      fantasy: getStoryFantasyProfile(),
+      intimacy: getStoryIntimacy(),
+      perspective: getStoryPerspective(),
+      moment: ''
+    },
+    chapters: state.storyChapters,
+    chapters_ar: state.storyTranslations || null,
+    images: state.storyImages,
+    user: state.user || 'Unknown'
+  };
+  const { data, error } = await supabase
+    .from('story_chronicles')
+    .insert(payload)
+    .select('*')
+    .single();
+  if (error) {
+    console.error('chronicle save', error);
+    showToast(`Couldn't save story: ${error.message}`, 'error');
+    updateStorySaveButton();
+    return;
+  }
+  state.chronicles = [data, ...state.chronicles];
+  renderChronicles();
+  showToast('Saved to Chronicle.', 'success');
+  state.storySaved = true;
+  updateStorySaveButton();
+}
+
+function getStoryFantasyProfile() {
+  if (!ui.storyFantasy) return 'balanced with cinematic, dreamy touches';
+  const value = Number(ui.storyFantasy.value || 0);
+  if (value >= 70) return 'dreamlike, mythic, and cinematic';
+  if (value >= 40) return 'balanced: realistic with soft cinematic wonder';
+  return 'grounded, realistic, and intimate';
+}
+
+function getStoryIntimacy() {
+  const selected = [...(ui.storyIntimacyInputs || [])].find((input) => input.checked);
+  return selected ? selected.value : 'tender';
+}
+
+function getStoryPerspective() {
+  const selected = [...(ui.storyPerspectiveInputs || [])].find((input) => input.checked);
+  return selected ? selected.value : 'us';
+}
+
+function updateChapterEstimate() {
+  const count = computeChapterEstimate();
+  if (ui.storyChapterHint) {
+    ui.storyChapterHint.textContent = `Estimated chapters: ${count}`;
+  }
+}
+
+function computeChapterEstimate() {
+  const yText = ui.storyFragmentsY?.value || '';
+  const nText = ui.storyFragmentsN?.value || '';
+  const fragments = parseFragments(yText).length + parseFragments(nText).length;
+  const chars = yText.length + nText.length;
+  let count = STORY_MIN_CHAPTERS;
+  if (chars > 1800 || fragments >= 14) count = 10;
+  else if (chars > 1200 || fragments >= 10) count = 8;
+  else if (chars > 700 || fragments >= 7) count = 6;
+  else if (chars > 350 || fragments >= 5) count = 4;
+  return Math.min(Math.max(count, STORY_MIN_CHAPTERS), STORY_MAX_CHAPTERS);
+}
+
+function parseFragments(text) {
+  if (!text) return [];
+  return text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, 20);
+}
+
+async function runStoryGeneration(mode) {
+  if (state.storyMirrorBusy) return;
+  const yFragments = parseFragments(ui.storyFragmentsY?.value || '');
+  const nFragments = parseFragments(ui.storyFragmentsN?.value || '');
+  if (!yFragments.length && !nFragments.length) {
+    setStoryStatus('Add at least one future fragment to begin.', 'error');
+    return;
+  }
+  state.storyLanguage = 'en';
+  state.storyTranslations = null;
+  state.storyImages = [];
+  state.storyChapters = [];
+  state.storyImagesComplete = false;
+  updateStoryLanguageUI();
+  if (ui.storyMirrorView) {
+    ui.storyMirrorView.classList.remove('storymirror-generated');
+  }
+  resetStoryHero();
+  state.storyMirrorBusy = true;
+  setStoryStatus('Weaving the story...', 'info');
+  setStoryButtonsDisabled(true);
+  openStoryRitual();
+  try {
+    const responseData = await requestStoryText({
+      mode,
+      yFragments,
+      nFragments,
+      chapterCount: computeChapterEstimate(),
+      profileY: ui.storyProfileY?.value || state.storyDefaults.profileY || '',
+      profileN: ui.storyProfileN?.value || state.storyDefaults.profileN || '',
+      fantasy: getStoryFantasyProfile(),
+      lens: getStoryLensProfile(),
+      intimacy: getStoryIntimacy(),
+      perspective: getStoryPerspective()
+    });
+    if (!responseData || !responseData.chapters?.length) {
+      throw new Error('No chapters returned.');
+    }
+    state.storyChapters = responseData.chapters;
+    state.storyImages = new Array(responseData.chapters.length).fill('');
+    renderStoryChapters();
+    updateStoryLanguageUI();
+    const storyTitle =
+      responseData.story_title || responseData.title || responseData.chapters?.[0]?.title || 'Our Future, Soon';
+    setStoryHeroTitle(storyTitle);
+    if (ui.storyMirrorView) {
+      ui.storyMirrorView.classList.add('storymirror-generated');
+    }
+    if (ui.storyFooter) {
+      ui.storyFooter.hidden = false;
+    }
+    updateStorySaveButton();
+    // Let the loading bar finish before dismissing.
+    state.ritualFinishStart = Date.now();
+    setTimeout(() => closeStoryRitual(), state.ritualFinishDuration);
+    await generateChapterImages(responseData.chapters);
+    state.storyImagesComplete = true;
+    updateStorySaveButton();
+    setStoryStatus('Story ready.', 'success');
+  } catch (error) {
+    console.error('story mirror', error);
+    setStoryStatus(error.message || 'Something went wrong.', 'error');
+    closeStoryRitual();
+  } finally {
+    state.storyMirrorBusy = false;
+    setStoryButtonsDisabled(false);
+  }
+}
+
+function setStoryButtonsDisabled(disabled) {
+  if (ui.storyGenerate) ui.storyGenerate.disabled = disabled;
+  if (ui.storyGenerateMoment) ui.storyGenerateMoment.disabled = disabled;
+  if (ui.storyStepNext) ui.storyStepNext.disabled = disabled || state.storyStep >= STORY_STEP_COUNT;
+  if (ui.storyStepBack) ui.storyStepBack.disabled = disabled || state.storyStep <= 1;
+}
+
+function setStoryStatus(message, tone) {
+  if (!ui.storyStatus) return;
+  ui.storyStatus.textContent = message;
+  ui.storyStatus.dataset.tone = tone || 'info';
+}
+
+async function requestStoryText({
+  mode,
+  yFragments,
+  nFragments,
+  chapterCount,
+  profileY,
+  profileN,
+  fantasy,
+  lens,
+  intimacy,
+  perspective
+}) {
+  const momentKey = '';
+  const { data, error } = await supabase.functions.invoke('story-mirror', {
+    body: {
+      action: 'text',
+      mode,
+      chapterCount,
+      yFragments,
+      nFragments,
+      profileY,
+      profileN,
+      fantasy,
+      lens,
+      intimacy,
+      perspective,
+      momentKey
+    }
+  });
+  if (error) {
+    throw new Error(error.message || 'Story request failed.');
+  }
+  return data;
+}
+
+function renderStoryChapters() {
+  if (!ui.storyChapters || !ui.storyEmpty) return;
+  const source =
+    state.storyLanguage === 'ar' && state.storyTranslations
+      ? state.storyTranslations
+      : state.storyChapters;
+  if (!source || source.length === 0) {
+    ui.storyEmpty.hidden = false;
+    ui.storyEmpty.setAttribute('aria-hidden', 'false');
+    ui.storyChapters.innerHTML = '';
+    return;
+  }
+  ui.storyEmpty.hidden = true;
+  ui.storyEmpty.setAttribute('aria-hidden', 'true');
+  ui.storyChapters.innerHTML = '';
+  source.forEach((chapter, idx) => {
+    const card = document.createElement('article');
+    card.className = 'storymirror-chapter';
+    const title = document.createElement('h3');
+    title.textContent = chapter.title || `Chapter ${idx + 1}`;
+    const text = document.createElement('p');
+    text.textContent = chapter.text || '';
+    const imageWrap = document.createElement('div');
+    imageWrap.className = 'storymirror-image';
+    const img = document.createElement('img');
+    img.alt = chapter.caption || `Chapter ${idx + 1} visual`;
+    img.dataset.index = String(idx);
+    img.loading = 'lazy';
+    if (state.storyImages[idx]) {
+      img.src = state.storyImages[idx];
+    } else {
+      imageWrap.classList.add('is-loading');
+      img.src =
+        'data:image/svg+xml;charset=UTF-8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22300%22 height=%22225%22%3E%3Crect width=%22300%22 height=%22225%22 fill=%22%23f5e4ef%22/%3E%3C/svg%3E';
+    }
+    const caption = document.createElement('p');
+    caption.className = 'storymirror-caption';
+    caption.textContent = chapter.caption || '';
+    imageWrap.appendChild(img);
+    card.append(title, text, imageWrap, caption);
+    ui.storyChapters.appendChild(card);
+  });
+}
+
+async function generateChapterImages(chapters) {
+  if (!ui.storyChapters) return;
+  for (let i = 0; i < chapters.length; i += 1) {
+    const chapter = chapters[i];
+    if (!chapter?.image_prompt) continue;
+    setStoryStatus(`Rendering image ${i + 1} of ${chapters.length}...`, 'info');
+    const imgData = await requestStoryImage(chapter.image_prompt);
+    const imgEl = ui.storyChapters.querySelector(`img[data-index="${i}"]`);
+    if (imgEl && imgData) {
+      state.storyImages[i] = imgData;
+      imgEl.src = imgData;
+      imgEl.closest('.storymirror-image')?.classList.remove('is-loading');
+    }
+  }
+}
+
+async function requestStoryImage(prompt) {
+  const { data, error } = await supabase.functions.invoke('story-mirror', {
+    body: {
+      action: 'image',
+      prompt
+    }
+  });
+  if (error) {
+    throw new Error(error.message || 'Image request failed.');
+  }
+  return data?.image || '';
+}
+
+function updateStoryLanguageUI() {
+  if (ui.storyMirrorView) {
+    ui.storyMirrorView.removeAttribute('dir');
+  }
+  if (ui.storyOutput) {
+    ui.storyOutput.setAttribute('dir', state.storyLanguage === 'ar' ? 'rtl' : 'ltr');
+    ui.storyOutput.classList.toggle('storymirror-output-rtl', state.storyLanguage === 'ar');
+  }
+  if (ui.storyLangToggle) {
+    ui.storyLangToggle.textContent = state.storyLanguage === 'ar' ? 'EN' : 'AR';
+    ui.storyLangToggle.setAttribute('aria-pressed', state.storyLanguage === 'ar' ? 'true' : 'false');
+    ui.storyLangToggle.hidden = state.storyChapters.length === 0;
+    ui.storyLangToggle.disabled = false;
+  }
+  if (ui.storyLangSpinner) {
+    ui.storyLangSpinner.hidden = !state.storyTranslating;
+  }
+  if (ui.storyLangStatus) {
+    ui.storyLangStatus.hidden = !state.storyTranslating;
+  }
+}
+
+async function toggleStoryLanguage() {
+  if (!state.storyChapters.length) return;
+  if (state.storyTranslating) {
+    setStoryStatus('Translating…', 'info');
+    return;
+  }
+  if (state.storyLanguage === 'en') {
+    if (!state.storyTranslations) {
+      await translateStoryChapters();
+    }
+    if (state.storyTranslations) {
+      state.storyLanguage = 'ar';
+    } else {
+      return;
+    }
+  } else {
+    state.storyLanguage = 'en';
+  }
+  updateStoryLanguageUI();
+  renderStoryChapters();
+  if (ui.storyOutput) {
+    ui.storyOutput.classList.remove('is-switching');
+    void ui.storyOutput.offsetWidth;
+    ui.storyOutput.classList.add('is-switching');
+  }
+}
+
+async function translateStoryChapters() {
+  if (state.storyTranslating || !state.storyChapters.length) return;
+  state.storyTranslating = true;
+  updateStoryLanguageUI();
+  try {
+    const { data, error } = await supabase.functions.invoke('story-mirror', {
+      body: {
+        action: 'translate',
+        chapters: state.storyChapters
+      }
+    });
+    if (error) throw new Error(error.message || 'Translation failed.');
+    state.storyTranslations = data?.chapters || null;
+  } catch (error) {
+    console.error('translation', error);
+    setStoryStatus(error.message || 'Translation failed.', 'error');
+  } finally {
+    state.storyTranslating = false;
+    updateStoryLanguageUI();
+  }
+}
+
+function openStoryRitual() {
+  if (!ui.storyRitual) return;
+  ui.storyRitual.hidden = false;
+  ui.storyRitual.setAttribute('aria-hidden', 'false');
+  ui.storyRitual.classList.remove('is-leaving');
+  ui.storyRitual.classList.add('is-visible');
+  state.ritualProgress = 0;
+  state.ritualStart = Date.now();
+  state.ritualFinishStart = 0;
+  state.ritualSpeed = 0.22 + Math.random() * 0.28;
+  state.ritualDrift = 0.015 + Math.random() * 0.02;
+  updateStoryRitualUI();
+  startStoryWaitLoop();
+}
+
+function closeStoryRitual() {
+  if (!ui.storyRitual) return;
+  ui.storyRitual.classList.remove('is-visible');
+  ui.storyRitual.classList.add('is-leaving');
+  window.setTimeout(() => {
+    ui.storyRitual.hidden = true;
+    ui.storyRitual.setAttribute('aria-hidden', 'true');
+    ui.storyRitual.classList.remove('is-leaving');
+  }, 520);
+  if (state.ritualFrame) {
+    cancelAnimationFrame(state.ritualFrame);
+    state.ritualFrame = null;
+  }
+  if (state.ritualTimer) {
+    clearInterval(state.ritualTimer);
+    state.ritualTimer = null;
+  }
+}
+
+function startStoryWaitLoop() {
+  state.ritualPromptIndex = 0;
+  updateStoryWaitText();
+  if (state.ritualTimer) clearInterval(state.ritualTimer);
+  const step = () => {
+    if (ui.storyRitual?.hidden) return;
+    updateStoryRitualUI();
+    state.ritualFrame = window.requestAnimationFrame(step);
+  };
+  if (state.ritualFrame) cancelAnimationFrame(state.ritualFrame);
+  state.ritualFrame = window.requestAnimationFrame(step);
+}
+
+function updateStoryWaitText() {
+  if (!ui.storyRitualText) return;
+  const elapsed = Math.max(0, Date.now() - state.ritualStart);
+  const index = Math.floor(elapsed / 6000) % STORY_WAIT_TEXTS.length;
+  if (index !== state.ritualPromptIndex) {
+    state.ritualPromptIndex = index;
+    ui.storyRitualText.textContent = STORY_WAIT_TEXTS[index];
+  }
+}
+
+function updateStoryRitualUI() {
+  const elapsed = Math.max(0, Date.now() - state.ritualStart);
+  const base = Math.min(0.9, elapsed / STORY_WAIT_DURATION);
+  const wobble = (Math.sin(elapsed / 900) + 1) * 0.02;
+  const jitter = (Math.sin(elapsed / 350) + 1) * 0.008;
+  const randomDrift = (Math.sin(elapsed / 1400 + state.ritualSpeed) + 1) * state.ritualDrift;
+  const cap = 0.92 + (Math.sin(elapsed / 1200) + 1) * 0.015;
+  let progress = Math.min(cap, base + 0.02 + wobble + jitter + randomDrift);
+  if (state.ritualFinishStart) {
+    const t = Math.min(1, (Date.now() - state.ritualFinishStart) / state.ritualFinishDuration);
+    const eased = 1 - Math.pow(1 - t, 2);
+    progress = 0.88 + 0.12 * eased;
+  }
+  state.ritualProgress = Math.min(0.99, progress);
+  if (ui.storyRitualFill) {
+    ui.storyRitualFill.style.width = `${Math.round(state.ritualProgress * 100)}%`;
+  }
+  if (ui.storyRitualHint) {
+    ui.storyRitualHint.textContent =
+      state.ritualProgress >= 0.9 ? 'The first chapter is landing…' : 'The story is arriving…';
+  }
+  updateStoryWaitText();
 }
 
 function startOrbitHold() {
@@ -418,20 +1445,27 @@ function updateValentineCountdown() {
   ui.valentineCountdown.textContent = diff <= 0 ? '0' : String(diff);
 }
 
-function handleAuth(event) {
-  event.preventDefault();
-  const user = document.getElementById('user-select').value;
-  const pass = document.getElementById('passcode-input').value;
-  if (!USER_PASSCODES[user]) {
-    ui.authError.textContent = 'Pick who you are first.';
+function showAuthGate() {
+  state.user = null;
+  state.userDisplay = null;
+  state.started = false;
+  ui.authGate.style.display = 'flex';
+  ui.app.setAttribute('aria-hidden', 'true');
+  setButtonState(ui.createBtn, false);
+  updateAvatar();
+}
+
+async function applySessionUser(session) {
+  if (!session?.user) return;
+  const name = resolveUserName(session.user);
+  if (!name) {
+    ui.authError.textContent =
+      'Account not configured. Ask the Loveboard owner to set your name in Supabase Auth metadata.';
+    await supabase.auth.signOut();
     return;
   }
-  if (pass !== USER_PASSCODES[user]) {
-    ui.authError.textContent = 'Passphrase mismatch.';
-    return;
-  }
-  state.user = user;
-  localStorage.setItem(AUTH_KEY, user);
+  state.user = name;
+  state.userDisplay = getDisplayName(name);
   ui.authGate.style.display = 'none';
   ui.app.setAttribute('aria-hidden', 'false');
   enableCreateButton();
@@ -439,27 +1473,44 @@ function handleAuth(event) {
   setWwanUser(state.user);
   resetOrbitState();
   startApp();
+}
+
+function resolveUserName(user) {
+  const meta = user.user_metadata || {};
+  const candidate = meta.loveboard_name || meta.display_name || '';
+  if (candidate === state.userIds.a || candidate === state.userIds.b) return candidate;
+  return null;
+}
+
+async function handleAuth(event) {
+  event.preventDefault();
+  ui.authError.textContent = '';
+  const email = ui.emailInput?.value.trim();
+  const password = ui.passwordInput?.value || '';
+  if (!email || !password) {
+    ui.authError.textContent = 'Enter email and password.';
+    return;
+  }
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) {
+    ui.authError.textContent = error.message || 'Login failed.';
+    return;
+  }
+  await applySessionUser(data.session);
 }
 
 async function startApp() {
   if (state.started) return;
   state.started = true;
-  await Promise.all([loadPostcards(), loadMoods()]);
+  await Promise.all([loadPostcards(), loadMoods(), loadChronicles()]);
   subscribeRealtime();
   subscribeCommentBroadcast();
 }
 
-function restoreSession() {
-  const savedUser = localStorage.getItem(AUTH_KEY);
-  if (!savedUser) return;
-  state.user = savedUser;
-  ui.authGate.style.display = 'none';
-  ui.app.setAttribute('aria-hidden', 'false');
-  enableCreateButton();
-  updateAvatar();
-  setWwanUser(state.user);
-  resetOrbitState();
-  startApp();
+async function restoreSession() {
+  const { data } = await supabase.auth.getSession();
+  if (!data?.session) return;
+  await applySessionUser(data.session);
 }
 
 async function loadPostcards() {
@@ -487,10 +1538,169 @@ async function loadPostcards() {
       ? 'constellation'
       : state.ldAppOpen
         ? 'ldapp'
-        : state.valentineOpen
-          ? 'valentine'
-          : 'loveboard'
+        : state.storyMirrorOpen
+          ? 'storymirror'
+          : state.chronicleOpen
+            ? 'chronicle'
+            : state.valentineOpen
+              ? 'valentine'
+              : 'loveboard'
   );
+}
+
+async function loadChronicles() {
+  const { data, error } = await supabase
+    .from('story_chronicles')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) {
+    console.error('chronicles load', error);
+    return;
+  }
+  state.chronicles = data || [];
+  renderChronicles();
+}
+
+function renderChronicles() {
+  if (!ui.chronicleGrid || !ui.chronicleEmpty) return;
+  ui.chronicleGrid.innerHTML = '';
+  if (!state.chronicles.length) {
+    ui.chronicleEmpty.hidden = false;
+    return;
+  }
+  ui.chronicleEmpty.hidden = true;
+  state.chronicles.forEach((story) => {
+    const card = document.createElement('article');
+    card.className = 'chronicle-card';
+    const cover = document.createElement('div');
+    cover.className = 'chronicle-cover';
+    const img = document.createElement('img');
+    img.alt = story.title || 'Story cover';
+    if (story.images?.[0]) {
+      img.src = story.images[0];
+    }
+    cover.appendChild(img);
+    const title = document.createElement('h3');
+    title.textContent = story.title || 'Untitled';
+    const meta = document.createElement('p');
+    meta.className = 'chronicle-meta';
+    meta.textContent = `${story.user || ''} · ${formatDate(story.created_at)}`;
+    card.append(cover, title, meta);
+    card.addEventListener('click', () => openChronicleModal(story));
+    ui.chronicleGrid.appendChild(card);
+  });
+}
+
+function openChronicleModal(story) {
+  if (!ui.chronicleModal) return;
+  state.activeChronicle = story;
+  state.chronicleLanguage = 'en';
+  renderChronicleModal();
+  ui.chronicleModal.showModal();
+}
+
+function closeChronicleModal() {
+  if (!ui.chronicleModal) return;
+  ui.chronicleModal.close();
+  state.activeChronicle = null;
+}
+
+function openChronicleDeleteModal() {
+  if (!ui.chronicleDeleteModal) return;
+  ui.chronicleDeleteModal.showModal();
+}
+
+function closeChronicleDeleteModal() {
+  if (!ui.chronicleDeleteModal) return;
+  ui.chronicleDeleteModal.close();
+}
+
+function confirmChronicleDelete() {
+  closeChronicleDeleteModal();
+  deleteActiveChronicle();
+}
+
+function renderChronicleModal() {
+  if (!state.activeChronicle || !ui.chronicleModalTitle || !ui.chronicleModalBody) return;
+  const story = state.activeChronicle;
+  ui.chronicleModalTitle.textContent = story.title || 'Story';
+  ui.chronicleModalBody.innerHTML = '';
+  const chapters =
+    state.chronicleLanguage === 'ar' && story.chapters_ar ? story.chapters_ar : story.chapters;
+  ui.chronicleModalBody.classList.toggle('chronicle-rtl', state.chronicleLanguage === 'ar');
+  (chapters || []).forEach((chapter, idx) => {
+    const card = document.createElement('article');
+    card.className = 'chronicle-chapter';
+    const title = document.createElement('h3');
+    title.textContent = chapter.title || `Chapter ${idx + 1}`;
+    if (story.images?.[idx]) {
+      const imgWrap = document.createElement('div');
+      imgWrap.className = 'chronicle-image';
+      const img = document.createElement('img');
+      img.src = story.images[idx];
+      img.alt = chapter.caption || `Chapter ${idx + 1} visual`;
+      imgWrap.appendChild(img);
+      card.appendChild(imgWrap);
+    }
+    const text = document.createElement('p');
+    text.textContent = chapter.text || '';
+    const caption = document.createElement('p');
+    caption.className = 'chronicle-caption';
+    caption.textContent = chapter.caption || '';
+    card.append(title, text, caption);
+    ui.chronicleModalBody.appendChild(card);
+  });
+  if (ui.chronicleLangToggle) {
+    ui.chronicleLangToggle.textContent = state.chronicleLanguage === 'ar' ? 'EN' : 'AR';
+  }
+  if (ui.chronicleLangSpinner) ui.chronicleLangSpinner.hidden = !state.chronicleTranslating;
+  if (ui.chronicleLangStatus) ui.chronicleLangStatus.hidden = !state.chronicleTranslating;
+}
+
+async function toggleChronicleLanguage() {
+  const story = state.activeChronicle;
+  if (!story) return;
+  if (state.chronicleTranslating) return;
+  if (state.chronicleLanguage === 'en') {
+    if (!story.chapters_ar) {
+      state.chronicleTranslating = true;
+      renderChronicleModal();
+      const { data, error } = await supabase.functions.invoke('story-mirror', {
+        body: {
+          action: 'translate',
+          chapters: story.chapters
+        }
+      });
+      state.chronicleTranslating = false;
+      if (error) {
+        showToast(`Translation failed: ${error.message}`, 'error');
+        renderChronicleModal();
+        return;
+      }
+      story.chapters_ar = data?.chapters || null;
+      await supabase
+        .from('story_chronicles')
+        .update({ chapters_ar: story.chapters_ar })
+        .eq('id', story.id);
+    }
+    state.chronicleLanguage = 'ar';
+  } else {
+    state.chronicleLanguage = 'en';
+  }
+  renderChronicleModal();
+}
+
+async function deleteActiveChronicle() {
+  const story = state.activeChronicle;
+  if (!story) return;
+  const { error } = await supabase.from('story_chronicles').delete().eq('id', story.id);
+  if (error) {
+    showToast(`Couldn't delete story: ${error.message}`, 'error');
+    return;
+  }
+  state.chronicles = state.chronicles.filter((item) => item.id !== story.id);
+  renderChronicles();
+  closeChronicleModal();
 }
 
 function renderBoard(options = {}) {
@@ -517,7 +1727,7 @@ function renderBoard(options = {}) {
     }
     node.style.setProperty('--tilt', getTilt(card.id));
     node.querySelectorAll('.meta').forEach((metaEl) => {
-      metaEl.textContent = `${card.user} · ${formatDate(card.created_at)}`;
+      metaEl.textContent = `${getDisplayName(card.user)} · ${formatDate(card.created_at)}`;
     });
     node.querySelector('.note').textContent = card.message || 'No message, just vibes.';
 
@@ -559,7 +1769,7 @@ function renderBoard(options = {}) {
     } else if (isVisual && card.asset_url) {
       visual.hidden = false;
       visual.src = card.asset_url;
-      visual.alt = `${card.type} from ${card.user}`;
+      visual.alt = `${card.type} from ${getDisplayName(card.user)}`;
       const triggerMeasure = () => requestAnimationFrame(() => measureCardHeight(node));
       if (visual.complete) {
         triggerMeasure();
@@ -639,8 +1849,8 @@ function handleLoadMore() {
 }
 
 async function loadMoods() {
-  Object.keys(MOOD_PRESETS).forEach(updateMoodTimestamp);
-  const users = Object.keys(MOOD_PRESETS);
+  Object.keys(state.moodPresets || {}).forEach(updateMoodTimestamp);
+  const users = Object.keys(state.moodPresets || {});
   const results = await Promise.all(
     users.map((user) =>
       supabase.from('moods').select('*').eq('user', user).order('date', { ascending: false }).limit(1)
@@ -805,6 +2015,10 @@ function handleViewSwitch(view) {
     showLoveboard();
   } else if (view === 'ldapp') {
     showLdApp();
+  } else if (view === 'storymirror') {
+    showStoryMirror();
+  } else if (view === 'chronicle') {
+    showChronicle();
   } else if (view === 'constellation') {
     showConstellation();
   } else if (view === 'valentine') {
@@ -813,6 +2027,8 @@ function handleViewSwitch(view) {
 }
 
 function getActiveView() {
+  if (state.storyMirrorOpen) return ui.storyMirrorView;
+  if (state.chronicleOpen) return ui.chronicleView;
   if (state.constellationOpen) return ui.constellationView;
   if (state.ldAppOpen) return ui.ldAppView;
   if (state.valentineOpen) return ui.valentineView;
@@ -828,9 +2044,13 @@ function showLoveboard() {
   state.ldAppOpen = false;
   state.constellationOpen = false;
   state.valentineOpen = false;
+  state.storyMirrorOpen = false;
+  state.chronicleOpen = false;
   cleanupLdAppListeners();
   cleanupConstellationListeners();
   cleanupValentineListeners();
+  cleanupStoryMirrorListeners();
+  cleanupChronicleListeners();
   updateViewSwitchers('loveboard');
 }
 
@@ -842,10 +2062,52 @@ function showLdApp() {
   state.ldAppOpen = true;
   state.constellationOpen = false;
   state.valentineOpen = false;
+  state.storyMirrorOpen = false;
+  state.chronicleOpen = false;
   cleanupConstellationListeners();
   cleanupValentineListeners();
+  cleanupStoryMirrorListeners();
+  cleanupChronicleListeners();
   updateViewSwitchers('ldapp');
   attachLdAppListeners();
+}
+
+function showStoryMirror() {
+  if (!ui.storyMirrorView) return;
+  const current = getActiveView();
+  if (current === ui.storyMirrorView) return;
+  switchView(ui.storyMirrorView, current);
+  state.storyMirrorOpen = true;
+  state.ldAppOpen = false;
+  state.constellationOpen = false;
+  state.valentineOpen = false;
+  state.chronicleOpen = false;
+  updateViewSwitchers('storymirror');
+  setStoryStep(1);
+  updateStoryLanguageUI();
+  cleanupLdAppListeners();
+  cleanupConstellationListeners();
+  cleanupValentineListeners();
+  cleanupChronicleListeners();
+  attachStoryMirrorListeners();
+}
+
+function showChronicle() {
+  if (!ui.chronicleView) return;
+  const current = getActiveView();
+  if (current === ui.chronicleView) return;
+  switchView(ui.chronicleView, current);
+  state.chronicleOpen = true;
+  state.storyMirrorOpen = false;
+  state.ldAppOpen = false;
+  state.constellationOpen = false;
+  state.valentineOpen = false;
+  updateViewSwitchers('chronicle');
+  cleanupLdAppListeners();
+  cleanupConstellationListeners();
+  cleanupValentineListeners();
+  cleanupStoryMirrorListeners();
+  attachChronicleListeners();
 }
 
 function showConstellation() {
@@ -856,12 +2118,16 @@ function showConstellation() {
   state.constellationOpen = true;
   state.ldAppOpen = false;
   state.valentineOpen = false;
+  state.storyMirrorOpen = false;
+  state.chronicleOpen = false;
   renderConstellation();
   setupConstellationResize();
   updateViewSwitchers('constellation');
   attachConstellationListeners();
   cleanupLdAppListeners();
   cleanupValentineListeners();
+  cleanupStoryMirrorListeners();
+  cleanupChronicleListeners();
 }
 
 function showValentine() {
@@ -872,9 +2138,13 @@ function showValentine() {
   state.valentineOpen = true;
   state.ldAppOpen = false;
   state.constellationOpen = false;
+  state.storyMirrorOpen = false;
+  state.chronicleOpen = false;
   updateViewSwitchers('valentine');
   cleanupLdAppListeners();
   cleanupConstellationListeners();
+  cleanupStoryMirrorListeners();
+  cleanupChronicleListeners();
   attachValentineListeners();
   requestAnimationFrame(updateOrbitUI);
   setTimeout(updateOrbitUI, 360);
@@ -895,6 +2165,46 @@ function cleanupLdAppListeners() {
   if (state.ldAppKeyListener) {
     document.removeEventListener('keydown', state.ldAppKeyListener, true);
     state.ldAppKeyListener = null;
+  }
+}
+
+function attachStoryMirrorListeners() {
+  if (!state.storyMirrorKeyListener) {
+    state.storyMirrorKeyListener = (evt) => {
+      if (evt.key === 'Escape') {
+        showLoveboard();
+      }
+    };
+    document.addEventListener('keydown', state.storyMirrorKeyListener, true);
+  }
+}
+
+function cleanupStoryMirrorListeners() {
+  if (state.storyMirrorKeyListener) {
+    document.removeEventListener('keydown', state.storyMirrorKeyListener, true);
+    state.storyMirrorKeyListener = null;
+  }
+}
+
+function attachChronicleListeners() {
+  if (!state.chronicleKeyListener) {
+    state.chronicleKeyListener = (evt) => {
+      if (evt.key === 'Escape') {
+        if (ui.chronicleModal?.open) {
+          closeChronicleModal();
+        } else {
+          showLoveboard();
+        }
+      }
+    };
+    document.addEventListener('keydown', state.chronicleKeyListener, true);
+  }
+}
+
+function cleanupChronicleListeners() {
+  if (state.chronicleKeyListener) {
+    document.removeEventListener('keydown', state.chronicleKeyListener, true);
+    state.chronicleKeyListener = null;
   }
 }
 
@@ -1056,7 +2366,7 @@ function buildConstellationLayout(cards, width, height) {
     y = Math.max(pad, Math.min(height - pad, y));
     const minSize = isCompact ? 10 : 7;
     const size = minSize + rng() * (isCompact ? 8 : 7);
-    const userClass = card.user === 'Yassine' ? 'user-yassine' : 'user-nihal';
+    const userClass = card.user === state.userIds.a ? 'user-a' : 'user-b';
     return {
       id: card.id,
       x,
@@ -1065,7 +2375,7 @@ function buildConstellationLayout(cards, width, height) {
       card,
       userClass,
       order: index,
-      label: `${card.user} · ${formatDate(card.created_at)}`,
+      label: `${getDisplayName(card.user)} · ${formatDate(card.created_at)}`,
       floatDelay: `${rng() * 2.4}s`,
       floatDuration: `${3.8 + rng() * 2.8}s`
     };
@@ -1154,14 +2464,14 @@ function clearConstellationCanvas() {
 function openConstellationDetail(card) {
   if (!ui.constellationDetail || !ui.constellationMeta || !ui.constellationMessage) return;
   state.constellationActiveId = card.id;
-  ui.constellationMeta.textContent = `${card.user} · ${formatDate(card.created_at)}`;
+  ui.constellationMeta.textContent = `${getDisplayName(card.user)} · ${formatDate(card.created_at)}`;
   ui.constellationMessage.textContent = card.message || 'No message, just vibes.';
   if (ui.constellationMedia) {
     ui.constellationMedia.innerHTML = '';
     if ((card.type === 'image' || card.type === 'doodle') && card.asset_url) {
       const img = document.createElement('img');
       img.src = card.asset_url;
-      img.alt = `${card.type} from ${card.user}`;
+      img.alt = `${card.type} from ${getDisplayName(card.user)}`;
       ui.constellationMedia.appendChild(img);
     } else if (card.type === 'audio' && card.asset_url) {
       const audio = document.createElement('audio');
@@ -1245,12 +2555,13 @@ function getMoodMeta(emoji, user) {
 }
 
 function getMoodOptions(user) {
-  return MOOD_PRESETS[user] || FALLBACK_MOODS;
+  return state.moodPresets[user] || FALLBACK_MOODS;
 }
 
 function updateAvatar() {
   if (!ui.currentAvatar) return;
-  ui.currentAvatar.textContent = state.user ? state.user[0] : '?';
+  const name = state.userDisplay || state.user || '';
+  ui.currentAvatar.textContent = name ? name[0] : '?';
 }
 
 function handleLogout() {
@@ -1277,12 +2588,7 @@ function closeLogoutModal(onClosed) {
 }
 
 function performLogout() {
-  localStorage.removeItem(AUTH_KEY);
-  state.started = false;
-  state.user = null;
-  updateAvatar();
-  setWwanUser(null);
-  location.reload();
+  supabase.auth.signOut();
 }
 
 function setupDoodleCanvas() {
@@ -2585,7 +3891,7 @@ function positionMoodMenu(menu) {
 
 function updateAuthButton() {
   if (!ui.authSubmit) return;
-  const ready = Boolean(ui.userSelect.value && ui.passInput.value.trim());
+  const ready = Boolean(ui.emailInput?.value.trim() && ui.passwordInput?.value);
   setButtonState(ui.authSubmit, ready);
 }
 

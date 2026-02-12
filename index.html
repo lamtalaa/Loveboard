@@ -15,6 +15,10 @@
       href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Work+Sans:wght@300;400;500&display=swap"
       rel="stylesheet"
     />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="styles.css" />
     <link rel="stylesheet" href="wwan.css" />
     <script>
@@ -47,16 +51,12 @@
     <div id="auth-gate" class="auth-gate">
       <div class="auth-card">
         <h1>Welcome to Loveboard</h1>
-        <p>Select who you are and enter your shared passphrase.</p>
+        <p>Sign in with your account to enter your private space.</p>
         <form id="auth-form">
-          <label for="user-select">I am</label>
-          <select id="user-select" required>
-            <option value="">Pick one</option>
-            <option value="Yassine">Yassine</option>
-            <option value="Nihal">Nihal</option>
-          </select>
-          <label for="passcode-input">Passphrase</label>
-          <input id="passcode-input" type="password" required />
+          <label for="email-input">Email</label>
+          <input id="email-input" type="email" autocomplete="email" required />
+          <label for="password-input">Password</label>
+          <input id="password-input" type="password" autocomplete="current-password" required />
           <button type="submit" id="auth-submit" disabled>Enter Loveboard</button>
           <p id="auth-error" class="error-text"></p>
         </form>
@@ -71,6 +71,12 @@
           </button>
           <button type="button" class="view-switch" data-view="ldapp" aria-label="Where We Are Now">
             🗺️
+          </button>
+          <button type="button" class="view-switch" data-view="storymirror" aria-label="Story Mirror">
+            📖
+          </button>
+          <button type="button" class="view-switch" data-view="chronicle" aria-label="Chronicle">
+            📚
           </button>
           <button
             type="button"
@@ -90,7 +96,7 @@
       </nav>
       <header class="board-header">
         <div class="board-title">
-          <p class="tagline view-title">Yassine ❤️ Nihal</p>
+          <p class="tagline view-title" data-couple-tagline>You ❤️ Partner</p>
         </div>
         <div class="avatars" aria-label="Who is here">
           <span class="avatar" id="current-user-avatar">?</span>
@@ -98,21 +104,21 @@
       </header>
 
       <section class="moods" aria-live="polite">
-        <div class="mood" id="yassine-mood">
+        <div class="mood" id="user-a-mood">
           <div class="mood-meta">
-            <span class="user-label">Yassine</span>
-            <span class="mood-updated" data-user="Yassine">—</span>
+            <span class="user-label" data-user-label="a">You</span>
+            <span class="mood-updated" data-user="user_a" data-user-slot="a">—</span>
           </div>
-          <button class="mood-btn" data-user="Yassine">
+          <button class="mood-btn" data-user="user_a" data-user-slot="a">
             🛡️<span>Protective king energy</span>
           </button>
         </div>
-        <div class="mood" id="nihal-mood">
+        <div class="mood" id="user-b-mood">
           <div class="mood-meta">
-            <span class="user-label">Nihal</span>
-            <span class="mood-updated" data-user="Nihal">—</span>
+            <span class="user-label" data-user-label="b">Partner</span>
+            <span class="mood-updated" data-user="user_b" data-user-slot="b">—</span>
           </div>
-          <button class="mood-btn" data-user="Nihal">
+          <button class="mood-btn" data-user="user_b" data-user-slot="b">
             🌸<span>Soft feminine glow</span>
           </button>
         </div>
@@ -131,6 +137,12 @@
           </button>
           <button type="button" class="view-switch active" data-view="ldapp" aria-label="Where We Are Now">
             🗺️
+          </button>
+          <button type="button" class="view-switch" data-view="storymirror" aria-label="Story Mirror">
+            📖
+          </button>
+          <button type="button" class="view-switch" data-view="chronicle" aria-label="Chronicle">
+            📚
           </button>
           <button
             type="button"
@@ -155,7 +167,7 @@
       <main class="wwan-app" aria-live="polite">
         <header class="wwan-header">
           <p class="wwan-eyebrow">Where We Are Now</p>
-          <h1 class="wwan-title">Yassine ❤️ Nihal — Where We Are Now</h1>
+          <h1 class="wwan-title" data-wwan-title>Together — Where We Are Now</h1>
           <p class="wwan-subtitle">Two hearts, two time zones, one cozy space.</p>
         </header>
 
@@ -163,8 +175,8 @@
           <article class="wwan-profile-card" id="wwan-person-a" aria-live="polite">
             <div class="wwan-profile-header">
               <div>
-                <p class="wwan-label" id="wwan-label-a">Yassine's Time</p>
-                <h2 class="wwan-name" id="wwan-name-a">Yassine</h2>
+                <p class="wwan-label" id="wwan-label-a" data-wwan-label="a">Your Time</p>
+                <h2 class="wwan-name" id="wwan-name-a" data-wwan-name="a">You</h2>
               </div>
               <span class="wwan-badge" id="wwan-diff-badge">Loading…</span>
             </div>
@@ -186,7 +198,7 @@
             </div>
 
             <div class="wwan-doing-card" id="wwan-doing-a">
-              <p class="wwan-doing-title" id="wwan-doing-title-a">What Yassine's Probably Doing</p>
+              <p class="wwan-doing-title" id="wwan-doing-title-a" data-wwan-doing-title="a">What You're Probably Doing</p>
               <p class="wwan-doing-text" id="wwan-doing-text-a">Loading…</p>
             </div>
           </article>
@@ -194,8 +206,8 @@
           <article class="wwan-profile-card" id="wwan-person-b" aria-live="polite">
             <div class="wwan-profile-header">
               <div>
-                <p class="wwan-label" id="wwan-label-b">Nihal's Time</p>
-                <h2 class="wwan-name" id="wwan-name-b">Nihal</h2>
+                <p class="wwan-label" id="wwan-label-b" data-wwan-label="b">Partner's Time</p>
+                <h2 class="wwan-name" id="wwan-name-b" data-wwan-name="b">Partner</h2>
               </div>
               <span class="wwan-badge" id="wwan-diff-badge-secondary">Loading…</span>
             </div>
@@ -217,7 +229,7 @@
             </div>
 
             <div class="wwan-doing-card" id="wwan-doing-b">
-              <p class="wwan-doing-title" id="wwan-doing-title-b">What Nihal's Probably Doing</p>
+              <p class="wwan-doing-title" id="wwan-doing-title-b" data-wwan-doing-title="b">What They're Probably Doing</p>
               <p class="wwan-doing-text" id="wwan-doing-text-b">Loading…</p>
             </div>
           </article>
@@ -240,13 +252,13 @@
             <button class="wwan-close-button" id="wwan-close-settings" type="button">Close</button>
           </div>
           <form class="wwan-settings-form" id="wwan-settings-form">
-            <label>
-              Yassine's City
-              <input type="text" id="wwan-input-city-a" placeholder="New York City" />
+            <label data-wwan-city-label="a">
+              Your City
+              <input type="text" id="wwan-input-city-a" placeholder="Your city" />
             </label>
-            <label>
-              Nihal's City
-              <input type="text" id="wwan-input-city-b" placeholder="Meknes" />
+            <label data-wwan-city-label="b">
+              Partner's City
+              <input type="text" id="wwan-input-city-b" placeholder="Partner city" />
             </label>
             <button class="wwan-save-button" type="submit">Save</button>
           </form>
@@ -262,6 +274,12 @@
           </button>
           <button type="button" class="view-switch" data-view="ldapp" aria-label="Where We Are Now">
             🗺️
+          </button>
+          <button type="button" class="view-switch" data-view="storymirror" aria-label="Story Mirror">
+            📖
+          </button>
+          <button type="button" class="view-switch" data-view="chronicle" aria-label="Chronicle">
+            📚
           </button>
           <button
             type="button"
@@ -317,6 +335,12 @@
           </button>
           <button type="button" class="view-switch" data-view="ldapp" aria-label="Where We Are Now">
             🗺️
+          </button>
+          <button type="button" class="view-switch" data-view="storymirror" aria-label="Story Mirror">
+            📖
+          </button>
+          <button type="button" class="view-switch" data-view="chronicle" aria-label="Chronicle">
+            📚
           </button>
           <button
             type="button"
@@ -422,7 +446,306 @@
       </main>
     </section>
 
-    <dialog id="postcard-modal" class="modal">
+    <section id="storymirror-view" class="storymirror-view view-panel" hidden aria-hidden="true">
+      <nav class="view-switcher" aria-label="Switch view">
+        <div class="view-switch-group">
+          <button type="button" class="view-switch" data-view="loveboard" aria-label="Loveboard">
+            🏠
+          </button>
+          <button type="button" class="view-switch" data-view="ldapp" aria-label="Where We Are Now">
+            🗺️
+          </button>
+          <button
+            type="button"
+            class="view-switch active"
+            data-view="storymirror"
+            aria-label="Story Mirror"
+          >
+            📖
+          </button>
+          <button type="button" class="view-switch" data-view="chronicle" aria-label="Chronicle">
+            📚
+          </button>
+          <button
+            type="button"
+            class="view-switch"
+            data-view="constellation"
+            aria-label="Time Capsule Constellation"
+          >
+            🌌
+          </button>
+          <button type="button" class="view-switch" data-view="valentine" aria-label="Shared Orbit">
+            💞
+          </button>
+        </div>
+        <button class="nav-logout logout-btn" type="button" aria-label="Log out">
+          ⏻
+        </button>
+      </nav>
+      <header class="storymirror-bar">
+        <p class="storymirror-title view-title">Story Mirror: Us, Soon</p>
+      </header>
+      <main class="storymirror-main">
+        <header class="storymirror-hero">
+          <p class="storymirror-eyebrow">Dreamy cinematic ritual</p>
+          <h1>Build the future you keep whispering about.</h1>
+          <p class="storymirror-subtitle">
+            Move through the ritual, add your fragments, and let the story bloom into chapters and images.
+          </p>
+          <p class="storymirror-byline" data-story-byline>A love story</p>
+        </header>
+
+        <section class="storymirror-stepper" aria-label="Story steps">
+          <button type="button" class="storymirror-step-chip active" data-step="1">Spark</button>
+          <button type="button" class="storymirror-step-chip" data-step="2">Characters</button>
+          <button type="button" class="storymirror-step-chip" data-step="3">Tone</button>
+          <button type="button" class="storymirror-step-chip" data-step="4">Weave</button>
+        </section>
+
+        <section class="storymirror-steps">
+          <article class="storymirror-step-panel active" data-step="1">
+            <div class="storymirror-step-head">
+              <h2>Spark the Future</h2>
+              <p class="storymirror-muted">Drop vivid fragments. One line = one future moment.</p>
+            </div>
+            <div class="storymirror-grid">
+              <div class="storymirror-input-card">
+                <div class="storymirror-card-head">
+                  <label for="story-fragments-y" data-story-label="a">Your moments</label>
+                  <span class="storymirror-card-note">Short and specific</span>
+                </div>
+                <textarea
+                  id="story-fragments-y"
+                  rows="7"
+                  placeholder="In 2028, we finally shared a sunrise in the same city…
+The first night in our apartment felt like a vow kept…"
+                ></textarea>
+                <div class="storymirror-add-row" data-target="story-fragments-y">
+                  <input type="text" class="storymirror-add-input" placeholder="Add a new line…" />
+                  <button type="button" class="storymirror-add-btn">Add</button>
+                </div>
+                <div class="storymirror-suggestions" data-target="story-fragments-y">
+                  <button type="button" class="storymirror-suggestion" data-text="In 2028, we finally woke up in the same time zone">Same time zone</button>
+                  <button type="button" class="storymirror-suggestion" data-text="Our first apartment smelled like coffee and rain">First apartment</button>
+                  <button type="button" class="storymirror-suggestion" data-text="The airport reunion felt like a movie scene">Airport reunion</button>
+                </div>
+              </div>
+              <div class="storymirror-input-card">
+                <div class="storymirror-card-head">
+                  <label for="story-fragments-n" data-story-label="b">Partner moments</label>
+                  <span class="storymirror-card-note">Tender, lived-in, and specific</span>
+                </div>
+                <textarea
+                  id="story-fragments-n"
+                  rows="7"
+                  placeholder="By 2029, our Sunday mornings were sacred…
+Our home at night felt soft and safe…"
+                ></textarea>
+                <div class="storymirror-add-row" data-target="story-fragments-n">
+                  <input type="text" class="storymirror-add-input" placeholder="Add a new line…" />
+                  <button type="button" class="storymirror-add-btn">Add</button>
+                </div>
+                <div class="storymirror-suggestions" data-target="story-fragments-n">
+                  <button type="button" class="storymirror-suggestion" data-text="Sunday mornings meant slow tea and soft music">Sunday ritual</button>
+                  <button type="button" class="storymirror-suggestion" data-text="We learned how to repair after the first big fight">Repair after conflict</button>
+                  <button type="button" class="storymirror-suggestion" data-text="Home at night meant dim lights and whispered plans">Home at night</button>
+                </div>
+              </div>
+            </div>
+            <div class="storymirror-shared">
+              <p class="storymirror-muted">Shared sparks</p>
+              <div class="storymirror-suggestions" data-target="story-fragments-y" data-target-secondary="story-fragments-n">
+                <button type="button" class="storymirror-suggestion" data-text="The day it finally felt like home, we didn’t speak for a minute">Feels like home</button>
+                <button type="button" class="storymirror-suggestion" data-text="Our first anniversary in the same city was quiet and perfect">First anniversary</button>
+                <button type="button" class="storymirror-suggestion" data-text="We kept one vow and broke another, but we stayed" >A vow we kept</button>
+              </div>
+            </div>
+          </article>
+
+          <article class="storymirror-step-panel" data-step="2">
+            <h2>Give Them Character</h2>
+            <p class="storymirror-muted">These details guide the voice, chemistry, and power dynamic.</p>
+            <div class="storymirror-grid">
+              <div class="storymirror-input-card">
+                <label for="story-profile-y" data-story-profile-label="a">Your profile</label>
+                <textarea id="story-profile-y" rows="7" placeholder="Describe you..." data-story-profile-placeholder="a"></textarea>
+              </div>
+              <div class="storymirror-input-card">
+                <label for="story-profile-n" data-story-profile-label="b">Partner profile</label>
+                <textarea id="story-profile-n" rows="7" placeholder="Describe your partner..." data-story-profile-placeholder="b"></textarea>
+              </div>
+            </div>
+          </article>
+
+          <article class="storymirror-step-panel" data-step="3">
+            <h2>Set the Tone</h2>
+            <p class="storymirror-muted">Balance reality and dream, and decide how intense the chemistry gets.</p>
+            <div class="storymirror-grid">
+              <div class="storymirror-input-card">
+                <label for="story-lens">Emotional lens</label>
+                <p class="storymirror-muted" id="story-lens-label">Soft & romantic</p>
+                <input id="story-lens" type="range" min="0" max="100" value="40" />
+              </div>
+              <div class="storymirror-input-card">
+                <label for="story-fantasy">Fantasy balance</label>
+                <p class="storymirror-muted" id="story-fantasy-label">Balanced</p>
+                <input id="story-fantasy" type="range" min="0" max="100" value="50" />
+              </div>
+            </div>
+            <div class="storymirror-grid">
+              <div class="storymirror-input-card">
+                <p class="storymirror-muted">Intimacy mode (18+)</p>
+                <div class="storymirror-toggle" id="story-intimacy">
+                  <label><input type="radio" name="story-intimacy" value="tender" /> Tender</label>
+                  <label><input type="radio" name="story-intimacy" value="flirty" /> Flirty</label>
+                  <label><input type="radio" name="story-intimacy" value="dark" checked /> Dark romance</label>
+                </div>
+              </div>
+              <div class="storymirror-input-card">
+                <p class="storymirror-muted">Perspective</p>
+                <div class="storymirror-toggle">
+                  <label><input type="radio" name="story-perspective" value="a" /> You</label>
+                  <label><input type="radio" name="story-perspective" value="b" /> Partner</label>
+                  <label><input type="radio" name="story-perspective" value="us" checked /> Us</label>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article class="storymirror-step-panel" data-step="4">
+            <h2>Weave the Chapters</h2>
+            <p class="storymirror-muted">The chapter count adapts to how much you share (up to 10).</p>
+            <p class="storymirror-hint" id="story-chapter-hint">Estimated chapters: 4</p>
+            <div class="storymirror-grid">
+              <div class="storymirror-input-card storymirror-actions">
+                <button type="button" class="storymirror-primary-btn" id="story-generate">
+                  Generate full story
+                </button>
+                <p class="storymirror-hint" id="story-status"></p>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <div class="storymirror-nav">
+          <button type="button" class="storymirror-nav-btn" id="story-step-back">Back</button>
+          <span class="storymirror-step-indicator" id="story-step-indicator">Step 1 of 4</span>
+          <button type="button" class="storymirror-nav-btn primary" id="story-step-next">Next</button>
+        </div>
+
+        <section class="storymirror-output" id="story-output" aria-live="polite">
+          <header class="storymirror-output-header">
+            <h2>Future Chapters</h2>
+            <div class="storymirror-lang-wrap">
+              <span class="storymirror-lang-spinner" id="story-lang-spinner" aria-hidden="true" hidden></span>
+              <span class="storymirror-lang-status" id="story-lang-status" hidden>Translating…</span>
+              <button type="button" class="storymirror-lang-btn" id="story-lang-toggle" aria-pressed="false" hidden>
+                EN
+              </button>
+            </div>
+          </header>
+          <div class="storymirror-empty" id="story-empty">
+            <p>Your future chapters will appear here.</p>
+          </div>
+          <div class="storymirror-chapters" id="story-chapters"></div>
+          <div class="storymirror-footer" id="story-footer" hidden>
+            <button type="button" class="storymirror-primary-btn storymirror-new-btn" id="story-new-btn">
+              New story
+            </button>
+            <button type="button" class="storymirror-secondary-btn storymirror-save-btn" id="story-save-btn">
+              Save & Share
+            </button>
+          </div>
+        </section>
+      </main>
+
+      <div class="storymirror-ritual" id="story-ritual" hidden aria-hidden="true">
+        <div class="storymirror-ritual-card">
+          <p class="storymirror-eyebrow">Waiting</p>
+          <h2>We are threading your future together…</h2>
+          <p class="storymirror-muted" id="story-ritual-text">Every second is a step closer to the life you are building.</p>
+          <div class="storymirror-wait-bar" aria-hidden="true">
+            <span class="storymirror-wait-fill" id="story-ritual-fill"></span>
+          </div>
+          <p class="storymirror-ritual-hint" id="story-ritual-hint">
+            The first chapter is on its way… <span class="storymirror-ritual-spinner" aria-hidden="true"></span>
+          </p>
+        </div>
+      </div>
+</div>
+    </section>
+
+    <section id="chronicle-view" class="chronicle-view view-panel" hidden aria-hidden="true">
+      <nav class="view-switcher" aria-label="Switch view">
+        <div class="view-switch-group">
+          <button type="button" class="view-switch" data-view="loveboard" aria-label="Loveboard">
+            🏠
+          </button>
+          <button type="button" class="view-switch" data-view="ldapp" aria-label="Where We Are Now">
+            🗺️
+          </button>
+          <button type="button" class="view-switch" data-view="storymirror" aria-label="Story Mirror">
+            📖
+          </button>
+          <button type="button" class="view-switch active" data-view="chronicle" aria-label="Chronicle">
+            📚
+          </button>
+          <button
+            type="button"
+            class="view-switch"
+            data-view="constellation"
+            aria-label="Time Capsule Constellation"
+          >
+            🌌
+          </button>
+          <button type="button" class="view-switch" data-view="valentine" aria-label="Shared Orbit">
+            💞
+          </button>
+        </div>
+        <button class="nav-logout logout-btn" type="button" aria-label="Log out">
+          ⏻
+        </button>
+      </nav>
+      <header class="chronicle-bar">
+        <p class="chronicle-title view-title">Chronicle</p>
+      </header>
+      <main class="chronicle-main">
+        <p class="chronicle-subtitle">Your shared future stories, saved and ready to relive.</p>
+        <section class="chronicle-grid" id="chronicle-grid" aria-live="polite"></section>
+        <p class="chronicle-empty" id="chronicle-empty">No stories saved yet.</p>
+      </main>
+    </section>
+
+    <dialog id="chronicle-modal" class="modal">
+      <div class="modal-content chronicle-modal">
+        <header>
+          <h2 id="chronicle-modal-title">Story</h2>
+          <button type="button" id="chronicle-close" aria-label="Close">×</button>
+        </header>
+        <div class="chronicle-modal-actions">
+          <button type="button" class="storymirror-lang-btn" id="chronicle-lang-toggle" aria-pressed="false">EN</button>
+          <span class="storymirror-lang-spinner" id="chronicle-lang-spinner" aria-hidden="true" hidden></span>
+          <span class="storymirror-lang-status" id="chronicle-lang-status" hidden>Translating…</span>
+        </div>
+        <div class="chronicle-modal-body" id="chronicle-modal-body"></div>
+        <button type="button" class="danger-btn" id="chronicle-delete">Delete story</button>
+      </div>
+    </dialog>
+
+    <dialog id="chronicle-delete-modal" class="modal">
+      <div class="modal-content logout-modal">
+        <header>
+          <h2>Delete this story?</h2>
+        </header>
+        <p class="chronicle-delete-note">This cannot be undone.</p>
+        <div class="logout-actions">
+          <button type="button" class="ghost" id="chronicle-delete-cancel">Keep</button>
+          <button type="button" class="primary" id="chronicle-delete-confirm">Delete</button>
+        </div>
+      </div>
+    </dialog>
+
+<dialog id="postcard-modal" class="modal">
       <form method="dialog" class="modal-content" id="postcard-form">
         <header>
           <h2>New Postcard</h2>

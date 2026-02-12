@@ -2,8 +2,7 @@ import { supabase } from './supabase.js';
 
 const OPEN_METEO_WEATHER_URL = 'https://api.open-meteo.com/v1/forecast';
 const OPEN_METEO_GEO_URL = 'https://geocoding-api.open-meteo.com/v1/search';
-const UNSPLASH_ACCESS_KEY = 'MJINNu4GwhlXbpGNgEgAqoswqv2I3HBs5E-ZbS1REwU';
-const UNSPLASH_URL = 'https://api.unsplash.com/photos/random';
+const UNSPLASH_SOURCE_URL = 'https://source.unsplash.com';
 const QUOTE_URL = 'https://api.allorigins.win/raw?url=https%3A%2F%2Fzenquotes.io%2Fapi%2Fquotes';
 const DEFAULT_PHOTO_A = './assets/placeholder-a.svg';
 const DEFAULT_PHOTO_B = './assets/placeholder-b.svg';
@@ -11,18 +10,20 @@ const STORAGE_KEY = 'wwan-settings';
 const WWAN_TABLE = 'wwan_cities';
 const TIME_REFRESH_MS = 1000;
 
-const defaults = {
+let defaults = {
   personA: {
-    name: 'Yassine',
-    city: 'New York City',
-    country: 'USA',
+    id: 'user_a',
+    name: 'You',
+    city: 'City A',
+    country: 'Country A',
     countryCode: 'US',
     timeZone: 'America/New_York'
   },
   personB: {
-    name: 'Nihal',
-    city: 'Meknes',
-    country: 'Morocco',
+    id: 'user_b',
+    name: 'Partner',
+    city: 'City B',
+    country: 'Country B',
     countryCode: 'MA',
     timeZone: 'Africa/Casablanca'
   }
@@ -51,6 +52,24 @@ const state = {
   currentUser: null,
   skipPersistUser: null
 };
+
+export function setWwanDefaults(nextDefaults) {
+  if (!nextDefaults || typeof nextDefaults !== 'object') return;
+  defaults = {
+    personA: { ...defaults.personA, ...(nextDefaults.personA || {}) },
+    personB: { ...defaults.personB, ...(nextDefaults.personB || {}) }
+  };
+  state.settings = {
+    personA: { ...defaults.personA, ...(state.settings.personA || {}) },
+    personB: { ...defaults.personB, ...(state.settings.personB || {}) }
+  };
+  updateLabels();
+  updateTimes();
+  fetchWeather('A', state.settings.personA.city, state.settings.personA.countryCode);
+  fetchWeather('B', state.settings.personB.city, state.settings.personB.countryCode);
+  fetchCityPhoto('A', state.settings.personA.city, state.settings.personA.country);
+  fetchCityPhoto('B', state.settings.personB.city, state.settings.personB.country);
+}
 
 const elements = {
   root: document.getElementById('ldapp-view'),
@@ -540,24 +559,14 @@ function setDefaultPhoto(id) {
 }
 
 async function fetchCityPhoto(id, city, country) {
-  if (!UNSPLASH_ACCESS_KEY || UNSPLASH_ACCESS_KEY === 'YOUR_UNSPLASH_ACCESS_KEY') {
-    setDefaultPhoto(id);
-    return;
-  }
   if (!city) {
     setDefaultPhoto(id);
     return;
   }
-  const query = encodeURIComponent(`${city} ${country || ''}`.trim());
-  const url = `${UNSPLASH_URL}?query=${query}&orientation=landscape&client_id=${UNSPLASH_ACCESS_KEY}`;
+  const query = encodeURIComponent(`${city} ${country || ''} skyline night`.trim());
+  const url = `${UNSPLASH_SOURCE_URL}/1600x900/?${query}`;
   try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      setDefaultPhoto(id);
-      return;
-    }
-    const data = await response.json();
-    setPhoto(id, data.urls?.regular, data.alt_description || `${city} photo`);
+    setPhoto(id, url, `${city} photo`);
   } catch (error) {
     setDefaultPhoto(id);
   }
@@ -631,8 +640,8 @@ function handleSubmit(event) {
 }
 
 function updateEditingAccess() {
-  const isA = state.currentUser === defaults.personA.name;
-  const isB = state.currentUser === defaults.personB.name;
+  const isA = state.currentUser === (defaults.personA.id || defaults.personA.name);
+  const isB = state.currentUser === (defaults.personB.id || defaults.personB.name);
   if (elements.openSettings) {
     elements.openSettings.disabled = !state.currentUser;
     elements.openSettings.textContent = state.currentUser ? 'Change my city' : 'Change city (log in)';

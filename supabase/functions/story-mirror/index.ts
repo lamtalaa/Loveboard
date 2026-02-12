@@ -1,0 +1,332 @@
+import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY') ?? '';
+const STORY_MODEL = Deno.env.get('OPENAI_STORY_MODEL') ?? 'gpt-5';
+const STORY_IMAGE_MODEL = Deno.env.get('OPENAI_IMAGE_MODEL') ?? 'gpt-image-1';
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+const STORY_PROMPT_KEY = 'storymirror_prompt_template';
+const STORY_TRANSLATE_KEY = 'storymirror_translate_template';
+const PROFILE_CONFIG_KEY = 'loveboard_private';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
+};
+
+if (!OPENAI_API_KEY) {
+  console.error('Missing OPENAI_API_KEY for story-mirror');
+}
+if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+  console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY for story-mirror');
+}
+
+const supabase = SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
+  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+  : null;
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
+  if (req.method !== 'POST') {
+    return new Response('Only POST allowed', { status: 405, headers: corsHeaders });
+  }
+
+  const body = await req.json().catch(() => null);
+  if (!body) {
+    return new Response('Invalid JSON', { status: 400, headers: corsHeaders });
+  }
+
+  const { action } = body;
+  if (action === 'text') {
+    return await handleText(body);
+  }
+  if (action === 'image') {
+    return await handleImage(body);
+  }
+  if (action === 'translate') {
+    return await handleTranslate(body);
+  }
+
+  return new Response('Unknown action', { status: 400, headers: corsHeaders });
+});
+
+async function handleText(body: {
+  mode?: string;
+  yFragments?: string[];
+  nFragments?: string[];
+  perspective?: string;
+  lens?: string;
+  fantasy?: string;
+  intimacy?: string;
+  chapterCount?: number;
+  profileY?: string;
+  profileN?: string;
+  momentKey?: string;
+}) {
+  const yFragments = Array.isArray(body.yFragments) ? body.yFragments : [];
+  const nFragments = Array.isArray(body.nFragments) ? body.nFragments : [];
+  const perspective = body.perspective || 'us';
+  const lens = body.lens || 'soft, romantic, and tender';
+  const fantasy = body.fantasy || 'balanced: realistic with soft cinematic wonder';
+  const intimacy = body.intimacy || 'tender';
+  const profileY = body.profileY || '';
+  const profileN = body.profileN || '';
+  const requestedChapters =
+    typeof body.chapterCount === 'number' ? Math.round(body.chapterCount) : 4;
+  const momentKey = body.momentKey || '';
+  const mode = body.mode === 'moment' ? 'moment' : 'full';
+
+  if (!yFragments.length && !nFragments.length) {
+    return new Response('Missing fragments', { status: 400, headers: corsHeaders });
+  }
+
+  const config = await loadProfileConfig();
+  const nameA = config?.users?.a?.display || config?.users?.a?.id || 'Partner A';
+  const nameB = config?.users?.b?.display || config?.users?.b?.id || 'Partner B';
+
+  const momentLabel = momentKey ? describeMoment(momentKey) : '';
+  const chapterCount =
+    mode === 'moment' ? 1 : Math.min(Math.max(requestedChapters, 3), 10);
+  const intimacyDirection = describeIntimacy(intimacy);
+  const promptTemplate = await loadPromptTemplate(
+    STORY_PROMPT_KEY,
+    DEFAULT_STORY_PROMPT_TEMPLATE
+  );
+  const perspectiveLabel = formatPerspective(perspective, nameA, nameB);
+  const prompt = renderTemplate(promptTemplate, {
+    name_a: nameA,
+    name_b: nameB,
+    lens,
+    fantasy,
+    perspective: perspectiveLabel,
+    intimacy: intimacyDirection,
+    profile_a: profileY,
+    profile_b: profileN,
+    fragments_a: yFragments.join(' | '),
+    fragments_b: nFragments.join(' | '),
+    moment_line:
+      mode === 'moment' ? `Focus on this single moment: ${momentLabel}.` : 'Write a chaptered story of their shared future.',
+    chapter_count: String(chapterCount)
+  });
+
+  try {
+    const data = await openaiRequest('https://api.openai.com/v1/responses', {
+      model: STORY_MODEL,
+      input: prompt
+    });
+    const text = extractOutputText(data);
+    const jsonText = extractJson(text);
+    const parsed = JSON.parse(jsonText);
+    return new Response(JSON.stringify(parsed), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  } catch (error) {
+    console.error('story-mirror text error', error);
+    return new Response('Failed to generate story', { status: 502, headers: corsHeaders });
+  }
+}
+
+async function handleTranslate(body: { chapters?: Array<{ title?: string; text?: string; caption?: string }> }) {
+  const chapters = Array.isArray(body.chapters) ? body.chapters : [];
+  if (!chapters.length) {
+    return new Response('Missing chapters', { status: 400, headers: corsHeaders });
+  }
+  const payload = JSON.stringify({
+    chapters: chapters.map((c) => ({
+      title: c.title || '',
+      text: c.text || '',
+      caption: c.caption || ''
+    }))
+  });
+  const config = await loadProfileConfig();
+  const nameA = config?.users?.a?.display || config?.users?.a?.id || 'Partner A';
+  const nameB = config?.users?.b?.display || config?.users?.b?.id || 'Partner B';
+  const promptTemplate = await loadPromptTemplate(
+    STORY_TRANSLATE_KEY,
+    DEFAULT_STORY_TRANSLATE_TEMPLATE
+  );
+  const prompt = renderTemplate(promptTemplate, {
+    name_a: nameA,
+    name_b: nameB,
+    payload
+  });
+  try {
+    const data = await openaiRequest('https://api.openai.com/v1/responses', {
+      model: STORY_MODEL,
+      input: prompt
+    });
+    const text = extractOutputText(data);
+    const jsonText = extractJson(text);
+    const parsed = JSON.parse(jsonText);
+    return new Response(JSON.stringify(parsed), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  } catch (error) {
+    console.error('story-mirror translate error', error);
+    return new Response('Failed to translate story', { status: 502, headers: corsHeaders });
+  }
+}
+
+async function handleImage(body: { prompt?: string }) {
+  const prompt = body.prompt?.trim();
+  if (!prompt) {
+    return new Response('Missing prompt', { status: 400, headers: corsHeaders });
+  }
+  try {
+    const data = await openaiRequest('https://api.openai.com/v1/images/generations', {
+      model: STORY_IMAGE_MODEL,
+      prompt,
+      size: '1024x1024',
+      quality: 'medium'
+    });
+    const encoded = data?.data?.[0]?.b64_json;
+    if (!encoded) {
+      return new Response('No image returned', { status: 502, headers: corsHeaders });
+    }
+    return new Response(JSON.stringify({ image: `data:image/png;base64,${encoded}` }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  } catch (error) {
+    console.error('story-mirror image error', error);
+    return new Response('Failed to generate image', { status: 502, headers: corsHeaders });
+  }
+}
+
+async function openaiRequest(url: string, payload: Record<string, unknown>) {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${OPENAI_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message = (data as { error?: { message?: string } })?.error?.message ?? 'OpenAI request failed.';
+    throw new Error(message);
+  }
+  return data;
+}
+
+function extractOutputText(data: {
+  output_text?: string;
+  output?: Array<{ content?: Array<{ type?: string; text?: string }> }>;
+}) {
+  if (typeof data?.output_text === 'string') return data.output_text;
+  const outputs = data?.output || [];
+  let combined = '';
+  outputs.forEach((item) => {
+    (item.content || []).forEach((part) => {
+      if (part.type === 'output_text' && part.text) {
+        combined += part.text;
+      }
+    });
+  });
+  return combined;
+}
+
+function extractJson(text: string) {
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start === -1 || end === -1) return '{}';
+  return text.slice(start, end + 1);
+}
+
+const DEFAULT_STORY_PROMPT_TEMPLATE = `
+You are writing a future love story for {{name_a}} and {{name_b}}, a long-distance couple imagining their life together.
+Write as if the events already happened, with vivid specificity. Use concrete future dates and times (e.g., 2028, 2031), real places, and sensory details that make the future feel lived-in.
+This is a consensual adult relationship. Keep consent explicit; avoid non-consensual or coercive content. Keep the tone emotionally rich and cinematic.
+Tone: {{lens}}. Fantasy balance: {{fantasy}}. Perspective: {{perspective}}.
+Intimacy direction: {{intimacy}}.
+{{name_a}} profile: {{profile_a}}
+{{name_b}} profile: {{profile_b}}
+{{name_a}} moments: {{fragments_a}}.
+{{name_b}} moments: {{fragments_b}}.
+{{moment_line}}
+
+Return valid JSON only. Schema:
+{
+  "story_title": "short overall title for the full story",
+  "chapters": [
+    {
+      "title": "short title",
+      "text": "120-220 words of narrative",
+      "caption": "one line poetic caption for the image",
+      "image_prompt": "cinematic, dreamy-realistic image prompt, no text"
+    }
+  ]
+}
+For moment mode, return exactly 1 chapter with 120-200 words and still include story_title. For full mode, return {{chapter_count}} chapters.
+`.trim();
+
+const DEFAULT_STORY_TRANSLATE_TEMPLATE = `
+Translate the following JSON into Modern Standard Arabic (MSA).
+Keep names ({{name_a}}, {{name_b}}) unchanged. Preserve tone and meaning.
+Return JSON only with the same structure and keys.
+{{payload}}
+`.trim();
+
+function renderTemplate(template: string, vars: Record<string, string>) {
+  return template.replace(/\{\{(\w+)\}\}/g, (_match, key) => vars[key] ?? '');
+}
+
+function formatPerspective(perspective: string, nameA: string, nameB: string) {
+  if (perspective === 'a') return nameA;
+  if (perspective === 'b') return nameB;
+  if (perspective === 'us') return 'us';
+  return perspective || 'us';
+}
+
+async function loadPromptTemplate(key: string, fallback: string) {
+  if (!supabase) return fallback;
+  try {
+    const { data, error } = await supabase.from('app_config').select('value').eq('key', key).maybeSingle();
+    if (error || !data?.value) return fallback;
+    return typeof data.value === 'string' ? data.value : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+async function loadProfileConfig() {
+  if (!supabase) return null;
+  try {
+    const { data, error } = await supabase
+      .from('app_config')
+      .select('value')
+      .eq('key', PROFILE_CONFIG_KEY)
+      .maybeSingle();
+    if (error) return null;
+    return data?.value || null;
+  } catch {
+    return null;
+  }
+}
+
+function describeMoment(key: string) {
+  const map: Record<string, string> = {
+    airport_reunion: 'the airport reunion when you finally close the distance',
+    first_apartment: 'your first apartment together and the first night there',
+    sunday_morning: 'a slow Sunday morning routine in the same home',
+    first_big_conflict: 'the first big conflict and how you repair it with love',
+    shared_home: 'the day it truly feels like home together'
+  };
+  return map[key] || 'a defining future moment you share together';
+}
+
+function describeIntimacy(value: string) {
+  if (value === 'dark') {
+    return 'explicit, intense, and sensual dark romance; include dominance/submission as consensual adult play; explicit language is allowed';
+  }
+  if (value === 'flirty') {
+    return 'playful, flirtatious, and suggestive but not explicit';
+  }
+  return 'tender, romantic, and softly sensual';
+}

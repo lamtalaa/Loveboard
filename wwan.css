@@ -25,7 +25,7 @@
 
 #ldapp-view .wwan-header {
   text-align: center;
-  animation: float-in 0.8s ease;
+  animation: float-in 0.32s ease;
 }
 
 #ldapp-view .wwan-eyebrow {
@@ -60,7 +60,7 @@
   padding: 16px;
   box-shadow: var(--shadow);
   backdrop-filter: blur(6px);
-  animation: float-in 0.8s ease;
+  animation: float-in 0.32s ease;
 }
 
 #ldapp-view .wwan-profile-card.wwan-theme-clear {
@@ -263,7 +263,7 @@
   padding: 16px;
   box-shadow: var(--shadow);
   text-align: center;
-  animation: float-in 0.8s ease;
+  animation: float-in 0.32s ease;
 }
 
 #ldapp-view .wwan-quote-eyebrow {
@@ -313,7 +313,7 @@
   position: absolute;
   inset: 0;
   background: rgba(40, 20, 28, 0.35);
-  animation: fade-in 0.3s ease;
+  animation: fade-in 0.32s ease;
 }
 
 #ldapp-view .wwan-modal-panel {
@@ -323,7 +323,7 @@
   border-radius: 24px 24px 0 0;
   padding: 20px;
   box-shadow: 0 -20px 40px rgba(98, 56, 70, 0.2);
-  animation: slide-up 0.35s ease;
+  animation: slide-up 0.32s ease;
 }
 
 #ldapp-view .wwan-modal-header {
