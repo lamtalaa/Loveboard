@@ -931,6 +931,11 @@ html {
   font-family: 'Noto Naskh Arabic', serif;
 }
 
+.storymirror-output-rtl .storymirror-footer {
+  direction: ltr;
+  text-align: left;
+}
+
 .storymirror-output-rtl .storymirror-chapter h3,
 .storymirror-output-rtl .storymirror-chapter p,
 .storymirror-output-rtl .storymirror-caption {
