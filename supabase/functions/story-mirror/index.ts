@@ -10,10 +10,15 @@ const STORY_PROMPT_KEY = 'storymirror_prompt_template';
 const STORY_TRANSLATE_KEY = 'storymirror_translate_template';
 const PROFILE_CONFIG_KEY = 'loveboard_private';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
-};
+function getCorsHeaders(req: Request) {
+  const origin = req.headers.get('origin') || '*';
+  return {
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Vary': 'Origin'
+  };
+}
 
 if (!OPENAI_API_KEY) {
   console.error('Missing OPENAI_API_KEY for story-mirror');
@@ -27,33 +32,40 @@ const supabase = SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
   : null;
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
-  }
-  if (req.method !== 'POST') {
-    return new Response('Only POST allowed', { status: 405, headers: corsHeaders });
-  }
+  const corsHeaders = getCorsHeaders(req);
+  try {
+    if (req.method === 'OPTIONS') {
+      return new Response('ok', { headers: corsHeaders });
+    }
+    if (req.method !== 'POST') {
+      return new Response('Only POST allowed', { status: 405, headers: corsHeaders });
+    }
 
-  const body = await req.json().catch(() => null);
-  if (!body) {
-    return new Response('Invalid JSON', { status: 400, headers: corsHeaders });
-  }
+    const body = await req.json().catch(() => null);
+    if (!body) {
+      return new Response('Invalid JSON', { status: 400, headers: corsHeaders });
+    }
 
-  const { action } = body;
-  if (action === 'text') {
-    return await handleText(body);
-  }
-  if (action === 'image') {
-    return await handleImage(body);
-  }
-  if (action === 'translate') {
-    return await handleTranslate(body);
-  }
+    const { action } = body;
+    if (action === 'text') {
+      return await handleText(body, corsHeaders);
+    }
+    if (action === 'image') {
+      return await handleImage(body, corsHeaders);
+    }
+    if (action === 'translate') {
+      return await handleTranslate(body, corsHeaders);
+    }
 
-  return new Response('Unknown action', { status: 400, headers: corsHeaders });
+    return new Response('Unknown action', { status: 400, headers: corsHeaders });
+  } catch (error) {
+    console.error('story-mirror unexpected error', error);
+    return new Response('Unexpected error', { status: 500, headers: corsHeaders });
+  }
 });
 
-async function handleText(body: {
+async function handleText(
+  body: {
   mode?: string;
   yFragments?: string[];
   nFragments?: string[];
@@ -65,7 +77,9 @@ async function handleText(body: {
   profileY?: string;
   profileN?: string;
   momentKey?: string;
-}) {
+  },
+  corsHeaders: Record<string, string>
+) {
   const yFragments = Array.isArray(body.yFragments) ? body.yFragments : [];
   const nFragments = Array.isArray(body.nFragments) ? body.nFragments : [];
   const perspective = body.perspective || 'us';
@@ -130,7 +144,10 @@ async function handleText(body: {
   }
 }
 
-async function handleTranslate(body: { chapters?: Array<{ title?: string; text?: string; caption?: string }> }) {
+async function handleTranslate(
+  body: { chapters?: Array<{ title?: string; text?: string; caption?: string }> },
+  corsHeaders: Record<string, string>
+) {
   const chapters = Array.isArray(body.chapters) ? body.chapters : [];
   if (!chapters.length) {
     return new Response('Missing chapters', { status: 400, headers: corsHeaders });
@@ -172,7 +189,10 @@ async function handleTranslate(body: { chapters?: Array<{ title?: string; text?:
   }
 }
 
-async function handleImage(body: { prompt?: string }) {
+async function handleImage(
+  body: { prompt?: string },
+  corsHeaders: Record<string, string>
+) {
   const prompt = body.prompt?.trim();
   if (!prompt) {
     return new Response('Missing prompt', { status: 400, headers: corsHeaders });
