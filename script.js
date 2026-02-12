@@ -398,7 +398,6 @@ function setupStoryMirror() {
   if (!ui.storyMirrorView) return;
   setupStoryStepper();
   setupStorySuggestions();
-  setupStoryAddRows();
   loadStoryDefaults();
   if (ui.storyLens) {
     ui.storyLens.addEventListener('input', () => {
@@ -643,35 +642,6 @@ function updateOrbitLocations() {
   const locB = document.getElementById('wwan-city-b')?.textContent;
   if (ui.orbitLocA && locA) ui.orbitLocA.textContent = locA;
   if (ui.orbitLocB && locB) ui.orbitLocB.textContent = locB;
-}
-
-function setupStoryAddRows() {
-  const rows = document.querySelectorAll('.storymirror-add-row');
-  if (!rows.length) return;
-  rows.forEach((row) => {
-    const input = row.querySelector('.storymirror-add-input');
-    const button = row.querySelector('.storymirror-add-btn');
-    const targetId = row.dataset.target;
-    const target = targetId ? document.getElementById(targetId) : null;
-    if (!input || !button || !target || target.tagName !== 'TEXTAREA') return;
-
-    const addLine = () => {
-      const value = input.value.trim();
-      if (!value) return;
-      const current = target.value.trim();
-      target.value = current ? `${current}\n${value}` : value;
-      input.value = '';
-      input.focus();
-      updateChapterEstimate();
-    };
-
-    button.addEventListener('click', addLine);
-    input.addEventListener('keydown', (event) => {
-      if (event.key !== 'Enter') return;
-      event.preventDefault();
-      addLine();
-    });
-  });
 }
 
 function setupStoryStepper() {
