@@ -922,7 +922,6 @@ async function runStoryGeneration(mode) {
     state.storyChapters = responseData.chapters;
     state.storyImages = new Array(responseData.chapters.length).fill('');
     renderStoryChapters();
-    updateStoryLanguageUI();
     const storyTitle =
       responseData.story_title || responseData.title || responseData.chapters?.[0]?.title || 'Our Future, Soon';
     setStoryHeroTitle(storyTitle);
@@ -1914,7 +1913,6 @@ function showStoryMirror() {
   state.chronicleOpen = false;
   updateViewSwitchers('storymirror');
   setStoryStep(1);
-  updateStoryLanguageUI();
   cleanupLdAppListeners();
   cleanupConstellationListeners();
   cleanupValentineListeners();
