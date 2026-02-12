@@ -10,10 +10,15 @@ const STORY_PROMPT_KEY = 'storymirror_prompt_template';
 const STORY_TRANSLATE_KEY = 'storymirror_translate_template';
 const PROFILE_CONFIG_KEY = 'loveboard_private';
 
+const ALLOWED_ORIGINS = new Set([
+  'https://yani.love'
+]);
+
 function getCorsHeaders(req: Request) {
-  const origin = req.headers.get('origin') || '*';
+  const origin = req.headers.get('origin') || '';
+  const allowedOrigin = ALLOWED_ORIGINS.has(origin) ? origin : '';
   return {
-    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Origin': allowedOrigin || 'https://yani.love',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Vary': 'Origin'
