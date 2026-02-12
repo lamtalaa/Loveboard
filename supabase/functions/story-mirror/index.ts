@@ -66,17 +66,18 @@ serve(async (req) => {
 
 async function handleText(
   body: {
-  mode?: string;
-  yFragments?: string[];
-  nFragments?: string[];
-  perspective?: string;
-  lens?: string;
-  fantasy?: string;
-  intimacy?: string;
-  chapterCount?: number;
-  profileY?: string;
-  profileN?: string;
-  momentKey?: string;
+    mode?: string;
+    yFragments?: string[];
+    nFragments?: string[];
+    perspective?: string;
+    lens?: string;
+    fantasy?: string;
+    intimacy?: string;
+    chapterCount?: number;
+    profileY?: string;
+    profileN?: string;
+    momentKey?: string;
+    extraDetails?: string;
   },
   corsHeaders: Record<string, string>
 ) {
@@ -88,6 +89,7 @@ async function handleText(
   const intimacy = body.intimacy || 'tender';
   const profileY = body.profileY || '';
   const profileN = body.profileN || '';
+  const extraDetails = body.extraDetails || '';
   const requestedChapters =
     typeof body.chapterCount === 'number' ? Math.round(body.chapterCount) : 4;
   const momentKey = body.momentKey || '';
@@ -121,6 +123,7 @@ async function handleText(
     profile_b: profileN,
     fragments_a: yFragments.join(' | '),
     fragments_b: nFragments.join(' | '),
+    extra_details: extraDetails,
     moment_line:
       mode === 'moment' ? `Focus on this single moment: ${momentLabel}.` : 'Write a chaptered story of their shared future.',
     chapter_count: String(chapterCount)
