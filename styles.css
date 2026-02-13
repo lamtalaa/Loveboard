@@ -696,6 +696,42 @@ html {
   position: relative;
 }
 
+.chronicle-placeholder {
+  cursor: default;
+  pointer-events: none;
+}
+
+.chronicle-skeleton {
+  position: relative;
+  overflow: hidden;
+  background: rgba(245, 181, 197, 0.22);
+}
+
+.chronicle-skeleton::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -60%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.7), transparent);
+  animation: chronicleShimmer 1.2s ease-in-out infinite;
+}
+
+.chronicle-skeleton-line {
+  height: 0.85rem;
+  border-radius: 999px;
+}
+
+.chronicle-skeleton-title {
+  width: 70%;
+}
+
+.chronicle-skeleton-meta {
+  width: 45%;
+  opacity: 0.7;
+}
+
 .chronicle-card-delete {
   position: absolute;
   right: 0.8rem;
@@ -744,6 +780,15 @@ html {
   margin: 0;
   text-align: center;
   color: rgba(70, 50, 60, 0.6);
+}
+
+@keyframes chronicleShimmer {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(220%);
+  }
 }
 
 .chronicle-modal {

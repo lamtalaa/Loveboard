@@ -160,6 +160,8 @@ const state = {
     profileN: ''
   },
   chronicles: [],
+  chronicleLoading: false,
+  chroniclePlaceholderCount: 4,
   activeChronicle: null,
   ritualProgress: 0,
   ritualFrame: null,
@@ -1447,12 +1449,16 @@ async function loadPostcards() {
 }
 
 async function loadChronicles() {
+  state.chronicleLoading = true;
+  renderChronicles();
   const { data, error } = await supabase
     .from('story_chronicles')
     .select('*')
     .order('created_at', { ascending: false });
+  state.chronicleLoading = false;
   if (error) {
     console.error('chronicles load', error);
+    renderChronicles();
     return;
   }
   state.chronicles = data || [];
@@ -1462,6 +1468,23 @@ async function loadChronicles() {
 function renderChronicles() {
   if (!ui.chronicleGrid || !ui.chronicleEmpty) return;
   ui.chronicleGrid.innerHTML = '';
+  if (state.chronicleLoading) {
+    ui.chronicleEmpty.hidden = true;
+    const count = Math.max(1, state.chroniclePlaceholderCount || 4);
+    for (let i = 0; i < count; i += 1) {
+      const card = document.createElement('article');
+      card.className = 'chronicle-card chronicle-placeholder';
+      const cover = document.createElement('div');
+      cover.className = 'chronicle-cover chronicle-skeleton';
+      const title = document.createElement('div');
+      title.className = 'chronicle-skeleton-line chronicle-skeleton-title chronicle-skeleton';
+      const meta = document.createElement('div');
+      meta.className = 'chronicle-skeleton-line chronicle-skeleton-meta chronicle-skeleton';
+      card.append(cover, title, meta);
+      ui.chronicleGrid.appendChild(card);
+    }
+    return;
+  }
   if (!state.chronicles.length) {
     ui.chronicleEmpty.hidden = false;
     return;
