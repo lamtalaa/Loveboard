@@ -2189,6 +2189,42 @@ button:disabled {
   z-index: 20;
 }
 
+.auth-loading {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.8rem 0 0.2rem;
+  color: rgba(70, 50, 60, 0.7);
+  font-family: 'Work Sans', sans-serif;
+}
+
+.auth-spinner {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid rgba(245, 181, 197, 0.35);
+  border-top-color: rgba(245, 181, 197, 0.95);
+  animation: authSpin 0.9s linear infinite;
+}
+
+#auth-gate.pending .auth-card form,
+#auth-gate.pending .error-text,
+#auth-gate.pending .auth-card > p,
+#auth-gate.pending .auth-card h1 {
+  display: none;
+}
+
+#auth-gate.pending .auth-loading {
+  display: flex;
+}
+
+@keyframes authSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .auth-card {
   background: var(--cream);
   border-radius: 24px;

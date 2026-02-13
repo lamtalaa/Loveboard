@@ -204,6 +204,7 @@ const ui = {
   logoutButtons: document.querySelectorAll('.logout-btn'),
   currentAvatar: document.getElementById('current-user-avatar'),
   toast: document.getElementById('toast'),
+  authLoading: document.getElementById('auth-loading'),
   optionButtons: document.querySelectorAll('.option-btn'),
   optionSections: document.querySelectorAll('.option-section'),
   ldAppView: document.getElementById('ldapp-view'),
@@ -291,6 +292,7 @@ const template = document.getElementById('postcard-template');
 init().catch((error) => console.error('init error', error));
 
 async function init() {
+  setAuthPending(true);
   ui.authForm.addEventListener('submit', handleAuth);
   ui.createBtn.addEventListener('click', () => openModal());
   ui.closeModal.addEventListener('click', () => ui.modal.close());
@@ -1359,10 +1361,20 @@ function showAuthGate() {
   state.user = null;
   state.userDisplay = null;
   state.started = false;
+  setAuthPending(false);
   ui.authGate.style.display = 'flex';
   ui.app.setAttribute('aria-hidden', 'true');
   setButtonState(ui.createBtn, false);
   updateAvatar();
+}
+
+function setAuthPending(pending) {
+  if (!ui.authGate) return;
+  ui.authGate.classList.toggle('pending', pending);
+  if (pending) {
+    ui.authGate.style.display = 'flex';
+    ui.app.setAttribute('aria-hidden', 'true');
+  }
 }
 
 async function applySessionUser(session) {
@@ -1376,6 +1388,7 @@ async function applySessionUser(session) {
   }
   state.user = name;
   state.userDisplay = getDisplayName(name);
+  setAuthPending(false);
   ui.authGate.style.display = 'none';
   ui.app.setAttribute('aria-hidden', 'false');
   enableCreateButton();

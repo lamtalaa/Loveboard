@@ -51,8 +51,12 @@
   <body>
     <div id="auth-gate" class="auth-gate">
       <div class="auth-card">
-        <h1>Welcome to Loveboard</h1>
+        <h1>Sign in</h1>
         <p>Sign in with your account to enter your private space.</p>
+        <div class="auth-loading" id="auth-loading" aria-live="polite">
+          <span class="auth-spinner" aria-hidden="true"></span>
+          <p>Loading your space…</p>
+        </div>
         <form id="auth-form">
           <label for="email-input">Email</label>
           <input id="email-input" type="email" autocomplete="email" required />
