@@ -408,7 +408,7 @@ function setupStoryMirror() {
     ui.storyFragmentsN.addEventListener('input', updateChapterEstimate);
   }
   if (ui.storyGenerate) {
-    ui.storyGenerate.addEventListener('click', () => runStoryGeneration('full'));
+    ui.storyGenerate.addEventListener('click', () => runStoryGeneration());
   }
   if (ui.storyNewBtn) {
     ui.storyNewBtn.addEventListener('click', resetStoryFlow);
@@ -887,7 +887,7 @@ function parseFragments(text) {
     .slice(0, 20);
 }
 
-async function runStoryGeneration(mode) {
+async function runStoryGeneration() {
   if (state.storyMirrorBusy) return;
   const yFragments = parseFragments(ui.storyFragmentsY?.value || '');
   const nFragments = parseFragments(ui.storyFragmentsN?.value || '');
@@ -908,7 +908,6 @@ async function runStoryGeneration(mode) {
   openStoryRitual();
   try {
     const responseData = await requestStoryText({
-      mode,
       yFragments,
       nFragments,
       chapterCount: computeChapterEstimate(),
@@ -967,7 +966,6 @@ function setStoryStatus(message, tone) {
 }
 
 async function requestStoryText({
-  mode,
   yFragments,
   nFragments,
   chapterCount,
@@ -976,13 +974,12 @@ async function requestStoryText({
   fantasy,
   lens,
   intimacy,
-  perspective
+  perspective,
+  extraDetails
 }) {
-  const momentKey = '';
   const { data, error } = await supabase.functions.invoke('story-mirror', {
     body: {
       action: 'text',
-      mode,
       chapterCount,
       yFragments,
       nFragments,
@@ -992,7 +989,7 @@ async function requestStoryText({
       lens,
       intimacy,
       perspective,
-      momentKey
+      extraDetails
     }
   });
   if (error) {

@@ -66,7 +66,6 @@ serve(async (req) => {
 
 async function handleText(
   body: {
-    mode?: string;
     yFragments?: string[];
     nFragments?: string[];
     perspective?: string;
@@ -76,7 +75,6 @@ async function handleText(
     chapterCount?: number;
     profileY?: string;
     profileN?: string;
-    momentKey?: string;
     extraDetails?: string;
   },
   corsHeaders: Record<string, string>
@@ -92,8 +90,6 @@ async function handleText(
   const extraDetails = body.extraDetails || '';
   const requestedChapters =
     typeof body.chapterCount === 'number' ? Math.round(body.chapterCount) : 4;
-  const momentKey = body.momentKey || '';
-  const mode = body.mode === 'moment' ? 'moment' : 'full';
 
   if (!yFragments.length && !nFragments.length) {
     return new Response('Missing fragments', { status: 400, headers: corsHeaders });
@@ -103,9 +99,7 @@ async function handleText(
   const nameA = config?.users?.a?.display || config?.users?.a?.id || 'Partner A';
   const nameB = config?.users?.b?.display || config?.users?.b?.id || 'Partner B';
 
-  const momentLabel = momentKey ? describeMoment(momentKey) : '';
-  const chapterCount =
-    mode === 'moment' ? 1 : Math.min(Math.max(requestedChapters, 3), 10);
+  const chapterCount = Math.min(Math.max(requestedChapters, 3), 10);
   const intimacyDirection = describeIntimacy(intimacy);
   const promptTemplate = await loadPromptTemplate(
     STORY_PROMPT_KEY,
@@ -124,8 +118,6 @@ async function handleText(
     fragments_a: yFragments.join(' | '),
     fragments_b: nFragments.join(' | '),
     extra_details: extraDetails,
-    moment_line:
-      mode === 'moment' ? `Focus on this single moment: ${momentLabel}.` : 'Write a chaptered story of their shared future.',
     chapter_count: String(chapterCount)
   });
 
@@ -219,15 +211,21 @@ function extractJson(text: string) {
 
 const DEFAULT_STORY_PROMPT_TEMPLATE = `
 You are writing a future love story for {{name_a}} and {{name_b}}, a long-distance couple imagining their life together.
-Write as if the events already happened, with vivid specificity. Use concrete future dates and times (e.g., 2028, 2031), real places, and sensory details that make the future feel lived-in.
-This is a consensual adult relationship. Keep consent explicit; avoid non-consensual or coercive content. Keep the tone emotionally rich and cinematic.
+Write as if the events already happened, with clear details. Use real future dates and places.
+This is a consensual adult relationship. Keep consent explicit. Keep the tone intense, intimate, and emotionally powerful.
+Use simple English for A2/B1 readers:
+- Short sentences (8–14 words).
+- Use common words only.
+- Avoid rare words and complex metaphors.
+- Keep grammar simple. No long clauses.
+User input may be in any language, but the story must be written in English. Preserve the meaning of the input while writing in English.
 Tone: {{lens}}. Fantasy balance: {{fantasy}}. Perspective: {{perspective}}.
 Intimacy direction: {{intimacy}}.
 {{name_a}} profile: {{profile_a}}
 {{name_b}} profile: {{profile_b}}
 {{name_a}} moments: {{fragments_a}}.
 {{name_b}} moments: {{fragments_b}}.
-{{moment_line}}
+Extra details: {{extra_details}}
 
 Return valid JSON only. Schema:
 {
@@ -241,7 +239,7 @@ Return valid JSON only. Schema:
     }
   ]
 }
-For moment mode, return exactly 1 chapter with 120-200 words and still include story_title. For full mode, return {{chapter_count}} chapters.
+Return {{chapter_count}} chapters.
 `.trim();
 
 function renderTemplate(template: string, vars: Record<string, string>) {
@@ -279,17 +277,6 @@ async function loadProfileConfig() {
   } catch {
     return null;
   }
-}
-
-function describeMoment(key: string) {
-  const map: Record<string, string> = {
-    airport_reunion: 'the airport reunion when you finally close the distance',
-    first_apartment: 'your first apartment together and the first night there',
-    sunday_morning: 'a slow Sunday morning routine in the same home',
-    first_big_conflict: 'the first big conflict and how you repair it with love',
-    shared_home: 'the day it truly feels like home together'
-  };
-  return map[key] || 'a defining future moment you share together';
 }
 
 function describeIntimacy(value: string) {
