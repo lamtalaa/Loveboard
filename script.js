@@ -968,6 +968,12 @@ async function runStoryGeneration() {
     const storyTitle =
       responseData.story_title || responseData.title || responseData.chapters?.[0]?.title || 'Our Future, Soon';
     setStoryHeroTitle(storyTitle);
+    sendWhatsAppNotification({
+      type: 'story',
+      sender: state.user,
+      teaser: buildStoryTeaser(storyTitle),
+      link: getShareLink()
+    });
     if (ui.storyMirrorView) {
       ui.storyMirrorView.classList.add('storymirror-generated');
     }
@@ -2804,6 +2810,12 @@ async function handlePostcardSubmit(event) {
     renderBoard();
     gentlePulse(`[data-id="${data.id}"]`);
     await broadcastCommentEvent('postcard:new', { postcard: data, sender: state.user });
+    sendWhatsAppNotification({
+      type: 'postcard',
+      sender: state.user,
+      teaser: buildPostcardTeaser(data),
+      link: getShareLink()
+    });
   }
   ui.modal.close();
   ui.postcardForm.reset();
@@ -2827,6 +2839,54 @@ async function uploadAsset(fileOrBlob, folder, extension) {
   if (error) throw error;
   const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
   return data.publicUrl;
+}
+
+function getShareLink() {
+  if (typeof window === 'undefined') return '';
+  const origin = window.location.origin;
+  if (origin && origin !== 'null') return origin;
+  const href = window.location.href || '';
+  return href.split('#')[0];
+}
+
+function clipText(value, max = 120) {
+  if (!value) return '';
+  const clean = String(value).replace(/\s+/g, ' ').trim();
+  if (!clean) return '';
+  if (clean.length <= max) return clean;
+  const limit = Math.max(4, max);
+  return `${clean.slice(0, limit - 3).trim()}...`;
+}
+
+function buildPostcardTeaser(card) {
+  if (!card) return '';
+  if (card.message) {
+    const snippet = clipText(card.message, 120);
+    return snippet ? `"${snippet}"` : '';
+  }
+  if (card.type === 'audio') return 'A voice postcard is waiting.';
+  if (card.type === 'image') return 'A photo postcard is waiting.';
+  if (card.type === 'doodle') return 'A doodle postcard is waiting.';
+  return 'A new postcard is waiting.';
+}
+
+function buildStoryTeaser(title) {
+  const snippet = clipText(title || '', 120);
+  return snippet ? `"${snippet}"` : 'A new story is ready.';
+}
+
+async function sendWhatsAppNotification(payload) {
+  if (!payload?.type || !payload?.sender) return;
+  try {
+    const { error } = await supabase.functions.invoke('notify-whatsapp', {
+      body: payload
+    });
+    if (error && !isMissingEdgeFunctionError(error, 'notify-whatsapp')) {
+      console.warn('whatsapp notify', error);
+    }
+  } catch (err) {
+    console.warn('whatsapp notify', err);
+  }
 }
 
 function canvasToBlob(canvas) {
@@ -2994,6 +3054,12 @@ function isMissingFunctionError(error) {
   if (!error) return false;
   const message = String(error.message || '').toLowerCase();
   return message.includes('function delete-postcard') || message.includes('not found');
+}
+
+function isMissingEdgeFunctionError(error, functionName) {
+  if (!error || !functionName) return false;
+  const message = String(error.message || '').toLowerCase();
+  return message.includes(`function ${functionName}`) || message.includes('not found');
 }
 
 function gentlePulse(selector) {

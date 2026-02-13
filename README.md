@@ -13,6 +13,7 @@ Loveboard is a cozy, romantic postcard board for a couple. It is built with plai
 - A cozy notification center inside the hamburger menu so you can jump to anything that changed (postcards, moods, comments, reactions).
 - Assets (photos, doodles, audio) stored in Supabase Storage and referenced from each postcard.
 - Optional push notifications so the other person gets an OS-level alert even when the tab is closed (requires HTTPS + Supabase Edge function).
+- Optional WhatsApp notifications for new postcards and stories (requires Twilio + Supabase Edge function).
 
 ## Project structure
 ```
@@ -94,6 +95,11 @@ create table public.wwan_cities (
   time_zone text,
   updated_at timestamp with time zone default timezone('utc', now()) not null
 );
+
+create table public.app_config (
+  key text primary key,
+  value jsonb not null
+);
 ```
 
 3. Enable Row Level Security and add simple policies such as:
@@ -103,12 +109,38 @@ create table public.wwan_cities (
    - `postcard_reactions`: allow `insert`/`select`/`delete` for `anon` (delete scoped to `auth.uid()`/`user` if you tighten security).
    - `postcard_comments`: allow `insert`/`select`/`update`/`delete` for `anon` (scope edits/deletes to the posted `user` if you later wire Supabase Auth).
    - `comment_reactions`: allow `insert`/`select`/`delete` for `anon` (match on both `user` and `comment_id` for deletes if you lock it down later).
+   - `app_config`: allow `select` for `anon` (this feeds display names and WhatsApp numbers).
    (Because the board is private and protected by the passphrase gate, the lightweight policy is acceptable. Tighten if you need stricter control.)
 
 4. Create a storage bucket named `loveboard-assets` and make it **public**.
 5. In the bucket, optionally create folders `photos/`, `doodles/`, and `audio/`. The app will automatically upload files there.
 6. Copy the project URL and anon key from Supabase settings and place them in `supabase.js`.
 7. (Push) Generate a VAPID key pair once using `npx web-push generate-vapid-keys`. Store the public key as `{{VAPID_PUBLIC_KEY}}` in `index.html` (via snippet injection or env) and save both keys as environment variables for your Supabase Edge function (see below).
+
+### App config (names + WhatsApp numbers)
+
+Seed the `app_config` row used by Loveboard and the WhatsApp function:
+
+```sql
+insert into public.app_config (key, value)
+values (
+  'loveboard_private',
+  '{
+    "users": {
+      "a": { "id": "user_a", "display": "You" },
+      "b": { "id": "user_b", "display": "Partner" }
+    },
+    "whatsapp": {
+      "enabled": true,
+      "a": "+15551234567",
+      "b": "+212612345678"
+    }
+  }'::jsonb
+)
+on conflict (key) do update set value = excluded.value;
+```
+
+Use E.164 numbers. WhatsApp sends to the other person based on the `users.a/b.id` values.
 
 ### Push notification Edge Function
 
@@ -124,6 +156,24 @@ This repo ships with `supabase/functions/notify-push/index.ts`, which sends Web 
    - `VAPID_PRIVATE_KEY`
 3. Ensure your site is served over HTTPS so browsers allow push subscriptions.
 4. When each user logs in, the app registers a service worker (`sw.js`), asks for notification permission, stores the push subscription in `push_subscriptions`, and calls the Edge function whenever a postcard or mood is created so the other person receives the OS-level notification.
+
+### WhatsApp notification Edge Function
+
+This repo ships with `supabase/functions/notify-whatsapp/index.ts`, which sends a WhatsApp message via Twilio when a postcard is created or a story is generated.
+
+1. Deploy it:
+   ```bash
+   supabase functions deploy notify-whatsapp --project-ref ijwxlyoxhlmlysfjzksl
+   ```
+2. Set these function secrets in Supabase:
+   - `SUPABASE_SERVICE_ROLE_KEY`
+   - `TWILIO_ACCOUNT_SID`
+   - `TWILIO_AUTH_TOKEN`
+   - `TWILIO_WHATSAPP_FROM` (example: `whatsapp:+14155551234`) **or** `TWILIO_MESSAGING_SERVICE_SID`
+   - `WHATSAPP_ALLOWED_ORIGINS` (comma-separated list of allowed origins; optional)
+3. Ensure the `loveboard_private` app config includes `whatsapp.a` and `whatsapp.b` numbers (see above).
+
+The client automatically calls this function on new postcards and generated stories.
 
 ### Postcard deletion Edge Function
 
