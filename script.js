@@ -240,6 +240,7 @@ const ui = {
   storyMenuToggles: document.querySelectorAll('.story-menu-toggle'),
   storyMenuOptions: document.querySelectorAll('.story-menu-option'),
   storyMirrorView: document.getElementById('storymirror-view'),
+  storyBackBtn: document.getElementById('story-back-btn'),
   storyHeroTitle: document.querySelector('.storymirror-hero h1'),
   storyHeroSubtitle: document.querySelector('.storymirror-subtitle'),
   storyHeroEyebrow: document.querySelector('.storymirror-hero .storymirror-eyebrow'),
@@ -424,6 +425,14 @@ function setupStoryMirror() {
   }
   if (ui.storySaveBtn) {
     ui.storySaveBtn.addEventListener('click', saveStoryChronicle);
+  }
+  if (ui.storyBackBtn) {
+    ui.storyBackBtn.addEventListener('click', () => {
+      if (state.activeChronicle) {
+        resetStoryFlow();
+      }
+      showChronicle();
+    });
   }
   updateChapterEstimate();
   cacheStoryHeroDefaults();
@@ -769,6 +778,7 @@ function resetStoryHero() {
 }
 
 function resetStoryFlow() {
+  setStoryChronicleMode(false);
   if (ui.storyMirrorView) {
     ui.storyMirrorView.classList.remove('storymirror-generated');
   }
@@ -784,6 +794,7 @@ function resetStoryFlow() {
   resetStoryHero();
   setStoryStep(1);
   updateStorySaveButton();
+  updateStoryBackButton();
   if (ui.storyOutput) {
     ui.storyOutput.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
@@ -807,6 +818,21 @@ function updateStorySaveButton() {
   }
   ui.storySaveBtn.disabled = false;
   ui.storySaveBtn.textContent = 'Save & Share';
+}
+
+function updateStoryBackButton() {
+  if (!ui.storyBackBtn) return;
+  const shouldShow = Boolean(state.storyMirrorOpen && ui.storyMirrorView?.classList.contains('storymirror-chronicle'));
+  ui.storyBackBtn.hidden = !shouldShow;
+}
+
+function setStoryChronicleMode(enabled) {
+  if (!ui.storyMirrorView) return;
+  ui.storyMirrorView.classList.toggle('storymirror-chronicle', enabled);
+  if (ui.storyFooter) {
+    ui.storyFooter.hidden = enabled;
+  }
+  updateStoryBackButton();
 }
 
 async function saveStoryChronicle() {
@@ -848,6 +874,7 @@ async function saveStoryChronicle() {
   showToast('Saved to Chronicle.', 'success');
   state.storySaved = true;
   updateStorySaveButton();
+  updateStoryBackButton();
 }
 
 function getStoryFantasyProfile() {
@@ -908,6 +935,7 @@ async function runStoryGeneration() {
   state.storyImages = [];
   state.storyChapters = [];
   state.storyImagesComplete = false;
+  setStoryChronicleMode(false);
   if (ui.storyMirrorView) {
     ui.storyMirrorView.classList.remove('storymirror-generated');
   }
@@ -942,7 +970,7 @@ async function runStoryGeneration() {
       ui.storyMirrorView.classList.add('storymirror-generated');
     }
     if (ui.storyFooter) {
-      ui.storyFooter.hidden = false;
+      ui.storyFooter.hidden = Boolean(state.activeChronicle);
     }
     updateStorySaveButton();
     // Let the loading bar finish before dismissing.
@@ -1538,12 +1566,11 @@ function openChronicleStory(story) {
   if (ui.storyMirrorView) {
     ui.storyMirrorView.classList.add('storymirror-generated');
   }
-  if (ui.storyFooter) {
-    ui.storyFooter.hidden = false;
-  }
+  setStoryChronicleMode(true);
   setStoryHeroTitle(story.title || 'Our Future, Soon');
   renderStoryChapters();
   updateStorySaveButton();
+  updateStoryBackButton();
 }
 
 function openChronicleModal(story) {
@@ -1988,6 +2015,13 @@ async function saveMood(emoji) {
 function handleViewSwitch(view) {
   closeStoryMenus();
   if (!view) return;
+  if (view === 'storymirror' && state.storyMirrorOpen) {
+    if (ui.storyMirrorView?.classList.contains('storymirror-chronicle')) {
+      resetStoryFlow();
+      updateViewSwitchers('storymirror');
+    }
+    return;
+  }
   if (view === 'loveboard') {
     showLoveboard();
   } else if (view === 'ldapp') {
@@ -2066,6 +2100,7 @@ function showStoryMirror() {
   cleanupValentineListeners();
   cleanupChronicleListeners();
   attachStoryMirrorListeners();
+  updateStoryBackButton();
 }
 
 function showChronicle() {

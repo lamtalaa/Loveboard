@@ -298,6 +298,27 @@ html {
   z-index: 1;
 }
 
+.storymirror-back-btn {
+  border: none;
+  border-radius: 999px;
+  padding: 0.35rem 0.9rem;
+  font-family: 'Work Sans', sans-serif;
+  font-size: 0.85rem;
+  background: rgba(255, 255, 255, 0.8);
+  color: rgba(70, 50, 60, 0.85);
+  box-shadow: 0 8px 16px rgba(70, 50, 60, 0.12);
+  cursor: pointer;
+}
+
+.storymirror-back-btn:hover {
+  background: rgba(245, 181, 197, 0.25);
+}
+
+.storymirror-back-btn:focus-visible {
+  outline: 2px solid rgba(245, 181, 197, 0.8);
+  outline-offset: 3px;
+}
+
 .storymirror-view.storymirror-generated .storymirror-title {
   display: none;
 }
@@ -314,6 +335,10 @@ html {
 .storymirror-view.storymirror-generated .storymirror-stepper,
 .storymirror-view.storymirror-generated .storymirror-steps,
 .storymirror-view.storymirror-generated .storymirror-nav {
+  display: none;
+}
+
+.storymirror-view.storymirror-chronicle .storymirror-footer {
   display: none;
 }
 
