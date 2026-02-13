@@ -143,6 +143,97 @@ html {
   outline-offset: 3px;
 }
 
+.story-menu {
+  position: relative;
+  display: inline-flex;
+}
+
+.story-menu-panel {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: 50%;
+  transform: translateX(-50%) translateY(-6px);
+  min-width: 230px;
+  max-width: 280px;
+  padding: 0.4rem;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 20px 40px rgba(70, 50, 60, 0.2);
+  border: 1px solid rgba(245, 181, 197, 0.35);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 10;
+}
+
+.story-menu-panel::before {
+  content: '';
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  background: rgba(255, 255, 255, 0.98);
+  border-left: 1px solid rgba(245, 181, 197, 0.35);
+  border-top: 1px solid rgba(245, 181, 197, 0.35);
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.story-menu.is-open .story-menu-panel {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateX(-50%) translateY(0);
+}
+
+.story-menu-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.7rem 0.75rem;
+  border-radius: 14px;
+  border: 1px solid transparent;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.story-menu-option:hover {
+  background: rgba(245, 181, 197, 0.15);
+  border-color: rgba(245, 181, 197, 0.35);
+}
+
+.story-menu-option:focus-visible {
+  outline: 2px solid rgba(245, 181, 197, 0.6);
+  outline-offset: 2px;
+}
+
+.story-menu-icon {
+  font-size: 1.2rem;
+  width: 1.6rem;
+  text-align: center;
+}
+
+.story-menu-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.story-menu-title {
+  font-family: 'Work Sans', sans-serif;
+  font-size: 0.9rem;
+  color: rgba(70, 50, 60, 0.9);
+}
+
+.story-menu-note {
+  font-family: 'Work Sans', sans-serif;
+  font-size: 0.75rem;
+  color: rgba(70, 50, 60, 0.55);
+}
+
 .ldapp-toggle {
   border: none;
   background: rgba(255, 255, 255, 0.9);
@@ -602,6 +693,31 @@ html {
   cursor: pointer;
   display: grid;
   gap: 0.6rem;
+  position: relative;
+}
+
+.chronicle-card-delete {
+  position: absolute;
+  right: 0.8rem;
+  bottom: 0.8rem;
+  border: 1px solid rgba(236, 122, 122, 0.4);
+  border-radius: 999px;
+  padding: 0.3rem 0.7rem;
+  font-family: 'Work Sans', sans-serif;
+  font-size: 0.75rem;
+  background: rgba(236, 122, 122, 0.12);
+  color: rgba(152, 58, 58, 0.95);
+  cursor: pointer;
+  z-index: 1;
+}
+
+.chronicle-card-delete:hover {
+  background: rgba(236, 122, 122, 0.2);
+}
+
+.chronicle-card-delete:focus-visible {
+  outline: 2px solid rgba(236, 122, 122, 0.45);
+  outline-offset: 3px;
 }
 
 .chronicle-cover {
@@ -721,6 +837,7 @@ html {
   align-items: center;
   justify-content: space-between;
 }
+
 
 .storymirror-empty {
   text-align: center;

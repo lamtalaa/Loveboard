@@ -139,6 +139,8 @@ const state = {
   valentineKeyListener: null,
   chronicleOpen: false,
   chronicleKeyListener: null,
+  storyMenuListener: null,
+  storyMenuKeyListener: null,
   orbitProgress: 0,
   orbitHolding: false,
   orbitFrame: null,
@@ -232,6 +234,9 @@ const ui = {
   orbitReveal: document.getElementById('orbit-reveal'),
   orbitMessage: document.getElementById('orbit-message'),
   viewSwitchButtons: document.querySelectorAll('.view-switch'),
+  storyMenus: document.querySelectorAll('.story-menu'),
+  storyMenuToggles: document.querySelectorAll('.story-menu-toggle'),
+  storyMenuOptions: document.querySelectorAll('.story-menu-option'),
   storyMirrorView: document.getElementById('storymirror-view'),
   storyHeroTitle: document.querySelector('.storymirror-hero h1'),
   storyHeroSubtitle: document.querySelector('.storymirror-subtitle'),
@@ -336,10 +341,12 @@ async function init() {
     btn.addEventListener('click', () => openMoodPicker(btn))
   );
   if (ui.viewSwitchButtons) {
-    ui.viewSwitchButtons.forEach((btn) =>
-      btn.addEventListener('click', () => handleViewSwitch(btn.dataset.view))
-    );
+    ui.viewSwitchButtons.forEach((btn) => {
+      if (btn.classList.contains('story-menu-toggle')) return;
+      btn.addEventListener('click', () => handleViewSwitch(btn.dataset.view));
+    });
   }
+  setupStoryMenus();
   if (ui.constellationClose) {
     ui.constellationClose.addEventListener('click', closeConstellationDetail);
   }
@@ -770,6 +777,7 @@ function resetStoryFlow() {
   state.storyImages = [];
   state.storyImagesComplete = false;
   state.storySaved = false;
+  state.activeChronicle = null;
   renderStoryChapters();
   resetStoryHero();
   setStoryStep(1);
@@ -1462,6 +1470,16 @@ function renderChronicles() {
   state.chronicles.forEach((story) => {
     const card = document.createElement('article');
     card.className = 'chronicle-card';
+    const deleteBtn = document.createElement('button');
+    deleteBtn.type = 'button';
+    deleteBtn.className = 'chronicle-card-delete';
+    deleteBtn.textContent = 'Delete';
+    deleteBtn.setAttribute('aria-label', `Delete ${story.title || 'story'}`);
+    deleteBtn.addEventListener('click', (evt) => {
+      evt.stopPropagation();
+      state.activeChronicle = story;
+      openChronicleDeleteModal();
+    });
     const cover = document.createElement('div');
     cover.className = 'chronicle-cover';
     const img = document.createElement('img');
@@ -1475,10 +1493,29 @@ function renderChronicles() {
     const meta = document.createElement('p');
     meta.className = 'chronicle-meta';
     meta.textContent = `${story.user || ''} · ${formatDate(story.created_at)}`;
-    card.append(cover, title, meta);
-    card.addEventListener('click', () => openChronicleModal(story));
+    card.append(deleteBtn, cover, title, meta);
+    card.addEventListener('click', () => openChronicleStory(story));
     ui.chronicleGrid.appendChild(card);
   });
+}
+
+function openChronicleStory(story) {
+  if (!story) return;
+  state.activeChronicle = story;
+  showStoryMirror();
+  state.storyChapters = Array.isArray(story.chapters) ? story.chapters : [];
+  state.storyImages = Array.isArray(story.images) ? story.images : [];
+  state.storyImagesComplete = true;
+  state.storySaved = true;
+  if (ui.storyMirrorView) {
+    ui.storyMirrorView.classList.add('storymirror-generated');
+  }
+  if (ui.storyFooter) {
+    ui.storyFooter.hidden = false;
+  }
+  setStoryHeroTitle(story.title || 'Our Future, Soon');
+  renderStoryChapters();
+  updateStorySaveButton();
 }
 
 function openChronicleModal(story) {
@@ -1495,17 +1532,22 @@ function closeChronicleModal() {
 }
 
 function openChronicleDeleteModal() {
+  if (!state.activeChronicle) return;
   if (!ui.chronicleDeleteModal) return;
   ui.chronicleDeleteModal.showModal();
 }
 
-function closeChronicleDeleteModal() {
+function closeChronicleDeleteModal(clearActive = true) {
   if (!ui.chronicleDeleteModal) return;
   ui.chronicleDeleteModal.close();
+  if (!clearActive) return;
+  if (!ui.chronicleModal?.open && !state.storyMirrorOpen) {
+    state.activeChronicle = null;
+  }
 }
 
 function confirmChronicleDelete() {
-  closeChronicleDeleteModal();
+  closeChronicleDeleteModal(false);
   deleteActiveChronicle();
 }
 
@@ -1541,6 +1583,7 @@ function renderChronicleModal() {
 async function deleteActiveChronicle() {
   const story = state.activeChronicle;
   if (!story) return;
+  const wasStoryMirrorOpen = state.storyMirrorOpen;
   const { error } = await supabase.from('story_chronicles').delete().eq('id', story.id);
   if (error) {
     showToast(`Couldn't delete story: ${error.message}`, 'error');
@@ -1549,6 +1592,11 @@ async function deleteActiveChronicle() {
   state.chronicles = state.chronicles.filter((item) => item.id !== story.id);
   renderChronicles();
   closeChronicleModal();
+  state.activeChronicle = null;
+  if (wasStoryMirrorOpen) {
+    resetStoryFlow();
+    showChronicle();
+  }
 }
 
 function renderBoard(options = {}) {
@@ -1825,6 +1873,58 @@ function closeMoodMenus() {
   detachMoodClickAway();
 }
 
+function openStoryMenu(menu) {
+  if (!menu) return;
+  menu.classList.add('is-open');
+  const toggle = menu.querySelector('.story-menu-toggle');
+  if (toggle) toggle.setAttribute('aria-expanded', 'true');
+}
+
+function closeStoryMenus(exceptMenu) {
+  document.querySelectorAll('.story-menu').forEach((menu) => {
+    if (exceptMenu && menu === exceptMenu) return;
+    menu.classList.remove('is-open');
+    const toggle = menu.querySelector('.story-menu-toggle');
+    if (toggle) toggle.setAttribute('aria-expanded', 'false');
+  });
+}
+
+function setupStoryMenus() {
+  if (!ui.storyMenus?.length) return;
+  ui.storyMenuToggles.forEach((toggle) => {
+    toggle.addEventListener('click', (evt) => {
+      evt.stopPropagation();
+      const menu = toggle.closest('.story-menu');
+      if (!menu) return;
+      const isOpen = menu.classList.contains('is-open');
+      closeStoryMenus(menu);
+      if (!isOpen) openStoryMenu(menu);
+    });
+  });
+  ui.storyMenuOptions.forEach((option) => {
+    option.addEventListener('click', () => {
+      const targetView = option.dataset.view;
+      closeStoryMenus();
+      handleViewSwitch(targetView);
+    });
+  });
+  if (!state.storyMenuListener) {
+    state.storyMenuListener = (evt) => {
+      if (evt.target.closest('.story-menu')) return;
+      closeStoryMenus();
+    };
+    document.addEventListener('click', state.storyMenuListener);
+  }
+  if (!state.storyMenuKeyListener) {
+    state.storyMenuKeyListener = (evt) => {
+      if (evt.key === 'Escape') {
+        closeStoryMenus();
+      }
+    };
+    document.addEventListener('keydown', state.storyMenuKeyListener, true);
+  }
+}
+
 async function saveMood(emoji) {
   const today = new Date().toISOString().slice(0, 10);
   const changedAt = new Date().toISOString();
@@ -1858,6 +1958,7 @@ async function saveMood(emoji) {
 }
 
 function handleViewSwitch(view) {
+  closeStoryMenus();
   if (!view) return;
   if (view === 'loveboard') {
     showLoveboard();
@@ -2106,7 +2207,8 @@ function cleanupValentineListeners() {
 function updateViewSwitchers(view) {
   if (!ui.viewSwitchButtons) return;
   ui.viewSwitchButtons.forEach((btn) => {
-    const isActive = btn.dataset.view === view;
+    const isStories = btn.dataset.view === 'stories';
+    const isActive = isStories ? view === 'storymirror' || view === 'chronicle' : btn.dataset.view === view;
     btn.classList.toggle('active', isActive);
     btn.setAttribute('aria-current', isActive ? 'page' : 'false');
   });
