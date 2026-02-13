@@ -696,6 +696,10 @@ html {
   position: relative;
 }
 
+.chronicle-card.is-entering {
+  animation: chronicleCardIn 0.5s ease both;
+}
+
 .chronicle-placeholder {
   cursor: default;
   pointer-events: none;
@@ -788,6 +792,17 @@ html {
   }
   100% {
     transform: translateX(220%);
+  }
+}
+
+@keyframes chronicleCardIn {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 

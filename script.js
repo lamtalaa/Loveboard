@@ -1462,11 +1462,12 @@ async function loadChronicles() {
     return;
   }
   state.chronicles = data || [];
-  renderChronicles();
+  renderChronicles({ reveal: true });
 }
 
-function renderChronicles() {
+function renderChronicles(options = {}) {
   if (!ui.chronicleGrid || !ui.chronicleEmpty) return;
+  const { reveal = false } = options;
   ui.chronicleGrid.innerHTML = '';
   if (state.chronicleLoading) {
     ui.chronicleEmpty.hidden = true;
@@ -1490,9 +1491,13 @@ function renderChronicles() {
     return;
   }
   ui.chronicleEmpty.hidden = true;
-  state.chronicles.forEach((story) => {
+  state.chronicles.forEach((story, index) => {
     const card = document.createElement('article');
     card.className = 'chronicle-card';
+    if (reveal) {
+      card.classList.add('is-entering');
+      card.style.animationDelay = `${Math.min(index, 6) * 60}ms`;
+    }
     const deleteBtn = document.createElement('button');
     deleteBtn.type = 'button';
     deleteBtn.className = 'chronicle-card-delete';
