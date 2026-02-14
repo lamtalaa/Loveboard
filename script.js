@@ -178,6 +178,7 @@ const state = {
   storyUserReactions: {},
   storyComments: {},
   storySocialOpen: false,
+  storySocialHideTimer: null,
   ritualProgress: 0,
   ritualFrame: null,
   ritualTimer: null,
@@ -328,7 +329,7 @@ async function init() {
   ui.closeModal.addEventListener('click', () => ui.modal.close());
   if (ui.currentAvatar) {
     ui.currentAvatar.addEventListener('click', () => {
-      const name = state.userDisplay || state.user || 'Unknown';
+      const name = state.userDisplay || getDisplayName(state.user) || 'Unknown';
       showToast(`Signed in as ${name}`, 'info', ui.currentAvatar);
     });
   }
@@ -688,10 +689,30 @@ function applyAppConfig() {
   }
 }
 
+function normalizeUserKey(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, '');
+}
+
+function resolveUserSlot(userId) {
+  const normalized = normalizeUserKey(userId);
+  if (!normalized) return null;
+  const aId = normalizeUserKey(state.userIds.a);
+  const bId = normalizeUserKey(state.userIds.b);
+  if (normalized === aId) return 'a';
+  if (normalized === bId) return 'b';
+  if (['usera', 'a'].includes(normalized)) return 'a';
+  if (['userb', 'b'].includes(normalized)) return 'b';
+  return null;
+}
+
 function getDisplayName(userId) {
-  if (userId === state.userIds.a) return state.appConfig.users.a.display || userId;
-  if (userId === state.userIds.b) return state.appConfig.users.b.display || userId;
-  return userId;
+  const slot = resolveUserSlot(userId);
+  if (slot === 'a') return state.appConfig.users.a.display || state.userIds.a || String(userId || '');
+  if (slot === 'b') return state.appConfig.users.b.display || state.userIds.b || String(userId || '');
+  return String(userId || '');
 }
 
 function getChronicleSelfReadColumns() {
@@ -1112,19 +1133,36 @@ function refreshStorySocialSummary() {
 function openStorySocialSheet() {
   const storyId = getActiveStoryId();
   if (!storyId || !ui.storySocialSheet || !ui.storySocialBackdrop) return;
+  if (state.storySocialHideTimer) {
+    clearTimeout(state.storySocialHideTimer);
+    state.storySocialHideTimer = null;
+  }
   state.storySocialOpen = true;
   ui.storySocialBackdrop.hidden = false;
   ui.storySocialSheet.hidden = false;
   ui.storySocialSheet.setAttribute('aria-hidden', 'false');
+  requestAnimationFrame(() => {
+    ui.storySocialBackdrop?.classList.add('is-visible');
+    ui.storySocialSheet?.classList.add('is-visible');
+  });
   renderStorySocialSheet();
 }
 
 function closeStorySocialSheet() {
   if (!ui.storySocialSheet || !ui.storySocialBackdrop) return;
+  if (state.storySocialHideTimer) {
+    clearTimeout(state.storySocialHideTimer);
+    state.storySocialHideTimer = null;
+  }
   state.storySocialOpen = false;
-  ui.storySocialBackdrop.hidden = true;
-  ui.storySocialSheet.hidden = true;
+  ui.storySocialBackdrop.classList.remove('is-visible');
+  ui.storySocialSheet.classList.remove('is-visible');
   ui.storySocialSheet.setAttribute('aria-hidden', 'true');
+  state.storySocialHideTimer = setTimeout(() => {
+    ui.storySocialBackdrop.hidden = true;
+    ui.storySocialSheet.hidden = true;
+    state.storySocialHideTimer = null;
+  }, 240);
 }
 
 function renderStorySocialSheet() {
@@ -1848,7 +1886,7 @@ function revealOrbit() {
 }
 
 function buildOrbitMessage() {
-  const signature = state.user || 'Your love';
+  const signature = state.userDisplay || getDisplayName(state.user) || 'Your love';
   return `Across every mile, I still end up right here with you. — ${signature}`;
 }
 
