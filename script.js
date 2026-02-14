@@ -664,10 +664,22 @@ function getChronicleOtherReadColumns() {
 
 function getChronicleReadStatus(story) {
   if (!story) return null;
-  const finished = story.finished_by_a_at || story.finished_by_b_at;
-  const opened = story.opened_by_a_at || story.opened_by_b_at;
-  if (finished) return 'finished';
-  if (opened) return 'opened';
+  const author = story.user;
+  const a = state.userIds.a;
+  const b = state.userIds.b;
+  if (author === a) {
+    if (story.finished_by_b_at) return 'finished';
+    if (story.opened_by_b_at) return 'opened';
+    return 'new';
+  }
+  if (author === b) {
+    if (story.finished_by_a_at) return 'finished';
+    if (story.opened_by_a_at) return 'opened';
+    return 'new';
+  }
+  // Fallback: if author is unknown, show global status.
+  if (story.finished_by_a_at || story.finished_by_b_at) return 'finished';
+  if (story.opened_by_a_at || story.opened_by_b_at) return 'opened';
   return 'new';
 }
 
