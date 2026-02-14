@@ -8,16 +8,27 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 const STORY_PROMPT_KEY = 'storymirror_prompt_template';
 const PROFILE_CONFIG_KEY = 'loveboard_private';
+const STORY_ALLOWED_ORIGINS = Deno.env.get('STORY_ALLOWED_ORIGINS') ?? '';
 
-const ALLOWED_ORIGINS = new Set([
-  'https://yani.love'
-]);
+const DEFAULT_ALLOWED_ORIGINS = [
+  'https://yani.love',
+  'http://localhost:5173',
+  'http://127.0.0.1:5173'
+];
+const ALLOWED_ORIGINS = new Set(
+  (STORY_ALLOWED_ORIGINS || DEFAULT_ALLOWED_ORIGINS.join(','))
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean)
+);
 
 function getCorsHeaders(req: Request) {
   const origin = req.headers.get('origin') || '';
-  const allowedOrigin = ALLOWED_ORIGINS.has(origin) ? origin : '';
+  const allowedOrigin = ALLOWED_ORIGINS.has(origin)
+    ? origin
+    : Array.from(ALLOWED_ORIGINS)[0] || '';
   return {
-    'Access-Control-Allow-Origin': allowedOrigin || 'https://yani.love',
+    'Access-Control-Allow-Origin': allowedOrigin,
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Vary': 'Origin'
