@@ -141,6 +141,7 @@ const state = {
   chronicleKeyListener: null,
   storyMenuListener: null,
   storyMenuKeyListener: null,
+  storyReadTicking: false,
   orbitProgress: 0,
   orbitHolding: false,
   orbitFrame: null,
@@ -428,6 +429,9 @@ function setupStoryMirror() {
   if (ui.storySaveBtn) {
     ui.storySaveBtn.addEventListener('click', saveStoryChronicle);
   }
+  if (ui.storyOutput) {
+    ui.storyOutput.addEventListener('scroll', handleStoryOutputScroll, { passive: true });
+  }
   if (ui.storyBackBtn) {
     ui.storyBackBtn.addEventListener('click', () => {
       if (state.activeChronicle) {
@@ -632,6 +636,92 @@ function getDisplayName(userId) {
   if (userId === state.userIds.a) return state.appConfig.users.a.display || userId;
   if (userId === state.userIds.b) return state.appConfig.users.b.display || userId;
   return userId;
+}
+
+function getChronicleReadColumns() {
+  if (!state.user) return null;
+  if (state.user === state.userIds.a) {
+    return { opened: 'opened_by_a_at', finished: 'finished_by_a_at' };
+  }
+  if (state.user === state.userIds.b) {
+    return { opened: 'opened_by_b_at', finished: 'finished_by_b_at' };
+  }
+  return null;
+}
+
+function getChronicleReadStatus(story) {
+  const cols = getChronicleReadColumns();
+  if (!cols || !story) return null;
+  if (story[cols.finished]) return 'finished';
+  if (story[cols.opened]) return 'opened';
+  return 'new';
+}
+
+function applyChronicleReadStatus(storyId, updates) {
+  const index = state.chronicles.findIndex((item) => item.id === storyId);
+  if (index >= 0) {
+    state.chronicles[index] = { ...state.chronicles[index], ...updates };
+  }
+  if (state.activeChronicle?.id === storyId) {
+    state.activeChronicle = { ...state.activeChronicle, ...updates };
+  }
+}
+
+async function markChronicleOpened(story) {
+  const cols = getChronicleReadColumns();
+  if (!cols || !story?.id) return;
+  if (story[cols.opened]) return;
+  if (story.user && story.user === state.user) return;
+  const timestamp = new Date().toISOString();
+  try {
+    const { error } = await supabase
+      .from('story_chronicles')
+      .update({ [cols.opened]: timestamp })
+      .eq('id', story.id);
+    if (error) throw error;
+    applyChronicleReadStatus(story.id, { [cols.opened]: timestamp });
+    renderChronicles();
+  } catch (err) {
+    console.warn('chronicle open', err);
+  }
+}
+
+async function markChronicleFinished(story) {
+  const cols = getChronicleReadColumns();
+  if (!cols || !story?.id) return;
+  if (story[cols.finished]) return;
+  if (story.user && story.user === state.user) return;
+  const timestamp = new Date().toISOString();
+  const updates = { [cols.finished]: timestamp };
+  if (!story[cols.opened]) {
+    updates[cols.opened] = timestamp;
+  }
+  try {
+    const { error } = await supabase
+      .from('story_chronicles')
+      .update(updates)
+      .eq('id', story.id);
+    if (error) throw error;
+    applyChronicleReadStatus(story.id, updates);
+    renderChronicles();
+  } catch (err) {
+    console.warn('chronicle finish', err);
+  }
+}
+
+function handleStoryOutputScroll() {
+  if (state.storyReadTicking) return;
+  if (!state.activeChronicle || !state.storyMirrorOpen) return;
+  if (!ui.storyMirrorView?.classList.contains('storymirror-chronicle')) return;
+  state.storyReadTicking = true;
+  requestAnimationFrame(() => {
+    state.storyReadTicking = false;
+    if (!ui.storyOutput) return;
+    const remaining = ui.storyOutput.scrollHeight - ui.storyOutput.scrollTop - ui.storyOutput.clientHeight;
+    if (remaining <= 32) {
+      markChronicleFinished(state.activeChronicle);
+    }
+  });
 }
 
 async function loadStoryDefaults() {
@@ -1590,6 +1680,14 @@ function renderChronicles(options = {}) {
     meta.textContent = authorName
       ? `${authorName} · ${formatDate(story.created_at)}`
       : formatDate(story.created_at);
+    const status = getChronicleReadStatus(story);
+    if (status) {
+      const badge = document.createElement('span');
+      badge.className = `chronicle-status chronicle-status--${status}`;
+      badge.textContent = status === 'new' ? 'New' : status === 'opened' ? '🤍' : '💖';
+      badge.setAttribute('aria-label', status);
+      card.appendChild(badge);
+    }
     card.append(deleteBtn, cover, title, meta);
     card.addEventListener('click', () => openChronicleStory(story));
     ui.chronicleGrid.appendChild(card);
@@ -1600,6 +1698,7 @@ function openChronicleStory(story) {
   if (!story) return;
   state.activeChronicle = story;
   showStoryMirror();
+  markChronicleOpened(story);
   state.storyChapters = Array.isArray(story.chapters) ? story.chapters : [];
   state.storyImages = Array.isArray(story.images) ? story.images : [];
   state.storyImagesComplete = true;
@@ -1617,6 +1716,7 @@ function openChronicleStory(story) {
 function openChronicleModal(story) {
   if (!ui.chronicleModal) return;
   state.activeChronicle = story;
+  markChronicleOpened(story);
   renderChronicleModal();
   ui.chronicleModal.showModal();
 }

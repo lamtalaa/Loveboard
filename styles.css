@@ -721,6 +721,33 @@ html {
   position: relative;
 }
 
+.chronicle-status {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  font-family: 'Work Sans', sans-serif;
+  font-size: 0.7rem;
+  letter-spacing: 0.02em;
+  background: rgba(255, 228, 235, 0.95);
+  color: #a0476b;
+  box-shadow: 0 6px 16px rgba(118, 72, 94, 0.16);
+}
+
+.chronicle-status--opened,
+.chronicle-status--finished {
+  padding: 0.2rem 0.55rem;
+  font-size: 0.85rem;
+  line-height: 1;
+  background: rgba(255, 255, 255, 0.92);
+  color: #d4578c;
+}
+
+.chronicle-status--finished {
+  background: rgba(255, 210, 226, 0.95);
+}
+
 .chronicle-card.is-entering {
   animation: chronicleCardIn 0.5s ease both;
 }
