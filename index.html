@@ -746,6 +746,15 @@ Our home at night felt soft and safe…"
         <section class="storymirror-output" id="story-output" aria-live="polite">
           <header class="storymirror-output-header">
             <h2>It begins here</h2>
+            <button
+              type="button"
+              class="story-social-trigger"
+              id="story-social-trigger"
+              aria-label="Open story reactions and comments"
+              hidden
+            >
+              <span id="story-social-summary">✨ 0 · 💬 0</span>
+            </button>
           </header>
           <div class="storymirror-empty" id="story-empty">
             <p>Your future chapters will appear here.</p>
@@ -775,6 +784,39 @@ Our home at night felt soft and safe…"
           </p>
         </div>
       </div>
+
+      <div class="story-social-backdrop" id="story-social-backdrop" hidden></div>
+      <aside
+        class="story-social-sheet"
+        id="story-social-sheet"
+        hidden
+        aria-hidden="true"
+        aria-label="Story reactions and comments"
+      >
+        <header class="story-social-head">
+          <h3 id="story-social-title">Story reactions</h3>
+          <button type="button" id="story-social-close" aria-label="Close">×</button>
+        </header>
+        <section class="story-social-block" aria-label="Reactions">
+          <p class="story-social-label">Leave a stamp</p>
+          <div class="story-social-stamps" id="story-social-stamps"></div>
+          <div class="story-social-counts" id="story-social-counts"></div>
+        </section>
+        <section class="story-social-block story-social-comments-block" aria-label="Comments">
+          <p class="story-social-label">Comments</p>
+          <div class="story-social-comments" id="story-social-comments"></div>
+          <form class="story-social-form" id="story-social-form">
+            <input
+              type="text"
+              id="story-social-input"
+              name="comment"
+              maxlength="280"
+              placeholder="Leave a note for this chapter"
+            />
+            <button type="submit">Send</button>
+          </form>
+        </section>
+      </aside>
 </div>
     </section>
 
@@ -849,6 +891,21 @@ Our home at night felt soft and safe…"
         </header>
         <div class="chronicle-modal-body" id="chronicle-modal-body"></div>
         <button type="button" class="danger-btn" id="chronicle-delete">Delete story</button>
+      </div>
+    </dialog>
+
+    <dialog id="chronicle-actions-modal" class="modal">
+      <div class="modal-content chronicle-actions-modal">
+        <header>
+          <h2>Story options</h2>
+        </header>
+        <div class="chronicle-actions-list">
+          <button type="button" class="primary" id="chronicle-actions-open">Open story</button>
+          <button type="button" class="danger-btn chronicle-actions-danger" id="chronicle-actions-delete">
+            Delete story
+          </button>
+          <button type="button" class="ghost" id="chronicle-actions-cancel">Cancel</button>
+        </div>
       </div>
     </dialog>
 

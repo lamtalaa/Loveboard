@@ -28,6 +28,14 @@ const REACTIONS = [
   { emoji: '🌙', label: 'Dreaming of you' },
   { emoji: '🌸', label: 'Blooming love' }
 ];
+const STORY_REACTIONS = [
+  { emoji: '✨', label: 'Spark' },
+  { emoji: '🕯️', label: 'Tender' },
+  { emoji: '💫', label: 'Dreamy' },
+  { emoji: '💗', label: 'Heart' },
+  { emoji: '🔥', label: 'Intense' },
+  { emoji: '🌙', label: 'Soft night' }
+];
 const ORBIT_SPARKS = [
   'Your voice feels like home.',
   'I feel you even across oceans.',
@@ -166,6 +174,10 @@ const state = {
   chronicleLoading: false,
   chroniclePlaceholderCount: 4,
   activeChronicle: null,
+  storyReactions: {},
+  storyUserReactions: {},
+  storyComments: {},
+  storySocialOpen: false,
   ritualProgress: 0,
   ritualFrame: null,
   ritualTimer: null,
@@ -285,9 +297,24 @@ const ui = {
   chronicleModalTitle: document.getElementById('chronicle-modal-title'),
   chronicleModalBody: document.getElementById('chronicle-modal-body'),
   chronicleDelete: document.getElementById('chronicle-delete'),
+  chronicleActionsModal: document.getElementById('chronicle-actions-modal'),
+  chronicleActionsOpen: document.getElementById('chronicle-actions-open'),
+  chronicleActionsDelete: document.getElementById('chronicle-actions-delete'),
+  chronicleActionsCancel: document.getElementById('chronicle-actions-cancel'),
   chronicleDeleteModal: document.getElementById('chronicle-delete-modal'),
   chronicleDeleteCancel: document.getElementById('chronicle-delete-cancel'),
   chronicleDeleteConfirm: document.getElementById('chronicle-delete-confirm'),
+  storySocialTrigger: document.getElementById('story-social-trigger'),
+  storySocialSummary: document.getElementById('story-social-summary'),
+  storySocialBackdrop: document.getElementById('story-social-backdrop'),
+  storySocialSheet: document.getElementById('story-social-sheet'),
+  storySocialTitle: document.getElementById('story-social-title'),
+  storySocialClose: document.getElementById('story-social-close'),
+  storySocialStamps: document.getElementById('story-social-stamps'),
+  storySocialCounts: document.getElementById('story-social-counts'),
+  storySocialComments: document.getElementById('story-social-comments'),
+  storySocialForm: document.getElementById('story-social-form'),
+  storySocialInput: document.getElementById('story-social-input'),
 };
 
 const template = document.getElementById('postcard-template');
@@ -328,6 +355,21 @@ async function init() {
   }
   if (ui.chronicleDelete) {
     ui.chronicleDelete.addEventListener('click', openChronicleDeleteModal);
+  }
+  if (ui.chronicleActionsModal) {
+    ui.chronicleActionsModal.addEventListener('cancel', (evt) => {
+      evt.preventDefault();
+      closeChronicleActionsModal();
+    });
+  }
+  if (ui.chronicleActionsOpen) {
+    ui.chronicleActionsOpen.addEventListener('click', handleChronicleActionOpen);
+  }
+  if (ui.chronicleActionsDelete) {
+    ui.chronicleActionsDelete.addEventListener('click', handleChronicleActionDelete);
+  }
+  if (ui.chronicleActionsCancel) {
+    ui.chronicleActionsCancel.addEventListener('click', closeChronicleActionsModal);
   }
   if (ui.chronicleDeleteCancel) {
     ui.chronicleDeleteCancel.addEventListener('click', closeChronicleDeleteModal);
@@ -441,6 +483,18 @@ function setupStoryMirror() {
       }
       showChronicle();
     });
+  }
+  if (ui.storySocialTrigger) {
+    ui.storySocialTrigger.addEventListener('click', openStorySocialSheet);
+  }
+  if (ui.storySocialClose) {
+    ui.storySocialClose.addEventListener('click', closeStorySocialSheet);
+  }
+  if (ui.storySocialBackdrop) {
+    ui.storySocialBackdrop.addEventListener('click', closeStorySocialSheet);
+  }
+  if (ui.storySocialForm) {
+    ui.storySocialForm.addEventListener('submit', handleStoryCommentSubmit);
   }
   updateChapterEstimate();
   cacheStoryHeroDefaults();
@@ -712,7 +766,14 @@ function removeChronicleById(id) {
   const next = state.chronicles.filter((item) => item.id !== id);
   if (next.length === state.chronicles.length) return;
   state.chronicles = next;
+  delete state.storyReactions[id];
+  delete state.storyUserReactions[id];
+  delete state.storyComments[id];
+  if (state.activeChronicle?.id === id) {
+    closeStorySocialSheet();
+  }
   renderChronicles();
+  refreshStorySocialSummary();
 }
 
 async function markChronicleOpened(story) {
@@ -955,6 +1016,7 @@ function resetStoryHero() {
 }
 
 function resetStoryFlow() {
+  closeStorySocialSheet();
   setStoryChronicleMode(false);
   if (ui.storyMirrorView) {
     ui.storyMirrorView.classList.remove('storymirror-generated');
@@ -972,6 +1034,7 @@ function resetStoryFlow() {
   setStoryStep(1);
   updateStorySaveButton();
   updateStoryBackButton();
+  refreshStorySocialSummary();
   if (ui.storyOutput) {
     ui.storyOutput.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
@@ -1009,7 +1072,276 @@ function setStoryChronicleMode(enabled) {
   if (ui.storyFooter) {
     ui.storyFooter.hidden = enabled;
   }
+  if (!enabled) {
+    closeStorySocialSheet();
+  }
+  refreshStorySocialSummary();
   updateStoryBackButton();
+}
+
+function getActiveStoryId() {
+  return state.activeChronicle?.id || null;
+}
+
+function getStoryReactionTotal(storyId) {
+  if (!storyId) return 0;
+  return Object.values(state.storyReactions[storyId] || {}).reduce((total, bucket) => {
+    const count = Number(bucket?.count || 0);
+    return total + (Number.isFinite(count) ? count : 0);
+  }, 0);
+}
+
+function refreshStorySocialSummary() {
+  if (!ui.storySocialTrigger || !ui.storySocialSummary) return;
+  const storyId = getActiveStoryId();
+  const isChronicleMode = Boolean(ui.storyMirrorView?.classList.contains('storymirror-chronicle'));
+  const shouldShow = Boolean(storyId && state.storyMirrorOpen && isChronicleMode);
+  ui.storySocialTrigger.hidden = !shouldShow;
+  if (!shouldShow) {
+    closeStorySocialSheet();
+    return;
+  }
+  const reactionCount = getStoryReactionTotal(storyId);
+  const commentCount = (state.storyComments[storyId] || []).length;
+  ui.storySocialSummary.textContent = `✨ ${reactionCount} · 💬 ${commentCount}`;
+  if (state.storySocialOpen) {
+    renderStorySocialSheet();
+  }
+}
+
+function openStorySocialSheet() {
+  const storyId = getActiveStoryId();
+  if (!storyId || !ui.storySocialSheet || !ui.storySocialBackdrop) return;
+  state.storySocialOpen = true;
+  ui.storySocialBackdrop.hidden = false;
+  ui.storySocialSheet.hidden = false;
+  ui.storySocialSheet.setAttribute('aria-hidden', 'false');
+  renderStorySocialSheet();
+}
+
+function closeStorySocialSheet() {
+  if (!ui.storySocialSheet || !ui.storySocialBackdrop) return;
+  state.storySocialOpen = false;
+  ui.storySocialBackdrop.hidden = true;
+  ui.storySocialSheet.hidden = true;
+  ui.storySocialSheet.setAttribute('aria-hidden', 'true');
+}
+
+function renderStorySocialSheet() {
+  const storyId = getActiveStoryId();
+  if (!storyId || !ui.storySocialSheet) return;
+  if (ui.storySocialTitle) {
+    const title = state.activeChronicle?.title || 'Story reactions';
+    ui.storySocialTitle.textContent = `${title}`;
+  }
+  renderStoryStampPicker(storyId);
+  renderStoryReactionCounts(storyId);
+  renderStoryComments(storyId);
+}
+
+function renderStoryStampPicker(storyId) {
+  if (!ui.storySocialStamps) return;
+  ui.storySocialStamps.innerHTML = '';
+  STORY_REACTIONS.forEach(({ emoji, label }) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'story-social-stamp';
+    btn.textContent = emoji;
+    btn.title = label;
+    if (state.storyUserReactions[storyId] === emoji) {
+      btn.classList.add('is-active');
+    }
+    btn.disabled = !state.user;
+    btn.addEventListener('click', () => handleStoryReactionSelection(storyId, emoji));
+    ui.storySocialStamps.appendChild(btn);
+  });
+}
+
+function renderStoryReactionCounts(storyId) {
+  if (!ui.storySocialCounts) return;
+  ui.storySocialCounts.innerHTML = '';
+  const entries = Object.entries(state.storyReactions[storyId] || {})
+    .filter(([, data]) => data && data.count > 0)
+    .sort((a, b) => (b[1]?.count || 0) - (a[1]?.count || 0));
+  if (!entries.length) {
+    const empty = document.createElement('p');
+    empty.className = 'story-social-empty';
+    empty.textContent = 'No stamps yet.';
+    ui.storySocialCounts.appendChild(empty);
+    return;
+  }
+  entries.forEach(([emoji, bucket]) => {
+    const pill = document.createElement('span');
+    pill.className = 'story-social-count-pill';
+    pill.textContent = `${emoji} ${bucket.count}`;
+    ui.storySocialCounts.appendChild(pill);
+  });
+}
+
+function renderStoryComments(storyId) {
+  if (!ui.storySocialComments) return;
+  ui.storySocialComments.innerHTML = '';
+  const comments = state.storyComments[storyId] || [];
+  if (!comments.length) {
+    const empty = document.createElement('p');
+    empty.className = 'story-social-empty';
+    empty.textContent = 'No comments yet.';
+    ui.storySocialComments.appendChild(empty);
+    return;
+  }
+  comments.forEach((entry) => {
+    const row = document.createElement('article');
+    row.className = 'story-social-comment';
+    if (entry.user === state.user) {
+      row.classList.add('mine');
+    }
+    const meta = document.createElement('div');
+    meta.className = 'story-social-comment-meta';
+    const author = document.createElement('span');
+    author.className = 'story-social-comment-author';
+    author.textContent = getDisplayName(entry.user);
+    const time = document.createElement('span');
+    time.textContent = formatCommentTime(entry.created_at);
+    meta.append(author, time);
+    if (entry.user === state.user) {
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'story-social-comment-delete';
+      del.textContent = 'Delete';
+      del.addEventListener('click', () => handleStoryCommentDelete(storyId, entry.id));
+      meta.appendChild(del);
+    }
+    const text = document.createElement('p');
+    text.className = 'story-social-comment-text';
+    text.textContent = entry.comment || '';
+    row.append(meta, text);
+    ui.storySocialComments.appendChild(row);
+  });
+}
+
+async function handleStoryReactionSelection(storyId, reaction) {
+  if (!storyId || !reaction) return;
+  const current = state.storyUserReactions[storyId];
+  if (current === reaction) {
+    await removeStoryReaction(storyId, reaction);
+  } else {
+    if (current) {
+      await removeStoryReaction(storyId, current);
+    }
+    await addStoryReaction(storyId, reaction);
+  }
+}
+
+async function addStoryReaction(storyId, reaction) {
+  if (!state.user || !storyId || !reaction) return;
+  const row = { story_id: storyId, reaction, user: state.user };
+  const { error } = await supabase.from('story_reactions').insert(row);
+  if (error) {
+    console.error('story reaction save', error);
+    showToast('Could not add story reaction.', 'error');
+    return;
+  }
+  applyStoryReactionRow(row);
+  refreshStorySocialSummary();
+  await broadcastCommentEvent('storyReaction:add', { row, sender: state.user });
+  sendWhatsAppNotification({
+    type: 'story',
+    sender: state.user,
+    action: 'storyReaction:add',
+    teaser: reaction,
+    link: getShareLink()
+  });
+}
+
+async function removeStoryReaction(storyId, reaction) {
+  if (!state.user || !storyId || !reaction) return;
+  const { error } = await supabase
+    .from('story_reactions')
+    .delete()
+    .match({ story_id: storyId, user: state.user, reaction });
+  if (error) {
+    console.error('story reaction delete', error);
+    return;
+  }
+  removeStoryReactionRow({ story_id: storyId, reaction, user: state.user });
+  refreshStorySocialSummary();
+  await broadcastCommentEvent('storyReaction:remove', {
+    row: { story_id: storyId, reaction, user: state.user },
+    sender: state.user
+  });
+  sendWhatsAppNotification({
+    type: 'story',
+    sender: state.user,
+    action: 'storyReaction:remove',
+    teaser: reaction,
+    link: getShareLink()
+  });
+}
+
+async function handleStoryCommentSubmit(evt) {
+  evt.preventDefault();
+  const storyId = getActiveStoryId();
+  if (!state.user || !storyId || !ui.storySocialInput) return;
+  const text = ui.storySocialInput.value.trim();
+  if (!text) return;
+  const button = ui.storySocialForm?.querySelector('button[type="submit"]');
+  const oldLabel = button?.textContent || 'Send';
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Sending…';
+  }
+  try {
+    const { data, error } = await supabase
+      .from('story_comments')
+      .insert({ story_id: storyId, user: state.user, comment: text })
+      .select()
+      .single();
+    if (error) throw error;
+    applyStoryCommentRow(data);
+    refreshStorySocialSummary();
+    ui.storySocialInput.value = '';
+    await broadcastCommentEvent('storyComment:new', { ...data, sender: state.user });
+    sendWhatsAppNotification({
+      type: 'story',
+      sender: state.user,
+      action: 'storyComment:new',
+      teaser: clipText(text, 120),
+      link: getShareLink()
+    });
+  } catch (error) {
+    console.error('story comment save', error);
+    showToast('Could not send story comment.', 'error');
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = oldLabel;
+    }
+  }
+}
+
+async function handleStoryCommentDelete(storyId, commentId) {
+  if (!state.user || !storyId || !commentId) return;
+  const ok = window.confirm('Delete this story comment?');
+  if (!ok) return;
+  const { error } = await supabase.from('story_comments').delete().eq('id', commentId);
+  if (error) {
+    console.error('story comment delete', error);
+    showToast('Failed to delete story comment.', 'error');
+    return;
+  }
+  removeStoryCommentRow({ story_id: storyId, id: commentId, user: state.user });
+  refreshStorySocialSummary();
+  await broadcastCommentEvent('storyComment:delete', {
+    story_id: storyId,
+    id: commentId,
+    sender: state.user
+  });
+  sendWhatsAppNotification({
+    type: 'story',
+    sender: state.user,
+    action: 'storyComment:delete',
+    link: getShareLink()
+  });
 }
 
 async function saveStoryChronicle() {
@@ -1697,7 +2029,42 @@ async function loadChronicles() {
     return;
   }
   state.chronicles = data || [];
+  await Promise.all([loadStoryReactions(), loadStoryComments()]);
   renderChronicles({ reveal: true });
+  refreshStorySocialSummary();
+}
+
+async function loadStoryReactions() {
+  const { data, error } = await supabase
+    .from('story_reactions')
+    .select('story_id,reaction,user');
+  if (error) {
+    if (!isMissingTableError(error)) {
+      console.error('story reactions load', error);
+    }
+    state.storyReactions = {};
+    state.storyUserReactions = {};
+    return;
+  }
+  state.storyReactions = {};
+  state.storyUserReactions = {};
+  (data || []).forEach(applyStoryReactionRow);
+}
+
+async function loadStoryComments() {
+  const { data, error } = await supabase
+    .from('story_comments')
+    .select('id,story_id,user,comment,created_at')
+    .order('created_at', { ascending: true });
+  if (error) {
+    if (!isMissingTableError(error)) {
+      console.error('story comments load', error);
+    }
+    state.storyComments = {};
+    return;
+  }
+  state.storyComments = {};
+  (data || []).forEach(applyStoryCommentRow);
 }
 
 function renderChronicles(options = {}) {
@@ -1733,17 +2100,6 @@ function renderChronicles(options = {}) {
       card.classList.add('is-entering');
       card.style.animationDelay = `${Math.min(index, 6) * 60}ms`;
     }
-    const deleteBtn = document.createElement('button');
-    deleteBtn.type = 'button';
-    deleteBtn.className = 'chronicle-card-delete';
-    deleteBtn.textContent = '×';
-    deleteBtn.setAttribute('aria-label', `Delete ${story.title || 'story'}`);
-    deleteBtn.setAttribute('title', 'Delete story');
-    deleteBtn.addEventListener('click', (evt) => {
-      evt.stopPropagation();
-      state.activeChronicle = story;
-      openChronicleDeleteModal();
-    });
     const cover = document.createElement('div');
     cover.className = 'chronicle-cover';
     const img = document.createElement('img');
@@ -1768,8 +2124,38 @@ function renderChronicles(options = {}) {
       badge.setAttribute('aria-label', status);
       card.appendChild(badge);
     }
-    card.append(deleteBtn, cover, title, meta);
-    card.addEventListener('click', () => openChronicleStory(story));
+    let holdTimer = null;
+    let longPressed = false;
+    const clearHold = () => {
+      if (holdTimer) {
+        clearTimeout(holdTimer);
+        holdTimer = null;
+      }
+    };
+    const startHold = (evt) => {
+      if (evt.button !== undefined && evt.button !== 0) return;
+      longPressed = false;
+      clearHold();
+      holdTimer = setTimeout(() => {
+        longPressed = true;
+        state.activeChronicle = story;
+        openChronicleActionsModal();
+      }, 520);
+    };
+    card.addEventListener('pointerdown', startHold);
+    card.addEventListener('pointerup', clearHold);
+    card.addEventListener('pointerleave', clearHold);
+    card.addEventListener('pointercancel', clearHold);
+    card.append(cover, title, meta);
+    card.addEventListener('click', (evt) => {
+      if (longPressed) {
+        evt.preventDefault();
+        evt.stopPropagation();
+        longPressed = false;
+        return;
+      }
+      openChronicleStory(story);
+    });
     ui.chronicleGrid.appendChild(card);
   });
 }
@@ -1791,6 +2177,7 @@ function openChronicleStory(story) {
   renderStoryChapters();
   updateStorySaveButton();
   updateStoryBackButton();
+  refreshStorySocialSummary();
 }
 
 function openChronicleModal(story) {
@@ -1807,6 +2194,28 @@ function closeChronicleModal() {
   state.activeChronicle = null;
 }
 
+function openChronicleActionsModal() {
+  if (!state.activeChronicle || !ui.chronicleActionsModal) return;
+  ui.chronicleActionsModal.showModal();
+}
+
+function closeChronicleActionsModal() {
+  if (!ui.chronicleActionsModal) return;
+  ui.chronicleActionsModal.close();
+}
+
+function handleChronicleActionOpen() {
+  const story = state.activeChronicle;
+  closeChronicleActionsModal();
+  if (!story) return;
+  openChronicleStory(story);
+}
+
+function handleChronicleActionDelete() {
+  closeChronicleActionsModal();
+  openChronicleDeleteModal();
+}
+
 function openChronicleDeleteModal() {
   if (!state.activeChronicle) return;
   if (!ui.chronicleDeleteModal) return;
@@ -1817,7 +2226,7 @@ function closeChronicleDeleteModal(clearActive = true) {
   if (!ui.chronicleDeleteModal) return;
   ui.chronicleDeleteModal.close();
   if (!clearActive) return;
-  if (!ui.chronicleModal?.open && !state.storyMirrorOpen) {
+  if (!ui.chronicleModal?.open && !ui.chronicleActionsModal?.open && !state.storyMirrorOpen) {
     state.activeChronicle = null;
   }
 }
@@ -1866,13 +2275,18 @@ async function deleteActiveChronicle() {
     return;
   }
   state.chronicles = state.chronicles.filter((item) => item.id !== story.id);
+  delete state.storyReactions[story.id];
+  delete state.storyUserReactions[story.id];
+  delete state.storyComments[story.id];
   renderChronicles();
   closeChronicleModal();
+  closeStorySocialSheet();
   state.activeChronicle = null;
   if (wasStoryMirrorOpen) {
     resetStoryFlow();
     showChronicle();
   }
+  refreshStorySocialSummary();
   sendWhatsAppNotification({
     type: 'story',
     sender: state.user,
@@ -2287,6 +2701,8 @@ function showLoveboard() {
   if (!ui.loveboardView) return;
   const current = getActiveView();
   if (current === ui.loveboardView) return;
+  closeChronicleActionsModal();
+  closeStorySocialSheet();
   const focusTarget = ui.viewSwitchButtons?.[0];
   switchView(ui.loveboardView, current, () => focusTarget?.focus());
   state.ldAppOpen = false;
@@ -2306,6 +2722,7 @@ function showLdApp() {
   if (!ui.ldAppView) return;
   const current = getActiveView();
   if (current === ui.ldAppView) return;
+  closeStorySocialSheet();
   switchView(ui.ldAppView, current);
   state.ldAppOpen = true;
   state.constellationOpen = false;
@@ -2324,6 +2741,7 @@ function showStoryMirror() {
   if (!ui.storyMirrorView) return;
   const current = getActiveView();
   if (current === ui.storyMirrorView) return;
+  closeChronicleActionsModal();
   switchView(ui.storyMirrorView, current);
   state.storyMirrorOpen = true;
   state.ldAppOpen = false;
@@ -2338,12 +2756,15 @@ function showStoryMirror() {
   cleanupChronicleListeners();
   attachStoryMirrorListeners();
   updateStoryBackButton();
+  refreshStorySocialSummary();
 }
 
 function showChronicle() {
   if (!ui.chronicleView) return;
   const current = getActiveView();
   if (current === ui.chronicleView) return;
+  closeChronicleActionsModal();
+  closeStorySocialSheet();
   switchView(ui.chronicleView, current);
   state.chronicleOpen = true;
   state.storyMirrorOpen = false;
@@ -2362,6 +2783,7 @@ function showConstellation() {
   if (!ui.constellationView) return;
   const current = getActiveView();
   if (current === ui.constellationView) return;
+  closeStorySocialSheet();
   switchView(ui.constellationView, current);
   state.constellationOpen = true;
   state.ldAppOpen = false;
@@ -2382,6 +2804,7 @@ function showValentine() {
   if (!ui.valentineView) return;
   const current = getActiveView();
   if (current === ui.valentineView) return;
+  closeStorySocialSheet();
   switchView(ui.valentineView, current);
   state.valentineOpen = true;
   state.ldAppOpen = false;
@@ -2420,6 +2843,10 @@ function attachStoryMirrorListeners() {
   if (!state.storyMirrorKeyListener) {
     state.storyMirrorKeyListener = (evt) => {
       if (evt.key === 'Escape') {
+        if (state.storySocialOpen) {
+          closeStorySocialSheet();
+          return;
+        }
         showLoveboard();
       }
     };
@@ -2438,7 +2865,11 @@ function attachChronicleListeners() {
   if (!state.chronicleKeyListener) {
     state.chronicleKeyListener = (evt) => {
       if (evt.key === 'Escape') {
-        if (ui.chronicleModal?.open) {
+        if (ui.chronicleDeleteModal?.open) {
+          closeChronicleDeleteModal();
+        } else if (ui.chronicleActionsModal?.open) {
+          closeChronicleActionsModal();
+        } else if (ui.chronicleModal?.open) {
           closeChronicleModal();
         } else {
           showLoveboard();
@@ -3172,12 +3603,30 @@ function subscribeRealtime() {
     })
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'story_chronicles' }, (payload) => {
       applyChronicleRemoteUpdate(payload.new);
+      refreshStorySocialSummary();
     })
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'story_chronicles' }, (payload) => {
       applyChronicleRemoteUpdate(payload.new);
+      refreshStorySocialSummary();
     })
     .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'story_chronicles' }, (payload) => {
       removeChronicleById(payload.old?.id);
+    })
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'story_reactions' }, (payload) => {
+      applyStoryReactionRow(payload.new);
+      refreshStorySocialSummary();
+    })
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'story_reactions' }, (payload) => {
+      removeStoryReactionRow(payload.old);
+      refreshStorySocialSummary();
+    })
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'story_comments' }, (payload) => {
+      applyStoryCommentRow(payload.new);
+      refreshStorySocialSummary();
+    })
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'story_comments' }, (payload) => {
+      removeStoryCommentRow(payload.old);
+      refreshStorySocialSummary();
     })
     .subscribe();
 }
@@ -3235,6 +3684,26 @@ function subscribeCommentBroadcast() {
       if (!payload?.postcard_id) return;
       removePostcard(payload.postcard_id);
       renderBoard();
+    })
+    .on('broadcast', { event: 'storyReaction:add' }, ({ payload }) => {
+      if (!payload?.row || payload?.sender === state.user) return;
+      applyStoryReactionRow(payload.row);
+      refreshStorySocialSummary();
+    })
+    .on('broadcast', { event: 'storyReaction:remove' }, ({ payload }) => {
+      if (!payload?.row || payload?.sender === state.user) return;
+      removeStoryReactionRow(payload.row);
+      refreshStorySocialSummary();
+    })
+    .on('broadcast', { event: 'storyComment:new' }, ({ payload }) => {
+      if (!payload || payload?.sender === state.user) return;
+      applyStoryCommentRow(payload);
+      refreshStorySocialSummary();
+    })
+    .on('broadcast', { event: 'storyComment:delete' }, ({ payload }) => {
+      if (!payload || payload?.sender === state.user) return;
+      removeStoryCommentRow(payload);
+      refreshStorySocialSummary();
     })
     .subscribe((status) => {
       if (status === 'SUBSCRIBED') {
@@ -3486,6 +3955,90 @@ function removeCommentRow(row) {
   delete state.commentUserReactions[commentId];
   if (state.editingComment && state.editingComment.commentId === commentId) {
     state.editingComment = null;
+  }
+}
+
+function applyStoryReactionRow(row) {
+  const storyId = row?.story_id;
+  const reaction = row?.reaction;
+  const user = row?.user;
+  if (!storyId || !reaction) return;
+  if (!state.storyReactions[storyId]) {
+    state.storyReactions[storyId] = {};
+  }
+  if (user) {
+    Object.entries(state.storyReactions[storyId]).forEach(([emoji, bucket]) => {
+      if (!bucket || emoji === reaction) return;
+      if (bucket.users.includes(user)) {
+        bucket.users = bucket.users.filter((name) => name !== user);
+        bucket.count = Math.max(0, bucket.count - 1);
+        if (!bucket.count) {
+          delete state.storyReactions[storyId][emoji];
+        }
+      }
+    });
+  }
+  if (!state.storyReactions[storyId][reaction]) {
+    state.storyReactions[storyId][reaction] = { count: 0, users: [] };
+  }
+  const bucket = state.storyReactions[storyId][reaction];
+  if (user && !bucket.users.includes(user)) {
+    bucket.users.push(user);
+    bucket.count += 1;
+  } else if (!user) {
+    bucket.count += 1;
+  }
+  if (user === state.user) {
+    state.storyUserReactions[storyId] = reaction;
+  }
+}
+
+function removeStoryReactionRow(row) {
+  const storyId = row?.story_id;
+  const reaction = row?.reaction;
+  const user = row?.user;
+  if (!storyId || !reaction) return;
+  const bucket = state.storyReactions[storyId]?.[reaction];
+  if (!bucket) return;
+  bucket.count = Math.max(0, bucket.count - 1);
+  if (user) {
+    bucket.users = bucket.users.filter((name) => name !== user);
+  }
+  if (!bucket.count || !bucket.users.length) {
+    delete state.storyReactions[storyId][reaction];
+  }
+  if (state.storyReactions[storyId] && !Object.keys(state.storyReactions[storyId]).length) {
+    delete state.storyReactions[storyId];
+  }
+  if (user === state.user) {
+    delete state.storyUserReactions[storyId];
+  }
+}
+
+function applyStoryCommentRow(row) {
+  const storyId = row?.story_id;
+  if (!storyId || !row?.id) return;
+  if (!state.storyComments[storyId]) {
+    state.storyComments[storyId] = [];
+  }
+  const entries = state.storyComments[storyId];
+  const index = entries.findIndex((item) => item.id === row.id);
+  if (index >= 0) {
+    entries[index] = row;
+  } else {
+    entries.push(row);
+  }
+  entries.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+}
+
+function removeStoryCommentRow(row) {
+  const storyId = row?.story_id;
+  const commentId = row?.id;
+  if (!storyId || !commentId) return;
+  if (!state.storyComments[storyId]) return;
+  state.storyComments[storyId] = state.storyComments[storyId].filter((entry) => entry.id !== commentId);
+  if (!state.storyComments[storyId].length) {
+    delete state.storyComments[storyId];
   }
 }
 

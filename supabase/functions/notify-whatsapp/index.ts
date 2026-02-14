@@ -182,6 +182,18 @@ function buildMessage({
     case 'story:delete':
       line = `${senderName} deleted a story.`;
       break;
+    case 'storyReaction:add':
+      line = `${senderName} reacted to a story.`;
+      break;
+    case 'storyReaction:remove':
+      line = `${senderName} removed a story reaction.`;
+      break;
+    case 'storyComment:new':
+      line = `${senderName} left a story comment.`;
+      break;
+    case 'storyComment:delete':
+      line = `${senderName} deleted a story comment.`;
+      break;
     case 'mood:update':
       line = `${senderName} updated their mood.`;
       break;
