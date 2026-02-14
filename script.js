@@ -142,6 +142,8 @@ const state = {
   storyMenuListener: null,
   storyMenuKeyListener: null,
   storyReadTicking: false,
+  storyEndObserver: null,
+  storyEndNode: null,
   orbitProgress: 0,
   orbitHolding: false,
   orbitFrame: null,
@@ -638,7 +640,7 @@ function getDisplayName(userId) {
   return userId;
 }
 
-function getChronicleReadColumns() {
+function getChronicleSelfReadColumns() {
   if (!state.user) return null;
   if (state.user === state.userIds.a) {
     return { opened: 'opened_by_a_at', finished: 'finished_by_a_at' };
@@ -649,8 +651,19 @@ function getChronicleReadColumns() {
   return null;
 }
 
+function getChronicleOtherReadColumns() {
+  if (!state.user) return null;
+  if (state.user === state.userIds.a) {
+    return { opened: 'opened_by_b_at', finished: 'finished_by_b_at' };
+  }
+  if (state.user === state.userIds.b) {
+    return { opened: 'opened_by_a_at', finished: 'finished_by_a_at' };
+  }
+  return null;
+}
+
 function getChronicleReadStatus(story) {
-  const cols = getChronicleReadColumns();
+  const cols = getChronicleOtherReadColumns();
   if (!cols || !story) return null;
   if (story[cols.finished]) return 'finished';
   if (story[cols.opened]) return 'opened';
@@ -668,9 +681,10 @@ function applyChronicleReadStatus(storyId, updates) {
 }
 
 async function markChronicleOpened(story) {
-  const cols = getChronicleReadColumns();
+  const cols = getChronicleSelfReadColumns();
   if (!cols || !story?.id) return;
   if (story[cols.opened]) return;
+  if (story.user && story.user === state.user) return;
   const timestamp = new Date().toISOString();
   try {
     const { error } = await supabase
@@ -686,9 +700,10 @@ async function markChronicleOpened(story) {
 }
 
 async function markChronicleFinished(story) {
-  const cols = getChronicleReadColumns();
+  const cols = getChronicleSelfReadColumns();
   if (!cols || !story?.id) return;
   if (story[cols.finished]) return;
+  if (story.user && story.user === state.user) return;
   const timestamp = new Date().toISOString();
   const updates = { [cols.finished]: timestamp };
   if (!story[cols.opened]) {
@@ -720,6 +735,25 @@ function handleStoryOutputScroll() {
       markChronicleFinished(state.activeChronicle);
     }
   });
+}
+
+function attachStoryEndObserver(node) {
+  if (!node) return;
+  if (state.storyEndObserver) {
+    state.storyEndObserver.disconnect();
+  }
+  state.storyEndNode = node;
+  state.storyEndObserver = new IntersectionObserver(
+    (entries) => {
+      const hit = entries.some((entry) => entry.isIntersecting);
+      if (!hit) return;
+      if (!state.activeChronicle || !state.storyMirrorOpen) return;
+      if (!ui.storyMirrorView?.classList.contains('storymirror-chronicle')) return;
+      markChronicleFinished(state.activeChronicle);
+    },
+    { root: null, threshold: 0.6 }
+  );
+  state.storyEndObserver.observe(node);
 }
 
 async function loadStoryDefaults() {
@@ -1190,6 +1224,11 @@ function renderStoryChapters() {
     card.append(title, text, imageWrap, caption);
     ui.storyChapters.appendChild(card);
   });
+  const sentinel = document.createElement('div');
+  sentinel.className = 'storymirror-end-sentinel';
+  sentinel.dataset.storyEnd = 'true';
+  ui.storyChapters.appendChild(sentinel);
+  attachStoryEndObserver(sentinel);
 }
 
 async function generateChapterImages(chapters) {
@@ -1655,8 +1694,9 @@ function renderChronicles(options = {}) {
     const deleteBtn = document.createElement('button');
     deleteBtn.type = 'button';
     deleteBtn.className = 'chronicle-card-delete';
-    deleteBtn.textContent = 'Delete';
+    deleteBtn.textContent = '×';
     deleteBtn.setAttribute('aria-label', `Delete ${story.title || 'story'}`);
+    deleteBtn.setAttribute('title', 'Delete story');
     deleteBtn.addEventListener('click', (evt) => {
       evt.stopPropagation();
       state.activeChronicle = story;

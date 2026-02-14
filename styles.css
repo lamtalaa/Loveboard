@@ -230,7 +230,7 @@ html {
 
 .story-menu-note {
   font-family: 'Work Sans', sans-serif;
-  font-size: 0.75rem;
+  font-size: 1rem;
   color: rgba(70, 50, 60, 0.55);
 }
 
@@ -537,7 +537,11 @@ html {
 .storymirror-suggestion {
   border: none;
   border-radius: 999px;
-  padding: 0.3rem 0.7rem;
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  padding: 0;
   background: rgba(227, 212, 249, 0.45);
   font-family: 'Work Sans', sans-serif;
   font-size: 0.78rem;
@@ -723,7 +727,7 @@ html {
 
 .chronicle-status {
   position: absolute;
-  top: 0.75rem;
+  bottom: 0.75rem;
   right: 0.75rem;
   padding: 0.25rem 0.65rem;
   border-radius: 999px;
@@ -791,12 +795,16 @@ html {
 .chronicle-card-delete {
   position: absolute;
   right: 0.8rem;
-  bottom: 0.8rem;
+  top: 0.8rem;
   border: 1px solid rgba(236, 122, 122, 0.4);
   border-radius: 999px;
-  padding: 0.3rem 0.7rem;
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  padding: 0;
   font-family: 'Work Sans', sans-serif;
-  font-size: 0.75rem;
+  font-size: 1rem;
   background: rgba(236, 122, 122, 0.12);
   color: rgba(152, 58, 58, 0.95);
   cursor: pointer;
@@ -963,6 +971,11 @@ html {
 .storymirror-chapters {
   display: grid;
   gap: 1.2rem;
+}
+
+.storymirror-end-sentinel {
+  height: 1px;
+  width: 100%;
 }
 
 .storymirror-chapter {
