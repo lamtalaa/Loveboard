@@ -663,10 +663,11 @@ function getChronicleOtherReadColumns() {
 }
 
 function getChronicleReadStatus(story) {
-  const cols = getChronicleOtherReadColumns();
-  if (!cols || !story) return null;
-  if (story[cols.finished]) return 'finished';
-  if (story[cols.opened]) return 'opened';
+  if (!story) return null;
+  const finished = story.finished_by_a_at || story.finished_by_b_at;
+  const opened = story.opened_by_a_at || story.opened_by_b_at;
+  if (finished) return 'finished';
+  if (opened) return 'opened';
   return 'new';
 }
 
