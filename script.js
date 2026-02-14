@@ -1825,6 +1825,31 @@ function setStoryStatus(message, tone) {
   ui.storyStatus.dataset.tone = tone || 'info';
 }
 
+function formatStoryFunctionError(error, fallback) {
+  const status =
+    Number(error?.context?.status) ||
+    Number(error?.status) ||
+    Number(error?.code) ||
+    null;
+  const statusText =
+    (typeof error?.context?.statusText === 'string' && error.context.statusText.trim()) ||
+    '';
+  const details =
+    (typeof error?.details === 'string' && error.details.trim()) ||
+    (typeof error?.hint === 'string' && error.hint.trim()) ||
+    '';
+  const message = typeof error?.message === 'string' ? error.message.trim() : '';
+
+  const genericInvokeMessage = 'Edge Function returned a non-2xx status code';
+  const showMessage = message && message !== genericInvokeMessage ? message : '';
+
+  if (status) {
+    const statusLine = `${fallback} (${status}${statusText ? ` ${statusText}` : ''})`;
+    return showMessage || details ? `${statusLine}: ${showMessage || details}` : statusLine;
+  }
+  return showMessage || details || fallback;
+}
+
 async function requestStoryText({
   yFragments,
   nFragments,
@@ -1853,7 +1878,7 @@ async function requestStoryText({
     }
   });
   if (error) {
-    throw new Error(error.message || 'Story request failed.');
+    throw new Error(formatStoryFunctionError(error, 'Story request failed'));
   }
   return data;
 }
@@ -1930,7 +1955,7 @@ async function requestStoryImage(prompt) {
     }
   });
   if (error) {
-    throw new Error(error.message || 'Image request failed.');
+    throw new Error(formatStoryFunctionError(error, 'Image request failed'));
   }
   return data?.image || '';
 }

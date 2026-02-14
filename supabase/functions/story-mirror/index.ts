@@ -152,7 +152,10 @@ async function handleText(
     if (isTimeoutError(error)) {
       return new Response('Story generation timed out. Please try again.', { status: 504, headers: corsHeaders });
     }
-    return new Response('Failed to generate story', { status: 502, headers: corsHeaders });
+    const message = error instanceof Error && error.message
+      ? error.message
+      : 'Failed to generate story';
+    return new Response(message, { status: 502, headers: corsHeaders });
   }
 }
 
@@ -184,7 +187,10 @@ async function handleImage(
     if (isTimeoutError(error)) {
       return new Response('Image generation timed out. Please try again.', { status: 504, headers: corsHeaders });
     }
-    return new Response('Failed to generate image', { status: 502, headers: corsHeaders });
+    const message = error instanceof Error && error.message
+      ? error.message
+      : 'Failed to generate image';
+    return new Response(message, { status: 502, headers: corsHeaders });
   }
 }
 
