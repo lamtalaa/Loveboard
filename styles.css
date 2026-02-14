@@ -498,6 +498,10 @@ html {
   font-weight: 600;
 }
 
+.storymirror-view.storymirror-generated .storymirror-intro-pills {
+  display: none;
+}
+
 .storymirror-steps {
   display: block;
   flex: 1;

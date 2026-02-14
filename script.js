@@ -607,7 +607,7 @@ function buildMoodPresets(config) {
 }
 
 function applyAppConfig() {
-  const { users, coupleLabel, storyByline, wwanDefaults } = state.appConfig;
+  const { users, coupleLabel, wwanDefaults } = state.appConfig;
   const displayA = users.a.display || users.a.id;
   const displayB = users.b.display || users.b.id;
   const couple = coupleLabel || `${displayA} ❤️ ${displayB}`;
@@ -616,7 +616,7 @@ function applyAppConfig() {
     el.textContent = couple;
   });
   document.querySelectorAll('[data-story-byline]').forEach((el) => {
-    el.textContent = storyByline || `A ${displayA} + ${displayB} Story`;
+    el.textContent = `A ${displayA} + ${displayB} Story`;
   });
 
   document.querySelectorAll('[data-user-label="a"]').forEach((el) => {
@@ -970,8 +970,8 @@ function updateStoryNavButtons() {
   if (state.storyFlowMode === 'intro') {
     const hasDraft = hasStoryDraft();
     ui.storyStepBack.hidden = !hasDraft;
-    ui.storyStepBack.textContent = 'Resume draft';
-    ui.storyStepNext.textContent = 'Start story';
+    ui.storyStepBack.textContent = 'Start story';
+    ui.storyStepNext.textContent = hasDraft ? 'Resume draft' : 'Start story';
     ui.storyMirrorView?.classList.toggle('storymirror-intro-single-action', !hasDraft);
     return;
   }
@@ -985,9 +985,8 @@ function setupStoryStepper() {
     ui.storyStepBack.addEventListener('click', () => {
       if (state.storyMirrorBusy) return;
       if (state.storyFlowMode === 'intro') {
-        if (hasStoryDraft()) {
-          restoreStoryDraft();
-        }
+        setStoryFlowMode('editor');
+        setStoryStep(1);
         return;
       }
       if (state.storyStep <= 1) {
@@ -1001,8 +1000,12 @@ function setupStoryStepper() {
     ui.storyStepNext.addEventListener('click', () => {
       if (state.storyMirrorBusy) return;
       if (state.storyFlowMode === 'intro') {
-        setStoryFlowMode('editor');
-        setStoryStep(1);
+        if (hasStoryDraft()) {
+          restoreStoryDraft();
+        } else {
+          setStoryFlowMode('editor');
+          setStoryStep(1);
+        }
         return;
       }
       if (state.storyStep >= STORY_STEP_COUNT) {
