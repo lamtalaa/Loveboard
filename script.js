@@ -680,6 +680,28 @@ function applyChronicleReadStatus(storyId, updates) {
   }
 }
 
+function applyChronicleRemoteUpdate(row) {
+  if (!row?.id) return;
+  const index = state.chronicles.findIndex((item) => item.id === row.id);
+  if (index >= 0) {
+    state.chronicles[index] = { ...state.chronicles[index], ...row };
+  } else {
+    state.chronicles = [row, ...state.chronicles];
+  }
+  if (state.activeChronicle?.id === row.id) {
+    state.activeChronicle = { ...state.activeChronicle, ...row };
+  }
+  renderChronicles();
+}
+
+function removeChronicleById(id) {
+  if (!id) return;
+  const next = state.chronicles.filter((item) => item.id !== id);
+  if (next.length === state.chronicles.length) return;
+  state.chronicles = next;
+  renderChronicles();
+}
+
 async function markChronicleOpened(story) {
   const cols = getChronicleSelfReadColumns();
   if (!cols || !story?.id) return;
@@ -743,6 +765,9 @@ function attachStoryEndObserver(node) {
     state.storyEndObserver.disconnect();
   }
   state.storyEndNode = node;
+  const root = ui.storyOutput && ui.storyOutput.scrollHeight > ui.storyOutput.clientHeight + 8
+    ? ui.storyOutput
+    : null;
   state.storyEndObserver = new IntersectionObserver(
     (entries) => {
       const hit = entries.some((entry) => entry.isIntersecting);
@@ -751,7 +776,7 @@ function attachStoryEndObserver(node) {
       if (!ui.storyMirrorView?.classList.contains('storymirror-chronicle')) return;
       markChronicleFinished(state.activeChronicle);
     },
-    { root: null, threshold: 0.6 }
+    { root, threshold: 0.1 }
   );
   state.storyEndObserver.observe(node);
 }
@@ -3127,6 +3152,15 @@ function subscribeRealtime() {
     .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'postcard_comments' }, (payload) => {
       removeCommentRow(payload.old);
       updateCommentUI(payload.old.postcard_id);
+    })
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'story_chronicles' }, (payload) => {
+      applyChronicleRemoteUpdate(payload.new);
+    })
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'story_chronicles' }, (payload) => {
+      applyChronicleRemoteUpdate(payload.new);
+    })
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'story_chronicles' }, (payload) => {
+      removeChronicleById(payload.old?.id);
     })
     .subscribe();
 }
