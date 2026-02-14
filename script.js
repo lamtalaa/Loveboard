@@ -46,6 +46,7 @@ const ORBIT_SPARKS = [
 ];
 const BUCKET = 'loveboard-assets';
 const MOOD_TIMES_KEY = 'loveboard-moodTimes';
+const STORY_DRAFT_KEY = 'loveboard-storymirror-draft-v1';
 const DEFAULT_NOTE_IMG = './assets/default-note.svg';
 const DEFAULT_POSTCARD_BATCH = 3;
 const STORY_MIN_CHAPTERS = 3;
@@ -263,6 +264,7 @@ const ui = {
   storyHeroTitle: document.querySelector('.storymirror-hero h1'),
   storyHeroSubtitle: document.querySelector('.storymirror-subtitle'),
   storyHeroEyebrow: document.querySelector('.storymirror-hero .storymirror-eyebrow'),
+  storyByline: document.querySelector('#storymirror-view [data-story-byline]'),
   storyStepChips: document.querySelectorAll('.storymirror-step-chip'),
   storyStepPanels: document.querySelectorAll('.storymirror-step-panel'),
   storyStepBack: document.getElementById('story-step-back'),
@@ -452,6 +454,7 @@ function setupStoryMirror() {
     ui.storyLens.addEventListener('input', () => {
       updateStoryLensLabel();
       updateChapterEstimate();
+      persistStoryDraft();
     });
     updateStoryLensLabel();
   }
@@ -459,20 +462,46 @@ function setupStoryMirror() {
     ui.storyFantasy.addEventListener('input', () => {
       updateStoryFantasyLabel();
       updateChapterEstimate();
+      persistStoryDraft();
     });
     updateStoryFantasyLabel();
   }
   if (ui.storyFragmentsY) {
-    ui.storyFragmentsY.addEventListener('input', updateChapterEstimate);
+    ui.storyFragmentsY.addEventListener('input', () => {
+      updateChapterEstimate();
+      persistStoryDraft();
+    });
   }
   if (ui.storyFragmentsN) {
-    ui.storyFragmentsN.addEventListener('input', updateChapterEstimate);
+    ui.storyFragmentsN.addEventListener('input', () => {
+      updateChapterEstimate();
+      persistStoryDraft();
+    });
+  }
+  if (ui.storyProfileY) {
+    ui.storyProfileY.addEventListener('input', persistStoryDraft);
+  }
+  if (ui.storyProfileN) {
+    ui.storyProfileN.addEventListener('input', persistStoryDraft);
+  }
+  if (ui.storyExtra) {
+    ui.storyExtra.addEventListener('input', persistStoryDraft);
+  }
+  if (ui.storyIntimacyInputs?.length) {
+    ui.storyIntimacyInputs.forEach((node) => {
+      node.addEventListener('change', persistStoryDraft);
+    });
+  }
+  if (ui.storyPerspectiveInputs?.length) {
+    ui.storyPerspectiveInputs.forEach((node) => {
+      node.addEventListener('change', persistStoryDraft);
+    });
   }
   if (ui.storyGenerate) {
     ui.storyGenerate.addEventListener('click', () => runStoryGeneration());
   }
   if (ui.storyNewBtn) {
-    ui.storyNewBtn.addEventListener('click', resetStoryFlow);
+    ui.storyNewBtn.addEventListener('click', () => resetStoryFlow({ clearDraft: true }));
   }
   if (ui.storySaveBtn) {
     ui.storySaveBtn.addEventListener('click', saveStoryChronicle);
@@ -502,6 +531,7 @@ function setupStoryMirror() {
   }
   updateChapterEstimate();
   cacheStoryHeroDefaults();
+  restoreStoryDraft();
 }
 
 async function loadAppConfig() {
@@ -974,6 +1004,7 @@ function applyStorySuggestion(container, text) {
     el.value = current ? `${current}\n${text}` : text;
   });
   updateChapterEstimate();
+  persistStoryDraft();
 }
 
 function updateStoryLensLabel() {
@@ -1039,7 +1070,144 @@ function resetStoryHero() {
   }
 }
 
-function resetStoryFlow() {
+function getStoryInputSnapshot() {
+  return {
+    fragments_y: ui.storyFragmentsY?.value || '',
+    fragments_n: ui.storyFragmentsN?.value || '',
+    profile_y: ui.storyProfileY?.value || '',
+    profile_n: ui.storyProfileN?.value || '',
+    lens_value: Number(ui.storyLens?.value || 0),
+    fantasy_value: Number(ui.storyFantasy?.value || 0),
+    intimacy: getStoryIntimacy(),
+    perspective: getStoryPerspective(),
+    moment: ui.storyExtra?.value || ''
+  };
+}
+
+function clearStoryDraft() {
+  try {
+    localStorage.removeItem(STORY_DRAFT_KEY);
+  } catch {
+    // no-op
+  }
+}
+
+function persistStoryDraft() {
+  if (state.activeChronicle || state.storySaved || !state.storyChapters.length) return;
+  const draft = {
+    v: 1,
+    saved_at: new Date().toISOString(),
+    title: ui.storyHeroTitle?.textContent || 'Our Future, Soon',
+    byline: ui.storyByline?.textContent || '',
+    step: state.storyStep,
+    inputs: getStoryInputSnapshot(),
+    chapters: state.storyChapters,
+    images: state.storyImages,
+    images_complete: Boolean(state.storyImagesComplete)
+  };
+  try {
+    localStorage.setItem(STORY_DRAFT_KEY, JSON.stringify(draft));
+  } catch {
+    // no-op
+  }
+}
+
+async function resumeStoryDraftImages() {
+  if (state.storyMirrorBusy || !state.storyChapters.length || state.storySaved) return;
+  const hasPending = state.storyChapters.some((chapter, idx) => chapter?.image_prompt && !state.storyImages[idx]);
+  if (!hasPending) {
+    state.storyImagesComplete = true;
+    persistStoryDraft();
+    updateStorySaveButton();
+    setStoryStatus('Recovered your unsaved story draft.', 'info');
+    return;
+  }
+  state.storyMirrorBusy = true;
+  setStoryButtonsDisabled(true);
+  setStoryStatus('Resuming image rendering...', 'info');
+  try {
+    await generateChapterImages(state.storyChapters);
+    state.storyImagesComplete = true;
+    persistStoryDraft();
+    updateStorySaveButton();
+    setStoryStatus('Recovered your unsaved story draft.', 'success');
+  } catch (error) {
+    console.error('story draft image resume', error);
+    state.storyImagesComplete = true;
+    persistStoryDraft();
+    setStoryStatus('Draft recovered. Some images are missing, but you can still save now.', 'error');
+    updateStorySaveButton();
+  } finally {
+    state.storyMirrorBusy = false;
+    setStoryButtonsDisabled(false);
+  }
+}
+
+function restoreStoryDraft() {
+  const draft = readStoredJSON(STORY_DRAFT_KEY, null);
+  if (!draft || !Array.isArray(draft.chapters) || !draft.chapters.length) return false;
+
+  const input = draft.inputs && typeof draft.inputs === 'object' ? draft.inputs : {};
+  if (ui.storyFragmentsY && typeof input.fragments_y === 'string') ui.storyFragmentsY.value = input.fragments_y;
+  if (ui.storyFragmentsN && typeof input.fragments_n === 'string') ui.storyFragmentsN.value = input.fragments_n;
+  if (ui.storyProfileY && typeof input.profile_y === 'string') ui.storyProfileY.value = input.profile_y;
+  if (ui.storyProfileN && typeof input.profile_n === 'string') ui.storyProfileN.value = input.profile_n;
+  if (ui.storyExtra && typeof input.moment === 'string') ui.storyExtra.value = input.moment;
+
+  if (ui.storyLens && Number.isFinite(Number(input.lens_value))) {
+    ui.storyLens.value = String(Number(input.lens_value));
+    updateStoryLensLabel();
+  }
+  if (ui.storyFantasy && Number.isFinite(Number(input.fantasy_value))) {
+    ui.storyFantasy.value = String(Number(input.fantasy_value));
+    updateStoryFantasyLabel();
+  }
+
+  if (typeof input.intimacy === 'string' && ui.storyIntimacyInputs?.length) {
+    ui.storyIntimacyInputs.forEach((node) => {
+      node.checked = node.value === input.intimacy;
+    });
+  }
+  if (typeof input.perspective === 'string' && ui.storyPerspectiveInputs?.length) {
+    ui.storyPerspectiveInputs.forEach((node) => {
+      node.checked = node.value === input.perspective;
+    });
+  }
+
+  setStoryChronicleMode(false);
+  state.activeChronicle = null;
+  state.storySaved = false;
+  state.storyChapters = draft.chapters;
+  state.storyImages = Array.isArray(draft.images) ? draft.images.slice(0, draft.chapters.length) : [];
+  while (state.storyImages.length < state.storyChapters.length) {
+    state.storyImages.push('');
+  }
+  state.storyImagesComplete =
+    Boolean(draft.images_complete) && state.storyImages.length === state.storyChapters.length && state.storyImages.every(Boolean);
+
+  if (ui.storyMirrorView) {
+    ui.storyMirrorView.classList.add('storymirror-generated');
+  }
+  if (ui.storyFooter) {
+    ui.storyFooter.hidden = false;
+  }
+  setStoryHeroTitle(draft.title || 'Our Future, Soon');
+  renderStoryChapters();
+  setStoryStep(Number(draft.step) || STORY_STEP_COUNT);
+  updateChapterEstimate();
+  updateStorySaveButton();
+  updateStoryBackButton();
+  refreshStorySocialSummary();
+  if (state.storyImagesComplete) {
+    setStoryStatus('Recovered your unsaved story draft.', 'info');
+  } else {
+    void resumeStoryDraftImages();
+  }
+  return true;
+}
+
+function resetStoryFlow(options = {}) {
+  const { clearDraft = false } = options;
   closeStorySocialSheet();
   setStoryChronicleMode(false);
   if (ui.storyMirrorView) {
@@ -1061,6 +1229,9 @@ function resetStoryFlow() {
   refreshStorySocialSummary();
   if (ui.storyOutput) {
     ui.storyOutput.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  if (clearDraft) {
+    clearStoryDraft();
   }
 }
 
@@ -1391,18 +1562,15 @@ async function saveStoryChronicle() {
     ui.storySaveBtn.disabled = true;
     ui.storySaveBtn.textContent = 'Saving…';
   }
+  const inputs = getStoryInputSnapshot();
   const payload = {
     title: ui.storyHeroTitle?.textContent || 'Our Future, Soon',
     inputs: {
-      fragments_y: ui.storyFragmentsY?.value || '',
-      fragments_n: ui.storyFragmentsN?.value || '',
-      profile_y: ui.storyProfileY?.value || state.storyDefaults.profileY || '',
-      profile_n: ui.storyProfileN?.value || state.storyDefaults.profileN || '',
+      ...inputs,
+      profile_y: inputs.profile_y || state.storyDefaults.profileY || '',
+      profile_n: inputs.profile_n || state.storyDefaults.profileN || '',
       lens: getStoryLensProfile(),
-      fantasy: getStoryFantasyProfile(),
-      intimacy: getStoryIntimacy(),
-      perspective: getStoryPerspective(),
-      moment: ''
+      fantasy: getStoryFantasyProfile()
     },
     chapters: state.storyChapters,
     images: state.storyImages,
@@ -1416,6 +1584,7 @@ async function saveStoryChronicle() {
   if (error) {
     console.error('chronicle save', error);
     showToast(`Couldn't save story: ${error.message}`, 'error');
+    persistStoryDraft();
     updateStorySaveButton();
     return;
   }
@@ -1423,6 +1592,7 @@ async function saveStoryChronicle() {
   renderChronicles();
   showToast('Saved to Chronicle.', 'success');
   state.storySaved = true;
+  clearStoryDraft();
   updateStorySaveButton();
   updateStoryBackButton();
   sendWhatsAppNotification({
@@ -1517,6 +1687,7 @@ async function runStoryGeneration() {
     if (!responseData || !responseData.chapters?.length) {
       throw new Error('No chapters returned.');
     }
+    state.storySaved = false;
     state.storyChapters = responseData.chapters;
     state.storyImages = new Array(responseData.chapters.length).fill('');
     renderStoryChapters();
@@ -1536,17 +1707,26 @@ async function runStoryGeneration() {
     if (ui.storyFooter) {
       ui.storyFooter.hidden = Boolean(state.activeChronicle);
     }
+    persistStoryDraft();
     updateStorySaveButton();
     // Let the loading bar finish before dismissing.
     state.ritualFinishStart = Date.now();
     setTimeout(() => closeStoryRitual(), state.ritualFinishDuration);
     await generateChapterImages(responseData.chapters);
     state.storyImagesComplete = true;
+    persistStoryDraft();
     updateStorySaveButton();
     setStoryStatus('Story ready.', 'success');
   } catch (error) {
     console.error('story mirror', error);
-    setStoryStatus(error.message || 'Something went wrong.', 'error');
+    if (state.storyChapters.length) {
+      state.storyImagesComplete = true;
+      persistStoryDraft();
+      updateStorySaveButton();
+      setStoryStatus('Story recovered with partial images. You can still save it now.', 'error');
+    } else {
+      setStoryStatus(error.message || 'Something went wrong.', 'error');
+    }
     closeStoryRitual();
   } finally {
     state.storyMirrorBusy = false;
@@ -1651,6 +1831,7 @@ async function generateChapterImages(chapters) {
   for (let i = 0; i < chapters.length; i += 1) {
     const chapter = chapters[i];
     if (!chapter?.image_prompt) continue;
+    if (state.storyImages[i]) continue;
     setStoryStatus(`Rendering image ${i + 1} of ${chapters.length}...`, 'info');
     const imgData = await requestStoryImage(chapter.image_prompt);
     const imgEl = ui.storyChapters.querySelector(`img[data-index="${i}"]`);
@@ -1658,6 +1839,7 @@ async function generateChapterImages(chapters) {
       state.storyImages[i] = imgData;
       imgEl.src = imgData;
       imgEl.closest('.storymirror-image')?.classList.remove('is-loading');
+      persistStoryDraft();
     }
   }
 }
@@ -2764,6 +2946,7 @@ function handleViewSwitch(view) {
   if (view === 'storymirror' && state.storyMirrorOpen) {
     if (ui.storyMirrorView?.classList.contains('storymirror-chronicle')) {
       resetStoryFlow();
+      restoreStoryDraft();
       updateViewSwitchers('storymirror');
     }
     return;
@@ -2854,6 +3037,10 @@ function showStoryMirror() {
   cleanupValentineListeners();
   cleanupChronicleListeners();
   attachStoryMirrorListeners();
+  if (!state.activeChronicle && state.storySaved) {
+    resetStoryFlow();
+    restoreStoryDraft();
+  }
   updateStoryBackButton();
   refreshStorySocialSummary();
 }
