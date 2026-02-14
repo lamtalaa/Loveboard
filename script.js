@@ -1020,8 +1020,9 @@ function resetStoryEditorInputs() {
   if (ui.storyFragmentsY) ui.storyFragmentsY.value = '';
   if (ui.storyFragmentsN) ui.storyFragmentsN.value = '';
   if (ui.storyExtra) ui.storyExtra.value = '';
-  if (ui.storyProfileY) ui.storyProfileY.value = state.storyDefaults.profileY || '';
-  if (ui.storyProfileN) ui.storyProfileN.value = state.storyDefaults.profileN || '';
+  // Keep profile defaults private/fallback-only; start with empty visible fields.
+  if (ui.storyProfileY) ui.storyProfileY.value = '';
+  if (ui.storyProfileN) ui.storyProfileN.value = '';
 
   if (ui.storyLens) {
     ui.storyLens.value = ui.storyLens.defaultValue || ui.storyLens.min || '0';
