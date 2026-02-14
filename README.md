@@ -192,6 +192,16 @@ Deleting a postcard now goes through a tiny Supabase Edge Function so related co
 2. Ensure the function has access to `SUPABASE_SERVICE_ROLE_KEY` (same as `notify-push`).
 3. No additional configuration is required; the app will fall back to the legacy client-side delete if the function isn't available.
 
+### Chronicle read-state Edge Function
+
+This repo ships with `supabase/functions/mark-chronicle-read/index.ts`, which marks story chronicles as opened/finished for the viewer.
+
+1. Deploy it:
+   ```bash
+   supabase functions deploy mark-chronicle-read --project-ref ijwxlyoxhlmlysfjzksl
+   ```
+2. Ensure the function has access to `SUPABASE_SERVICE_ROLE_KEY`.
+
 ## Environment variables in production
 For Netlify/Vercel you can inject the Supabase keys without checking them into git:
 

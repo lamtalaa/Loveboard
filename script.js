@@ -709,10 +709,12 @@ async function markChronicleOpened(story) {
   if (story.user && story.user === state.user) return;
   const timestamp = new Date().toISOString();
   try {
-    const { error } = await supabase
-      .from('story_chronicles')
-      .update({ [cols.opened]: timestamp })
-      .eq('id', story.id);
+    const { error } = await supabase.functions.invoke('mark-chronicle-read', {
+      body: {
+        storyId: story.id,
+        updates: { [cols.opened]: timestamp }
+      }
+    });
     if (error) throw error;
     applyChronicleReadStatus(story.id, { [cols.opened]: timestamp });
     renderChronicles();
@@ -732,10 +734,12 @@ async function markChronicleFinished(story) {
     updates[cols.opened] = timestamp;
   }
   try {
-    const { error } = await supabase
-      .from('story_chronicles')
-      .update(updates)
-      .eq('id', story.id);
+    const { error } = await supabase.functions.invoke('mark-chronicle-read', {
+      body: {
+        storyId: story.id,
+        updates
+      }
+    });
     if (error) throw error;
     applyChronicleReadStatus(story.id, updates);
     renderChronicles();
