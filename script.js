@@ -1510,6 +1510,7 @@ async function handleStoryCommentSubmit(evt) {
       .single();
     if (error) throw error;
     applyStoryCommentRow(data);
+    renderChronicles();
     refreshStorySocialSummary();
     ui.storySocialInput.value = '';
     await broadcastCommentEvent('storyComment:new', { ...data, sender: state.user });
@@ -1542,6 +1543,7 @@ async function handleStoryCommentDelete(storyId, commentId) {
     return;
   }
   removeStoryCommentRow({ story_id: storyId, id: commentId, user: state.user });
+  renderChronicles();
   refreshStorySocialSummary();
   await broadcastCommentEvent('storyComment:delete', {
     story_id: storyId,
@@ -2343,8 +2345,10 @@ function renderChronicles(options = {}) {
     if (status) {
       const badge = document.createElement('span');
       badge.className = `chronicle-status chronicle-status--${status}`;
-      badge.textContent = status === 'new' ? 'New' : status === 'opened' ? '🤍' : '💖';
-      badge.setAttribute('aria-label', status);
+      const statusText = status === 'new' ? 'New' : status === 'opened' ? '🤍' : '💖';
+      const commentCount = (state.storyComments[story.id] || []).length;
+      badge.textContent = commentCount > 0 ? `${statusText} · 💬 ${commentCount}` : statusText;
+      badge.setAttribute('aria-label', commentCount > 0 ? `${status} with ${commentCount} comments` : status);
       card.appendChild(badge);
     }
     const holdTrack = document.createElement('div');
@@ -3910,10 +3914,12 @@ function subscribeRealtime() {
     })
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'story_comments' }, (payload) => {
       applyStoryCommentRow(payload.new);
+      renderChronicles();
       refreshStorySocialSummary();
     })
     .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'story_comments' }, (payload) => {
       removeStoryCommentRow(payload.old);
+      renderChronicles();
       refreshStorySocialSummary();
     })
     .subscribe();
@@ -3986,11 +3992,13 @@ function subscribeCommentBroadcast() {
     .on('broadcast', { event: 'storyComment:new' }, ({ payload }) => {
       if (!payload || payload?.sender === state.user) return;
       applyStoryCommentRow(payload);
+      renderChronicles();
       refreshStorySocialSummary();
     })
     .on('broadcast', { event: 'storyComment:delete' }, ({ payload }) => {
       if (!payload || payload?.sender === state.user) return;
       removeStoryCommentRow(payload);
+      renderChronicles();
       refreshStorySocialSummary();
     })
     .subscribe((status) => {
