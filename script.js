@@ -1772,13 +1772,6 @@ async function runStoryGeneration() {
     const storyTitle =
       responseData.story_title || responseData.title || responseData.chapters?.[0]?.title || 'Our Future, Soon';
     setStoryHeroTitle(storyTitle);
-    sendWhatsAppNotification({
-      type: 'story',
-      sender: state.user,
-      action: 'story:generate',
-      teaser: buildStoryTeaser(storyTitle),
-      link: getShareLink()
-    });
     if (ui.storyMirrorView) {
       ui.storyMirrorView.classList.add('storymirror-generated');
     }
