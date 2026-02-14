@@ -877,6 +877,13 @@ async function saveStoryChronicle() {
   state.storySaved = true;
   updateStorySaveButton();
   updateStoryBackButton();
+  sendWhatsAppNotification({
+    type: 'story',
+    sender: state.user,
+    action: 'story:save',
+    teaser: buildStoryTeaser(data?.title || payload.title),
+    link: getShareLink()
+  });
 }
 
 function getStoryFantasyProfile() {
@@ -971,6 +978,7 @@ async function runStoryGeneration() {
     sendWhatsAppNotification({
       type: 'story',
       sender: state.user,
+      action: 'story:generate',
       teaser: buildStoryTeaser(storyTitle),
       link: getShareLink()
     });
@@ -1671,6 +1679,13 @@ async function deleteActiveChronicle() {
     resetStoryFlow();
     showChronicle();
   }
+  sendWhatsAppNotification({
+    type: 'story',
+    sender: state.user,
+    action: 'story:delete',
+    teaser: buildStoryTeaser(story?.title),
+    link: getShareLink()
+  });
 }
 
 function renderBoard(options = {}) {
@@ -2029,6 +2044,15 @@ async function saveMood(emoji) {
     return;
   }
   setMood(state.user, emoji, changedAt);
+  const moodMeta = getMoodMeta(emoji, state.user);
+  const moodLabel = moodMeta?.label ? `${emoji} ${moodMeta.label}` : emoji;
+  sendWhatsAppNotification({
+    type: 'mood',
+    sender: state.user,
+    action: 'mood:update',
+    teaser: moodLabel,
+    link: getShareLink()
+  });
 }
 
 function handleViewSwitch(view) {
@@ -2813,6 +2837,7 @@ async function handlePostcardSubmit(event) {
     sendWhatsAppNotification({
       type: 'postcard',
       sender: state.user,
+      action: 'postcard:new',
       teaser: buildPostcardTeaser(data),
       link: getShareLink()
     });
@@ -3595,6 +3620,13 @@ async function addReaction(postcardId, reaction) {
     applyReactionRow(row);
     updateReactionUI(postcardId);
     await broadcastCommentEvent('reaction:add', { row, sender: state.user });
+    sendWhatsAppNotification({
+      type: 'reaction',
+      sender: state.user,
+      action: 'reaction:add',
+      teaser: reaction,
+      link: getShareLink()
+    });
   }
 }
 
@@ -3613,6 +3645,13 @@ async function removeReaction(postcardId, reaction) {
   await broadcastCommentEvent('reaction:remove', {
     row: { postcard_id: postcardId, reaction, user: state.user },
     sender: state.user
+  });
+  sendWhatsAppNotification({
+    type: 'reaction',
+    sender: state.user,
+    action: 'reaction:remove',
+    teaser: reaction,
+    link: getShareLink()
   });
 }
 
@@ -3654,6 +3693,13 @@ async function addCommentReaction(postcardId, commentId, reaction) {
   applyCommentReactionRow(row);
   updateCommentUI(postcardId);
   await broadcastCommentEvent('commentReaction:add', { row, sender: state.user });
+  sendWhatsAppNotification({
+    type: 'reaction',
+    sender: state.user,
+    action: 'commentReaction:add',
+    teaser: reaction,
+    link: getShareLink()
+  });
 }
 
 async function removeCommentReaction(postcardId, commentId, reaction) {
@@ -3671,6 +3717,13 @@ async function removeCommentReaction(postcardId, commentId, reaction) {
   await broadcastCommentEvent('commentReaction:remove', {
     row: { postcard_id: postcardId, comment_id: commentId, reaction, user: state.user },
     sender: state.user
+  });
+  sendWhatsAppNotification({
+    type: 'reaction',
+    sender: state.user,
+    action: 'commentReaction:remove',
+    teaser: reaction,
+    link: getShareLink()
   });
 }
 
@@ -3710,6 +3763,13 @@ async function handleCommentSubmit(postcardId, input, form) {
       applyCommentRow(data);
       updateCommentUI(postcardId);
       await broadcastCommentEvent('comment:new', data);
+      sendWhatsAppNotification({
+        type: 'comment',
+        sender: state.user,
+        action: 'comment:new',
+        teaser: clipText(text, 120),
+        link: getShareLink()
+      });
     }
     input.value = '';
   } catch (err) {
@@ -3798,6 +3858,13 @@ async function handleCommentEditSubmit(postcardId, commentId, input) {
     state.editingComment = null;
     updateCommentUI(postcardId);
     await broadcastCommentEvent('comment:update', data);
+    sendWhatsAppNotification({
+      type: 'comment',
+      sender: state.user,
+      action: 'comment:update',
+      teaser: clipText(text, 120),
+      link: getShareLink()
+    });
   } catch (err) {
     console.error('comment edit', err);
     showToast('Edit failed. Try again?', 'error');
@@ -3824,6 +3891,12 @@ async function confirmDeleteComment(postcardId, commentId) {
     removeCommentRow({ postcard_id: postcardId, id: commentId });
     updateCommentUI(postcardId);
     await broadcastCommentEvent('comment:delete', { postcard_id: postcardId, id: commentId });
+    sendWhatsAppNotification({
+      type: 'comment',
+      sender: state.user,
+      action: 'comment:delete',
+      link: getShareLink()
+    });
   } catch (err) {
     console.error('comment delete', err);
     showToast('Failed to delete comment.', 'error');
@@ -3876,6 +3949,7 @@ async function confirmDelete(id) {
   if (!id) return;
   const ok = window.confirm('Delete this postcard? This cannot be undone.');
   if (!ok) return;
+  const postcard = state.postcards.find((card) => card.id === id);
   const deleted = await deletePostcard(id);
   if (!deleted) {
     showToast('Delete failed. Try again.', 'error');
@@ -3884,6 +3958,13 @@ async function confirmDelete(id) {
   removePostcard(id);
   renderBoard();
   await broadcastCommentEvent('postcard:delete', { postcard_id: id });
+  sendWhatsAppNotification({
+    type: 'postcard',
+    sender: state.user,
+    action: 'postcard:delete',
+    teaser: buildPostcardTeaser(postcard),
+    link: getShareLink()
+  });
   showToast('Postcard deleted');
 }
 

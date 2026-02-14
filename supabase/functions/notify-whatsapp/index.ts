@@ -7,6 +7,7 @@ const TWILIO_ACCOUNT_SID = Deno.env.get('TWILIO_ACCOUNT_SID') ?? '';
 const TWILIO_AUTH_TOKEN = Deno.env.get('TWILIO_AUTH_TOKEN') ?? '';
 const TWILIO_WHATSAPP_FROM = Deno.env.get('TWILIO_WHATSAPP_FROM') ?? '';
 const TWILIO_MESSAGING_SERVICE_SID = Deno.env.get('TWILIO_MESSAGING_SERVICE_SID') ?? '';
+const TWILIO_WHATSAPP_TEMPLATE_SID = Deno.env.get('TWILIO_WHATSAPP_TEMPLATE_SID') ?? '';
 const WHATSAPP_ALLOWED_ORIGINS = Deno.env.get('WHATSAPP_ALLOWED_ORIGINS') ?? '';
 const CONFIG_KEY = 'loveboard_private';
 
@@ -59,14 +60,15 @@ serve(async (req) => {
       return new Response('Invalid JSON', { status: 400, headers: corsHeaders });
     }
 
-    const { type, sender, teaser, link } = body as {
+    const { type, sender, teaser, link, action } = body as {
       type?: string;
       sender?: string;
       teaser?: string;
       link?: string;
+      action?: string;
     };
-    if (!type || !sender) {
-      return new Response('Missing type or sender', { status: 400, headers: corsHeaders });
+    if (!sender || (!type && !action)) {
+      return new Response('Missing sender or activity type', { status: 400, headers: corsHeaders });
     }
 
     const config = await loadAppConfig();
@@ -103,7 +105,7 @@ serve(async (req) => {
       return new Response('Unknown sender', { status: 400, headers: corsHeaders });
     }
 
-    const message = buildMessage(type, senderName, teaser, link);
+    const message = buildMessage({ type, action, senderName, teaser, link });
     const result = await sendTwilioMessage(toNumber, message);
     return new Response(JSON.stringify({ ok: true, sid: result.sid || null }), {
       status: 200,
@@ -149,11 +151,73 @@ async function loadAppConfig() {
   }
 }
 
-function buildMessage(type: string, senderName: string, teaser?: string, link?: string) {
+function buildMessage({
+  type,
+  action,
+  senderName,
+  teaser,
+  link
+}: {
+  type?: string;
+  action?: string;
+  senderName: string;
+  teaser?: string;
+  link?: string;
+}) {
   const cleanTeaser = clipText(teaser || '', 160);
-  let line = type === 'story'
-    ? `New story from ${senderName}.`
-    : `New postcard from ${senderName}.`;
+  let line = '';
+  switch (action) {
+    case 'postcard:new':
+      line = `New postcard from ${senderName}.`;
+      break;
+    case 'postcard:delete':
+      line = `${senderName} deleted a postcard.`;
+      break;
+    case 'story:generate':
+      line = `New story from ${senderName}.`;
+      break;
+    case 'story:save':
+      line = `${senderName} saved a story.`;
+      break;
+    case 'story:delete':
+      line = `${senderName} deleted a story.`;
+      break;
+    case 'mood:update':
+      line = `${senderName} updated their mood.`;
+      break;
+    case 'reaction:add':
+      line = `${senderName} reacted.`;
+      break;
+    case 'reaction:remove':
+      line = `${senderName} removed a reaction.`;
+      break;
+    case 'commentReaction:add':
+      line = `${senderName} reacted to a comment.`;
+      break;
+    case 'commentReaction:remove':
+      line = `${senderName} removed a comment reaction.`;
+      break;
+    case 'comment:new':
+      line = `${senderName} left a comment.`;
+      break;
+    case 'comment:update':
+      line = `${senderName} edited a comment.`;
+      break;
+    case 'comment:delete':
+      line = `${senderName} deleted a comment.`;
+      break;
+    default:
+      line = '';
+  }
+  if (!line) {
+    if (type === 'story') {
+      line = `New story from ${senderName}.`;
+    } else if (type === 'postcard') {
+      line = `New postcard from ${senderName}.`;
+    } else {
+      line = `New update from ${senderName}.`;
+    }
+  }
   if (cleanTeaser) {
     line = `${line} ${cleanTeaser}`;
   }
@@ -184,7 +248,12 @@ async function sendTwilioMessage(toNumber: string, body: string) {
   } else {
     params.set('From', formatWhatsAppNumber(TWILIO_WHATSAPP_FROM));
   }
-  params.set('Body', body);
+  if (TWILIO_WHATSAPP_TEMPLATE_SID) {
+    params.set('ContentSid', TWILIO_WHATSAPP_TEMPLATE_SID);
+    params.set('ContentVariables', JSON.stringify({ 1: clipText(body, 900) }));
+  } else {
+    params.set('Body', body);
+  }
 
   const auth = btoa(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`);
   const response = await fetch(url, {

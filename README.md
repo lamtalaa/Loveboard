@@ -13,7 +13,7 @@ Loveboard is a cozy, romantic postcard board for a couple. It is built with plai
 - A cozy notification center inside the hamburger menu so you can jump to anything that changed (postcards, moods, comments, reactions).
 - Assets (photos, doodles, audio) stored in Supabase Storage and referenced from each postcard.
 - Optional push notifications so the other person gets an OS-level alert even when the tab is closed (requires HTTPS + Supabase Edge function).
-- Optional WhatsApp notifications for new postcards and stories (requires Twilio + Supabase Edge function).
+- Optional WhatsApp notifications for every activity (requires Twilio + Supabase Edge function).
 
 ## Project structure
 ```
@@ -159,7 +159,7 @@ This repo ships with `supabase/functions/notify-push/index.ts`, which sends Web 
 
 ### WhatsApp notification Edge Function
 
-This repo ships with `supabase/functions/notify-whatsapp/index.ts`, which sends a WhatsApp message via Twilio when a postcard is created or a story is generated.
+This repo ships with `supabase/functions/notify-whatsapp/index.ts`, which sends a WhatsApp message via Twilio whenever a new activity happens (postcards, stories, moods, comments, reactions, and deletes).
 
 1. Deploy it:
    ```bash
@@ -170,10 +170,16 @@ This repo ships with `supabase/functions/notify-whatsapp/index.ts`, which sends 
    - `TWILIO_ACCOUNT_SID`
    - `TWILIO_AUTH_TOKEN`
    - `TWILIO_WHATSAPP_FROM` (example: `whatsapp:+14155551234`) **or** `TWILIO_MESSAGING_SERVICE_SID`
+   - `TWILIO_WHATSAPP_TEMPLATE_SID` (recommended; avoids WhatsApp 24h window issues)
    - `WHATSAPP_ALLOWED_ORIGINS` (comma-separated list of allowed origins; optional)
 3. Ensure the `loveboard_private` app config includes `whatsapp.a` and `whatsapp.b` numbers (see above).
+4. If you set `TWILIO_WHATSAPP_TEMPLATE_SID`, create a Twilio **Utility** template such as:
+   - Template body: `Loveboard update: {{1}}`
+   - Language: English
+   - Category: Utility
+   The function fills `{{1}}` with the activity summary and link.
 
-The client automatically calls this function on new postcards and generated stories.
+The client automatically calls this function on every new activity.
 
 ### Postcard deletion Edge Function
 
