@@ -603,26 +603,23 @@
         >
           <span aria-hidden="true">←</span>
         </button>
-        <p class="storymirror-title view-title">Story Mirror: Us, Soon</p>
       </header>
       <main class="storymirror-main">
         <header class="storymirror-hero">
-          <p class="storymirror-eyebrow">Dreamy cinematic ritual</p>
-          <h1>Build the future you keep whispering about.</h1>
+          <p class="storymirror-eyebrow">Story studio</p>
+          <h1>Write the chapter you can’t wait to live.</h1>
           <p class="storymirror-subtitle">
-            Move through the ritual, add your fragments, and let the story bloom into chapters and images.
+            In under a minute, shape the mood and generate your next future scene.
           </p>
+          <div class="storymirror-intro-pills" aria-hidden="true">
+            <span class="storymirror-intro-pill">Moments</span>
+            <span class="storymirror-intro-pill">Tone</span>
+            <span class="storymirror-intro-pill">Generate</span>
+          </div>
           <p class="storymirror-byline" data-story-byline>A love story</p>
         </header>
 
-        <section class="storymirror-stepper" aria-label="Story steps">
-          <button type="button" class="storymirror-step-chip active" data-step="1">Spark</button>
-          <button type="button" class="storymirror-step-chip" data-step="2">Characters</button>
-          <button type="button" class="storymirror-step-chip" data-step="3">Tone</button>
-          <button type="button" class="storymirror-step-chip" data-step="4">Weave</button>
-        </section>
-
-        <section class="storymirror-steps">
+        <section class="storymirror-steps" id="story-steps-shell">
           <article class="storymirror-step-panel active" data-step="1">
             <div class="storymirror-step-head">
               <h2>Spark the Future</h2>
@@ -726,27 +723,19 @@ Our home at night felt soft and safe…"
           </article>
 
           <article class="storymirror-step-panel" data-step="4">
-            <h2>Weave the Chapters</h2>
+            <h2>Final touches</h2>
             <p class="storymirror-muted">The chapter count adapts to how much you share (up to 10).</p>
             <p class="storymirror-hint" id="story-chapter-hint">Estimated chapters: 4</p>
             <div class="storymirror-input-card">
               <label for="story-extra">Any extra details?</label>
               <textarea id="story-extra" rows="4" placeholder="Add anything you want the story to include..."></textarea>
             </div>
-            <div class="storymirror-grid">
-              <div class="storymirror-input-card storymirror-actions">
-                <button type="button" class="storymirror-primary-btn" id="story-generate">
-                  Generate full story
-                </button>
-                <p class="storymirror-hint" id="story-status"></p>
-              </div>
-            </div>
+            <p class="storymirror-hint" id="story-status"></p>
           </article>
         </section>
 
         <div class="storymirror-nav">
           <button type="button" class="storymirror-nav-btn" id="story-step-back">Back</button>
-          <span class="storymirror-step-indicator" id="story-step-indicator">Step 1 of 4</span>
           <button type="button" class="storymirror-nav-btn primary" id="story-step-next">Next</button>
         </div>
 

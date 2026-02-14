@@ -164,6 +164,7 @@ const state = {
   storyMirrorOpen: false,
   storyMirrorKeyListener: null,
   storyMirrorBusy: false,
+  storyFlowMode: 'intro',
   storyStep: 1,
   storyChapters: [],
   storyImages: [],
@@ -450,6 +451,7 @@ function setupStoryMirror() {
   setupStoryStepper();
   setupStorySuggestions();
   loadStoryDefaults();
+  refreshStoryIntroActions();
   if (ui.storyLens) {
     ui.storyLens.addEventListener('input', () => {
       updateStoryRangeVisual(ui.storyLens);
@@ -501,9 +503,6 @@ function setupStoryMirror() {
       node.addEventListener('change', persistStoryDraft);
     });
   }
-  if (ui.storyGenerate) {
-    ui.storyGenerate.addEventListener('click', () => runStoryGeneration());
-  }
   if (ui.storyNewBtn) {
     ui.storyNewBtn.addEventListener('click', () => resetStoryFlow({ clearDraft: true }));
   }
@@ -535,7 +534,7 @@ function setupStoryMirror() {
   }
   updateChapterEstimate();
   cacheStoryHeroDefaults();
-  restoreStoryDraft();
+  setStoryFlowMode('intro');
 }
 
 async function loadAppConfig() {
@@ -943,20 +942,75 @@ function updateOrbitLocations() {
   if (ui.orbitLocB && locB) ui.orbitLocB.textContent = locB;
 }
 
+function refreshStoryIntroActions() {
+  updateStoryNavButtons();
+}
+
+function setStoryFlowMode(mode) {
+  if (!ui.storyMirrorView) return;
+  state.storyFlowMode = mode === 'editor' ? 'editor' : 'intro';
+  ui.storyMirrorView.classList.toggle('storymirror-flow-intro', state.storyFlowMode === 'intro');
+  ui.storyMirrorView.classList.toggle('storymirror-flow-editor', state.storyFlowMode === 'editor');
+  if (state.storyFlowMode === 'intro') {
+    setStoryStatus('', 'info');
+  }
+  updateStoryNavButtons();
+}
+
+function hasStoryDraft() {
+  return Boolean(readStoredJSON(STORY_DRAFT_KEY, null)?.chapters?.length);
+}
+
+function updateStoryNavButtons() {
+  if (!ui.storyStepBack || !ui.storyStepNext) return;
+  ui.storyStepBack.hidden = false;
+  ui.storyStepNext.hidden = false;
+  ui.storyStepBack.disabled = state.storyMirrorBusy;
+  ui.storyStepNext.disabled = state.storyMirrorBusy;
+  if (state.storyFlowMode === 'intro') {
+    const hasDraft = hasStoryDraft();
+    ui.storyStepBack.hidden = !hasDraft;
+    ui.storyStepBack.textContent = 'Resume draft';
+    ui.storyStepNext.textContent = 'Start story';
+    ui.storyMirrorView?.classList.toggle('storymirror-intro-single-action', !hasDraft);
+    return;
+  }
+  ui.storyMirrorView?.classList.remove('storymirror-intro-single-action');
+  ui.storyStepBack.textContent = 'Back';
+  ui.storyStepNext.textContent = state.storyStep >= STORY_STEP_COUNT ? 'Generate story' : 'Next';
+}
+
 function setupStoryStepper() {
-  if (ui.storyStepChips) {
-    ui.storyStepChips.forEach((chip) => {
-      chip.addEventListener('click', () => {
-        const step = Number(chip.dataset.step || 1);
-        setStoryStep(step);
-      });
+  if (ui.storyStepBack) {
+    ui.storyStepBack.addEventListener('click', () => {
+      if (state.storyMirrorBusy) return;
+      if (state.storyFlowMode === 'intro') {
+        if (hasStoryDraft()) {
+          restoreStoryDraft();
+        }
+        return;
+      }
+      if (state.storyStep <= 1) {
+        setStoryFlowMode('intro');
+        return;
+      }
+      setStoryStep(state.storyStep - 1);
     });
   }
-  if (ui.storyStepBack) {
-    ui.storyStepBack.addEventListener('click', () => setStoryStep(state.storyStep - 1));
-  }
   if (ui.storyStepNext) {
-    ui.storyStepNext.addEventListener('click', () => setStoryStep(state.storyStep + 1));
+    ui.storyStepNext.addEventListener('click', () => {
+      if (state.storyMirrorBusy) return;
+      if (state.storyFlowMode === 'intro') {
+        setStoryFlowMode('editor');
+        setStoryStep(1);
+        return;
+      }
+      if (state.storyStep >= STORY_STEP_COUNT) {
+        runStoryGeneration();
+        return;
+      }
+      setStoryStep(state.storyStep + 1);
+    });
   }
   setStoryStep(state.storyStep);
 }
@@ -970,21 +1024,16 @@ function setStoryStep(step) {
       panel.classList.toggle('active', panelStep === next);
     });
   }
-  if (ui.storyStepChips) {
-    ui.storyStepChips.forEach((chip) => {
-      const chipStep = Number(chip.dataset.step || 1);
-      chip.classList.toggle('active', chipStep === next);
-    });
-  }
   if (ui.storyStepIndicator) {
     ui.storyStepIndicator.textContent = `Step ${next} of ${STORY_STEP_COUNT}`;
   }
   if (ui.storyStepBack) {
-    ui.storyStepBack.disabled = next <= 1;
+    ui.storyStepBack.disabled = state.storyMirrorBusy;
   }
   if (ui.storyStepNext) {
-    ui.storyStepNext.disabled = next >= STORY_STEP_COUNT;
+    ui.storyStepNext.disabled = state.storyMirrorBusy;
   }
+  updateStoryNavButtons();
 }
 
 function setupStorySuggestions() {
@@ -1104,6 +1153,7 @@ function clearStoryDraft() {
   } catch {
     // no-op
   }
+  refreshStoryIntroActions();
 }
 
 function persistStoryDraft() {
@@ -1124,6 +1174,7 @@ function persistStoryDraft() {
   } catch {
     // no-op
   }
+  refreshStoryIntroActions();
 }
 
 async function resumeStoryDraftImages() {
@@ -1190,6 +1241,7 @@ function restoreStoryDraft() {
     });
   }
 
+  setStoryFlowMode('editor');
   setStoryChronicleMode(false);
   state.activeChronicle = null;
   state.storySaved = false;
@@ -1240,6 +1292,8 @@ function resetStoryFlow(options = {}) {
   renderStoryChapters();
   resetStoryHero();
   setStoryStep(1);
+  setStoryFlowMode('intro');
+  refreshStoryIntroActions();
   updateStorySaveButton();
   updateStoryBackButton();
   refreshStorySocialSummary();
@@ -1673,6 +1727,7 @@ function parseFragments(text) {
 
 async function runStoryGeneration() {
   if (state.storyMirrorBusy) return;
+  setStoryFlowMode('editor');
   const yFragments = parseFragments(ui.storyFragmentsY?.value || '');
   const nFragments = parseFragments(ui.storyFragmentsN?.value || '');
   if (!yFragments.length && !nFragments.length) {
@@ -1757,8 +1812,8 @@ async function runStoryGeneration() {
 function setStoryButtonsDisabled(disabled) {
   if (ui.storyGenerate) ui.storyGenerate.disabled = disabled;
   if (ui.storyGenerateMoment) ui.storyGenerateMoment.disabled = disabled;
-  if (ui.storyStepNext) ui.storyStepNext.disabled = disabled || state.storyStep >= STORY_STEP_COUNT;
-  if (ui.storyStepBack) ui.storyStepBack.disabled = disabled || state.storyStep <= 1;
+  if (ui.storyStepNext) ui.storyStepNext.disabled = disabled;
+  if (ui.storyStepBack) ui.storyStepBack.disabled = disabled;
 }
 
 function setStoryStatus(message, tone) {
@@ -2969,11 +3024,9 @@ function handleViewSwitch(view) {
   }
   if (!view) return;
   if (view === 'storymirror' && state.storyMirrorOpen) {
-    if (ui.storyMirrorView?.classList.contains('storymirror-chronicle')) {
-      resetStoryFlow();
-      restoreStoryDraft();
-      updateViewSwitchers('storymirror');
-    }
+    state.activeChronicle = null;
+    resetStoryFlow();
+    updateViewSwitchers('storymirror');
     return;
   }
   if (view === 'loveboard') {
@@ -3069,7 +3122,6 @@ function showStoryMirror(options = {}) {
   attachStoryMirrorListeners();
   if (forceFresh) {
     resetStoryFlow();
-    restoreStoryDraft();
   } else if (!state.activeChronicle && state.storySaved) {
     resetStoryFlow();
     restoreStoryDraft();
