@@ -452,18 +452,22 @@ function setupStoryMirror() {
   loadStoryDefaults();
   if (ui.storyLens) {
     ui.storyLens.addEventListener('input', () => {
+      updateStoryRangeVisual(ui.storyLens);
       updateStoryLensLabel();
       updateChapterEstimate();
       persistStoryDraft();
     });
+    updateStoryRangeVisual(ui.storyLens);
     updateStoryLensLabel();
   }
   if (ui.storyFantasy) {
     ui.storyFantasy.addEventListener('input', () => {
+      updateStoryRangeVisual(ui.storyFantasy);
       updateStoryFantasyLabel();
       updateChapterEstimate();
       persistStoryDraft();
     });
+    updateStoryRangeVisual(ui.storyFantasy);
     updateStoryFantasyLabel();
   }
   if (ui.storyFragmentsY) {
@@ -1016,6 +1020,16 @@ function updateStoryLensLabel() {
   ui.storyLensLabel.textContent = label;
 }
 
+function updateStoryRangeVisual(input) {
+  if (!input) return;
+  const min = Number(input.min || 0);
+  const max = Number(input.max || 100);
+  const value = Number(input.value || min);
+  const range = max - min || 1;
+  const pct = Math.min(100, Math.max(0, ((value - min) / range) * 100));
+  input.style.setProperty('--fill-pct', `${pct}%`);
+}
+
 function getStoryLensProfile() {
   if (!ui.storyLens) return 'soft & romantic';
   const value = Number(ui.storyLens.value || 0);
@@ -1119,7 +1133,7 @@ async function resumeStoryDraftImages() {
     state.storyImagesComplete = true;
     persistStoryDraft();
     updateStorySaveButton();
-    setStoryStatus('Recovered your unsaved story draft.', 'info');
+    setStoryStatus('', 'info');
     return;
   }
   state.storyMirrorBusy = true;
@@ -1130,7 +1144,7 @@ async function resumeStoryDraftImages() {
     state.storyImagesComplete = true;
     persistStoryDraft();
     updateStorySaveButton();
-    setStoryStatus('Recovered your unsaved story draft.', 'success');
+    setStoryStatus('', 'info');
   } catch (error) {
     console.error('story draft image resume', error);
     state.storyImagesComplete = true;
@@ -1156,10 +1170,12 @@ function restoreStoryDraft() {
 
   if (ui.storyLens && Number.isFinite(Number(input.lens_value))) {
     ui.storyLens.value = String(Number(input.lens_value));
+    updateStoryRangeVisual(ui.storyLens);
     updateStoryLensLabel();
   }
   if (ui.storyFantasy && Number.isFinite(Number(input.fantasy_value))) {
     ui.storyFantasy.value = String(Number(input.fantasy_value));
+    updateStoryRangeVisual(ui.storyFantasy);
     updateStoryFantasyLabel();
   }
 
@@ -1199,7 +1215,7 @@ function restoreStoryDraft() {
   updateStoryBackButton();
   refreshStorySocialSummary();
   if (state.storyImagesComplete) {
-    setStoryStatus('Recovered your unsaved story draft.', 'info');
+    setStoryStatus('', 'info');
   } else {
     void resumeStoryDraftImages();
   }
