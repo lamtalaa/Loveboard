@@ -51,6 +51,8 @@ const DEFAULT_POSTCARD_BATCH = 3;
 const STORY_MIN_CHAPTERS = 3;
 const STORY_MAX_CHAPTERS = 10;
 const STORY_STEP_COUNT = 4;
+const CHRONICLE_LONG_PRESS_MS = 520;
+const CHRONICLE_HOLD_CANCEL_PX = 14;
 const STORY_RITUAL_STARS = 18;
 const STORY_WAIT_TEXTS = [
   'Every second is a step closer to the life you are building.',
@@ -299,6 +301,7 @@ const ui = {
   chronicleModalBody: document.getElementById('chronicle-modal-body'),
   chronicleDelete: document.getElementById('chronicle-delete'),
   chronicleActionsModal: document.getElementById('chronicle-actions-modal'),
+  chronicleActionsTitle: document.getElementById('chronicle-actions-title'),
   chronicleActionsOpen: document.getElementById('chronicle-actions-open'),
   chronicleActionsDelete: document.getElementById('chronicle-actions-delete'),
   chronicleActionsCancel: document.getElementById('chronicle-actions-cancel'),
@@ -2162,29 +2165,80 @@ function renderChronicles(options = {}) {
       badge.setAttribute('aria-label', status);
       card.appendChild(badge);
     }
+    const holdTrack = document.createElement('div');
+    holdTrack.className = 'chronicle-hold-progress';
+    const holdFill = document.createElement('span');
+    holdFill.className = 'chronicle-hold-progress-fill';
+    holdTrack.appendChild(holdFill);
     let holdTimer = null;
+    let holdFrame = null;
     let longPressed = false;
+    let pressX = 0;
+    let pressY = 0;
+    let holdStart = 0;
     const clearHold = () => {
       if (holdTimer) {
         clearTimeout(holdTimer);
         holdTimer = null;
+      }
+      if (holdFrame) {
+        cancelAnimationFrame(holdFrame);
+        holdFrame = null;
+      }
+      holdFill.style.width = '0%';
+      card.classList.remove('is-pressing');
+    };
+    const tickHold = () => {
+      if (!holdStart) return;
+      const elapsed = Math.max(0, Date.now() - holdStart);
+      const pct = Math.min(1, elapsed / CHRONICLE_LONG_PRESS_MS);
+      holdFill.style.width = `${Math.round(pct * 100)}%`;
+      if (pct < 1) {
+        holdFrame = requestAnimationFrame(tickHold);
+      } else {
+        holdFrame = null;
       }
     };
     const startHold = (evt) => {
       if (evt.button !== undefined && evt.button !== 0) return;
       longPressed = false;
       clearHold();
+      pressX = evt.clientX ?? 0;
+      pressY = evt.clientY ?? 0;
+      holdStart = Date.now();
+      card.classList.add('is-pressing');
+      holdFrame = requestAnimationFrame(tickHold);
       holdTimer = setTimeout(() => {
         longPressed = true;
+        if (navigator?.vibrate) {
+          try {
+            navigator.vibrate(10);
+          } catch {
+            // no-op
+          }
+        }
         state.activeChronicle = story;
         openChronicleActionsModal();
-      }, 520);
+        clearHold();
+      }, CHRONICLE_LONG_PRESS_MS);
+    };
+    const trackMove = (evt) => {
+      if (!holdTimer) return;
+      const x = evt.clientX ?? pressX;
+      const y = evt.clientY ?? pressY;
+      const dx = x - pressX;
+      const dy = y - pressY;
+      const dist = Math.hypot(dx, dy);
+      if (dist > CHRONICLE_HOLD_CANCEL_PX) {
+        clearHold();
+      }
     };
     card.addEventListener('pointerdown', startHold);
+    card.addEventListener('pointermove', trackMove);
     card.addEventListener('pointerup', clearHold);
     card.addEventListener('pointerleave', clearHold);
     card.addEventListener('pointercancel', clearHold);
-    card.append(cover, title, meta);
+    card.append(holdTrack, cover, title, meta);
     card.addEventListener('click', (evt) => {
       if (longPressed) {
         evt.preventDefault();
@@ -2234,6 +2288,9 @@ function closeChronicleModal() {
 
 function openChronicleActionsModal() {
   if (!state.activeChronicle || !ui.chronicleActionsModal) return;
+  if (ui.chronicleActionsTitle) {
+    ui.chronicleActionsTitle.textContent = state.activeChronicle.title || 'Story options';
+  }
   ui.chronicleActionsModal.showModal();
 }
 
@@ -2780,7 +2837,11 @@ function showStoryMirror() {
   const current = getActiveView();
   if (current === ui.storyMirrorView) return;
   closeChronicleActionsModal();
-  switchView(ui.storyMirrorView, current);
+  const openingChronicleStory = Boolean(state.activeChronicle);
+  switchView(ui.storyMirrorView, current, null, {
+    enterClass: openingChronicleStory ? 'view-enter-match-card' : 'view-enter',
+    exitClass: openingChronicleStory ? 'view-exit-match-card' : 'view-exit'
+  });
   state.storyMirrorOpen = true;
   state.ldAppOpen = false;
   state.constellationOpen = false;
@@ -3228,8 +3289,10 @@ function mulberry32(seed) {
   };
 }
 
-function switchView(showEl, hideEl, onComplete) {
-  const clean = (el) => el && el.classList.remove('view-enter', 'view-exit');
+function switchView(showEl, hideEl, onComplete, options = {}) {
+  const { enterClass = 'view-enter', exitClass = 'view-exit' } = options;
+  const clean = (el) =>
+    el && el.classList.remove('view-enter', 'view-exit', 'view-enter-match-card', 'view-exit-match-card');
   clean(showEl);
   clean(hideEl);
 
@@ -3245,11 +3308,11 @@ function switchView(showEl, hideEl, onComplete) {
   }
 
   if (hideEl) {
-    hideEl.classList.add('view-exit');
+    hideEl.classList.add(exitClass);
     hideEl.setAttribute('aria-hidden', 'true');
     const handleHideEnd = () => {
       hideEl.hidden = true;
-      hideEl.classList.remove('view-exit');
+      hideEl.classList.remove(exitClass);
       hideEl.removeEventListener('animationend', handleHideEnd);
     };
     hideEl.addEventListener('animationend', handleHideEnd);
@@ -3258,9 +3321,9 @@ function switchView(showEl, hideEl, onComplete) {
   if (showEl) {
     showEl.hidden = false;
     showEl.setAttribute('aria-hidden', 'false');
-    showEl.classList.add('view-enter');
+    showEl.classList.add(enterClass);
     const handleShowEnd = () => {
-      showEl.classList.remove('view-enter');
+      showEl.classList.remove(enterClass);
       showEl.removeEventListener('animationend', handleShowEnd);
       if (typeof onComplete === 'function') onComplete();
     };

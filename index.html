@@ -593,8 +593,15 @@
         </button>
       </nav>
       <header class="storymirror-bar">
-        <button type="button" class="storymirror-back-btn" id="story-back-btn" hidden>
-          ← Back to stories
+        <button
+          type="button"
+          class="storymirror-back-btn"
+          id="story-back-btn"
+          aria-label="Back to stories"
+          title="Back to stories"
+          hidden
+        >
+          <span aria-hidden="true">←</span>
         </button>
         <p class="storymirror-title view-title">Story Mirror: Us, Soon</p>
       </header>
@@ -897,7 +904,7 @@ Our home at night felt soft and safe…"
     <dialog id="chronicle-actions-modal" class="modal">
       <div class="modal-content chronicle-actions-modal">
         <header>
-          <h2>Story options</h2>
+          <h2 id="chronicle-actions-title">Story options</h2>
         </header>
         <div class="chronicle-actions-list">
           <button type="button" class="primary" id="chronicle-actions-open">Open story</button>
