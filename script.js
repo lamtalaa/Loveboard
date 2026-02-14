@@ -1272,7 +1272,20 @@ function restoreStoryDraft() {
   if (state.storyImagesComplete) {
     setStoryStatus('', 'info');
   } else {
-    void resumeStoryDraftImages();
+    const restoredImageCount = state.storyImages.filter(Boolean).length;
+    const hasPendingImages = state.storyChapters.some(
+      (chapter, idx) => chapter?.image_prompt && !state.storyImages[idx]
+    );
+    // If we already restored some images, keep the recovered draft stable and
+    // avoid regenerating "missing" images on every resume.
+    if (restoredImageCount > 0 && hasPendingImages) {
+      state.storyImagesComplete = true;
+      persistStoryDraft();
+      updateStorySaveButton();
+      setStoryStatus('Draft recovered. Some images are missing, but you can still save now.', 'error');
+    } else {
+      void resumeStoryDraftImages();
+    }
   }
   return true;
 }
