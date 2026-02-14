@@ -467,15 +467,26 @@ function normalizeAppConfig(value) {
   if (value?.users?.a?.display) config.users.a.display = String(value.users.a.display);
   if (value?.users?.b?.display) config.users.b.display = String(value.users.b.display);
   if (value?.couple_label) config.coupleLabel = String(value.couple_label);
+  if (value?.coupleLabel) config.coupleLabel = String(value.coupleLabel);
   if (value?.story_byline) config.storyByline = String(value.story_byline);
+  if (value?.storyByline) config.storyByline = String(value.storyByline);
   if (value?.wwan_defaults?.personA) {
     config.wwanDefaults.personA = { ...config.wwanDefaults.personA, ...value.wwan_defaults.personA };
   }
   if (value?.wwan_defaults?.personB) {
     config.wwanDefaults.personB = { ...config.wwanDefaults.personB, ...value.wwan_defaults.personB };
   }
+  if (value?.wwanDefaults?.personA) {
+    config.wwanDefaults.personA = { ...config.wwanDefaults.personA, ...value.wwanDefaults.personA };
+  }
+  if (value?.wwanDefaults?.personB) {
+    config.wwanDefaults.personB = { ...config.wwanDefaults.personB, ...value.wwanDefaults.personB };
+  }
   if (value?.mood_presets) {
     config.moodPresets = value.mood_presets;
+  }
+  if (value?.moodPresets) {
+    config.moodPresets = value.moodPresets;
   }
   return config;
 }
@@ -1575,7 +1586,10 @@ function renderChronicles(options = {}) {
     title.textContent = story.title || 'Untitled';
     const meta = document.createElement('p');
     meta.className = 'chronicle-meta';
-    meta.textContent = `${story.user || ''} · ${formatDate(story.created_at)}`;
+    const authorName = story.user ? getDisplayName(story.user) : '';
+    meta.textContent = authorName
+      ? `${authorName} · ${formatDate(story.created_at)}`
+      : formatDate(story.created_at);
     card.append(deleteBtn, cover, title, meta);
     card.addEventListener('click', () => openChronicleStory(story));
     ui.chronicleGrid.appendChild(card);
@@ -3326,7 +3340,11 @@ function renderReactionCounts(postcardId, container) {
       const names = document.createElement('span');
       names.className = 'reaction-names';
       names.textContent = data.users
-        .map((name) => (name ? name[0].toUpperCase() : ''))
+        .map((name) => {
+          const display = name ? getDisplayName(name) : '';
+          return display ? display[0].toUpperCase() : '';
+        })
+        .filter(Boolean)
         .join('');
       pill.appendChild(names);
     }
@@ -3355,7 +3373,10 @@ function renderCommentReactionCounts(commentId, container) {
     const names = document.createElement('span');
     names.className = 'comment-reaction-names';
     names.textContent = data.users
-      .map((name) => (name ? name[0].toUpperCase() : ''))
+      .map((name) => {
+        const display = name ? getDisplayName(name) : '';
+        return display ? display[0].toUpperCase() : '';
+      })
       .filter(Boolean)
       .join('');
     pill.append(icon, names);
@@ -3394,7 +3415,7 @@ function renderComments(postcardId, container) {
     meta.className = 'comment-meta';
     const author = document.createElement('span');
     author.className = 'comment-author';
-    author.textContent = entry.user;
+    author.textContent = getDisplayName(entry.user);
     const time = document.createElement('span');
     time.className = 'comment-time';
     time.textContent = formatCommentTime(entry.created_at);
