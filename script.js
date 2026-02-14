@@ -671,7 +671,6 @@ async function markChronicleOpened(story) {
   const cols = getChronicleReadColumns();
   if (!cols || !story?.id) return;
   if (story[cols.opened]) return;
-  if (story.user && story.user === state.user) return;
   const timestamp = new Date().toISOString();
   try {
     const { error } = await supabase
@@ -690,7 +689,6 @@ async function markChronicleFinished(story) {
   const cols = getChronicleReadColumns();
   if (!cols || !story?.id) return;
   if (story[cols.finished]) return;
-  if (story.user && story.user === state.user) return;
   const timestamp = new Date().toISOString();
   const updates = { [cols.finished]: timestamp };
   if (!story[cols.opened]) {
