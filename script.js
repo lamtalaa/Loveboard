@@ -985,8 +985,7 @@ function setupStoryStepper() {
     ui.storyStepBack.addEventListener('click', () => {
       if (state.storyMirrorBusy) return;
       if (state.storyFlowMode === 'intro') {
-        setStoryFlowMode('editor');
-        setStoryStep(1);
+        startFreshStoryFlow();
         return;
       }
       if (state.storyStep <= 1) {
@@ -1003,8 +1002,7 @@ function setupStoryStepper() {
         if (hasStoryDraft()) {
           restoreStoryDraft();
         } else {
-          setStoryFlowMode('editor');
-          setStoryStep(1);
+          startFreshStoryFlow();
         }
         return;
       }
@@ -1016,6 +1014,44 @@ function setupStoryStepper() {
     });
   }
   setStoryStep(state.storyStep);
+}
+
+function resetStoryEditorInputs() {
+  if (ui.storyFragmentsY) ui.storyFragmentsY.value = '';
+  if (ui.storyFragmentsN) ui.storyFragmentsN.value = '';
+  if (ui.storyExtra) ui.storyExtra.value = '';
+  if (ui.storyProfileY) ui.storyProfileY.value = state.storyDefaults.profileY || '';
+  if (ui.storyProfileN) ui.storyProfileN.value = state.storyDefaults.profileN || '';
+
+  if (ui.storyLens) {
+    ui.storyLens.value = ui.storyLens.defaultValue || ui.storyLens.min || '0';
+    updateStoryRangeVisual(ui.storyLens);
+    updateStoryLensLabel();
+  }
+  if (ui.storyFantasy) {
+    ui.storyFantasy.value = ui.storyFantasy.defaultValue || ui.storyFantasy.min || '0';
+    updateStoryRangeVisual(ui.storyFantasy);
+    updateStoryFantasyLabel();
+  }
+
+  if (ui.storyIntimacyInputs?.length) {
+    ui.storyIntimacyInputs.forEach((node) => {
+      node.checked = node.defaultChecked;
+    });
+  }
+  if (ui.storyPerspectiveInputs?.length) {
+    ui.storyPerspectiveInputs.forEach((node) => {
+      node.checked = node.defaultChecked;
+    });
+  }
+  updateChapterEstimate();
+}
+
+function startFreshStoryFlow() {
+  resetStoryFlow({ clearDraft: true });
+  resetStoryEditorInputs();
+  setStoryFlowMode('editor');
+  setStoryStep(1);
 }
 
 function setStoryStep(step) {
