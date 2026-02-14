@@ -9,6 +9,8 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '
 const STORY_PROMPT_KEY = 'storymirror_prompt_template';
 const PROFILE_CONFIG_KEY = 'loveboard_private';
 const STORY_ALLOWED_ORIGINS = Deno.env.get('STORY_ALLOWED_ORIGINS') ?? '';
+const STORY_TEXT_TIMEOUT_MS = Number(Deno.env.get('STORY_TEXT_TIMEOUT_MS') ?? '25000');
+const STORY_IMAGE_TIMEOUT_MS = Number(Deno.env.get('STORY_IMAGE_TIMEOUT_MS') ?? '30000');
 
 const DEFAULT_ALLOWED_ORIGINS = [
   'https://yani.love',
@@ -135,8 +137,9 @@ async function handleText(
   try {
     const data = await openaiRequest('https://api.openai.com/v1/responses', {
       model: STORY_MODEL,
-      input: prompt
-    });
+      input: prompt,
+      max_output_tokens: 2800
+    }, STORY_TEXT_TIMEOUT_MS);
     const text = extractOutputText(data);
     const jsonText = extractJson(text);
     const parsed = JSON.parse(jsonText);
@@ -146,6 +149,9 @@ async function handleText(
     });
   } catch (error) {
     console.error('story-mirror text error', error);
+    if (isTimeoutError(error)) {
+      return new Response('Story generation timed out. Please try again.', { status: 504, headers: corsHeaders });
+    }
     return new Response('Failed to generate story', { status: 502, headers: corsHeaders });
   }
 }
@@ -164,7 +170,7 @@ async function handleImage(
       prompt,
       size: '1024x1024',
       quality: 'medium'
-    });
+    }, STORY_IMAGE_TIMEOUT_MS);
     const encoded = data?.data?.[0]?.b64_json;
     if (!encoded) {
       return new Response('No image returned', { status: 502, headers: corsHeaders });
@@ -175,19 +181,41 @@ async function handleImage(
     });
   } catch (error) {
     console.error('story-mirror image error', error);
+    if (isTimeoutError(error)) {
+      return new Response('Image generation timed out. Please try again.', { status: 504, headers: corsHeaders });
+    }
     return new Response('Failed to generate image', { status: 502, headers: corsHeaders });
   }
 }
 
-async function openaiRequest(url: string, payload: Record<string, unknown>) {
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(payload)
-  });
+function isTimeoutError(error: unknown) {
+  return error instanceof Error && error.name === 'TimeoutError';
+}
+
+async function openaiRequest(url: string, payload: Record<string, unknown>, timeoutMs: number) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort('timeout'), Math.max(1000, timeoutMs));
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    }).catch((error) => {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        const timeoutError = new Error('Request timed out');
+        timeoutError.name = 'TimeoutError';
+        throw timeoutError;
+      }
+      throw error;
+    });
+  } finally {
+    clearTimeout(timer);
+  }
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     const message = (data as { error?: { message?: string } })?.error?.message ?? 'OpenAI request failed.';

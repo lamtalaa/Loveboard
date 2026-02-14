@@ -3,7 +3,7 @@ import { supabase } from './supabase.js';
 const OPEN_METEO_WEATHER_URL = 'https://api.open-meteo.com/v1/forecast';
 const OPEN_METEO_GEO_URL = 'https://geocoding-api.open-meteo.com/v1/search';
 const UNSPLASH_SOURCE_URL = 'https://source.unsplash.com';
-const QUOTE_URL = 'https://api.allorigins.win/raw?url=https%3A%2F%2Fzenquotes.io%2Fapi%2Fquotes';
+const QUOTE_URL = 'https://dummyjson.com/quotes/random';
 const DEFAULT_PHOTO_A = './assets/placeholder-a.svg';
 const DEFAULT_PHOTO_B = './assets/placeholder-b.svg';
 const STORAGE_KEY = 'wwan-settings';
@@ -581,9 +581,8 @@ async function fetchQuote() {
       throw new Error('Quote unavailable');
     }
     const data = await response.json();
-    const quote = Array.isArray(data) ? data[0] : data;
-    const text = quote.q || quote.content || '';
-    const author = quote.a || quote.author;
+    const text = data?.quote || data?.q || data?.content || '';
+    const author = data?.author || data?.a || '';
     applyQuote(text, author);
   } catch (error) {
     const candidates = fallbackQuotes.filter((q) => q.content !== state.lastQuote);
