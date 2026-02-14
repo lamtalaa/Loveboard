@@ -1273,7 +1273,9 @@ function updateStorySaveButton() {
 
 function updateStoryBackButton() {
   if (!ui.storyBackBtn) return;
-  const shouldShow = Boolean(state.storyMirrorOpen && ui.storyMirrorView?.classList.contains('storymirror-chronicle'));
+  const shouldShow = Boolean(
+    state.storyMirrorOpen && state.activeChronicle && ui.storyMirrorView?.classList.contains('storymirror-chronicle')
+  );
   ui.storyBackBtn.hidden = !shouldShow;
 }
 
@@ -2962,6 +2964,9 @@ async function saveMood(emoji) {
 
 function handleViewSwitch(view) {
   closeStoryMenus();
+  if (document.activeElement instanceof HTMLElement) {
+    document.activeElement.blur();
+  }
   if (!view) return;
   if (view === 'storymirror' && state.storyMirrorOpen) {
     if (ui.storyMirrorView?.classList.contains('storymirror-chronicle')) {
@@ -2976,7 +2981,7 @@ function handleViewSwitch(view) {
   } else if (view === 'ldapp') {
     showLdApp();
   } else if (view === 'storymirror') {
-    showStoryMirror();
+    showStoryMirror({ forceFresh: true });
   } else if (view === 'chronicle') {
     showChronicle();
   } else if (view === 'constellation') {
@@ -3035,12 +3040,17 @@ function showLdApp() {
   attachLdAppListeners();
 }
 
-function showStoryMirror() {
+function showStoryMirror(options = {}) {
+  const { forceFresh = false } = options;
   if (!ui.storyMirrorView) return;
   const current = getActiveView();
   if (current === ui.storyMirrorView) return;
   closeChronicleActionsModal();
-  const openingChronicleStory = Boolean(state.activeChronicle);
+  if (forceFresh) {
+    state.activeChronicle = null;
+    setStoryChronicleMode(false);
+  }
+  const openingChronicleStory = !forceFresh && Boolean(state.activeChronicle);
   switchView(ui.storyMirrorView, current, null, {
     enterClass: openingChronicleStory ? 'view-enter-match-card' : 'view-enter',
     exitClass: openingChronicleStory ? 'view-exit-match-card' : 'view-exit'
@@ -3057,7 +3067,10 @@ function showStoryMirror() {
   cleanupValentineListeners();
   cleanupChronicleListeners();
   attachStoryMirrorListeners();
-  if (!state.activeChronicle && state.storySaved) {
+  if (forceFresh) {
+    resetStoryFlow();
+    restoreStoryDraft();
+  } else if (!state.activeChronicle && state.storySaved) {
     resetStoryFlow();
     restoreStoryDraft();
   }

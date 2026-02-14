@@ -317,6 +317,10 @@ html {
   cursor: pointer;
 }
 
+.storymirror-back-btn[hidden] {
+  display: none !important;
+}
+
 .storymirror-back-btn:hover {
   background: rgba(245, 181, 197, 0.25);
 }
