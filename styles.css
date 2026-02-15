@@ -1573,6 +1573,35 @@ html {
   font-size: 0.98rem;
 }
 
+.storymirror-chapter-text {
+  white-space: pre-wrap;
+}
+
+.storymirror-anchor-highlight {
+  background: rgba(247, 208, 95, 0.38);
+  border-radius: 3px;
+  padding: 0 0.03em;
+}
+
+.story-selection-comment-btn {
+  position: fixed;
+  z-index: 34;
+  border: 1px solid rgba(145, 111, 126, 0.5);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.98);
+  color: rgba(62, 44, 53, 0.92);
+  font-family: 'Work Sans', sans-serif;
+  font-size: 0.74rem;
+  letter-spacing: 0.04em;
+  padding: 0.35rem 0.62rem;
+  box-shadow: 0 12px 24px rgba(40, 29, 35, 0.2);
+  cursor: pointer;
+}
+
+.story-selection-comment-btn[hidden] {
+  display: none !important;
+}
+
 .storymirror-image {
   width: 100%;
   aspect-ratio: 4 / 3;
@@ -1873,6 +1902,20 @@ html {
 .story-social-form {
   display: flex;
   gap: 0.4rem;
+}
+
+.story-social-anchor {
+  font-size: 0.76rem;
+  color: rgba(70, 50, 60, 0.72);
+  background: rgba(240, 219, 129, 0.35);
+  border-radius: 10px;
+  padding: 0.35rem 0.5rem;
+}
+
+.story-social-comment-quote {
+  margin: 0 0 0.2rem;
+  font-size: 0.8rem;
+  color: rgba(70, 50, 60, 0.72);
 }
 
 .story-social-form input {

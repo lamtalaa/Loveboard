@@ -183,6 +183,7 @@ const state = {
   storyReactions: {},
   storyUserReactions: {},
   storyComments: {},
+  pendingStoryCommentAnchor: null,
   storySocialOpen: false,
   storySocialHideTimer: null,
   ritualProgress: 0,
@@ -332,8 +333,10 @@ const ui = {
   storySocialStamps: document.getElementById('story-social-stamps'),
   storySocialCounts: document.getElementById('story-social-counts'),
   storySocialComments: document.getElementById('story-social-comments'),
+  storySocialAnchor: document.getElementById('story-social-anchor'),
   storySocialForm: document.getElementById('story-social-form'),
   storySocialInput: document.getElementById('story-social-input'),
+  storySelectionCommentBtn: document.getElementById('story-selection-comment-btn'),
 };
 
 const template = document.getElementById('postcard-template');
@@ -553,6 +556,16 @@ function setupStoryMirror() {
   }
   if (ui.storyOutput) {
     ui.storyOutput.addEventListener('scroll', handleStoryOutputScroll, { passive: true });
+  }
+  if (ui.storyChapters) {
+    ui.storyChapters.addEventListener('mouseup', handleStoryTextSelection);
+    ui.storyChapters.addEventListener('keyup', handleStoryTextSelection);
+    ui.storyChapters.addEventListener('touchend', () => {
+      setTimeout(handleStoryTextSelection, 0);
+    }, { passive: true });
+  }
+  if (ui.storySelectionCommentBtn) {
+    ui.storySelectionCommentBtn.addEventListener('click', handleStorySelectionCommentClick);
   }
   if (ui.storyBackBtn) {
     ui.storyBackBtn.addEventListener('click', () => {
@@ -925,6 +938,7 @@ async function markChronicleFinished(story) {
 }
 
 function handleStoryOutputScroll() {
+  clearPendingStoryCommentAnchor();
   if (state.storyReadTicking) return;
   if (!state.activeChronicle || !state.storyMirrorOpen) return;
   if (!ui.storyMirrorView?.classList.contains('storymirror-chronicle')) return;
@@ -937,6 +951,114 @@ function handleStoryOutputScroll() {
       markChronicleFinished(state.activeChronicle);
     }
   });
+}
+
+function hideStorySelectionCommentButton() {
+  if (!ui.storySelectionCommentBtn) return;
+  ui.storySelectionCommentBtn.hidden = true;
+}
+
+function clearPendingStoryCommentAnchor() {
+  state.pendingStoryCommentAnchor = null;
+  if (ui.storySocialAnchor) {
+    ui.storySocialAnchor.hidden = true;
+    ui.storySocialAnchor.textContent = '';
+  }
+  hideStorySelectionCommentButton();
+}
+
+function getSelectionOffsetsWithin(root, range) {
+  const pre = range.cloneRange();
+  pre.selectNodeContents(root);
+  pre.setEnd(range.startContainer, range.startOffset);
+  const start = pre.toString().length;
+  const length = range.toString().length;
+  return { start, end: start + length };
+}
+
+function handleStoryTextSelection() {
+  const storyId = getActiveStoryId();
+  if (!storyId || !ui.storySelectionCommentBtn || !ui.storyChapters) {
+    hideStorySelectionCommentButton();
+    return;
+  }
+  const selection = window.getSelection?.();
+  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+    clearPendingStoryCommentAnchor();
+    return;
+  }
+  const range = selection.getRangeAt(0);
+  const startContainerEl =
+    range.startContainer?.nodeType === Node.ELEMENT_NODE
+      ? range.startContainer
+      : range.startContainer?.parentElement;
+  const endContainerEl =
+    range.endContainer?.nodeType === Node.ELEMENT_NODE
+      ? range.endContainer
+      : range.endContainer?.parentElement;
+  const startEl = startContainerEl?.closest?.('.storymirror-chapter-text');
+  const endEl = endContainerEl?.closest?.('.storymirror-chapter-text');
+  if (!startEl || !endEl || startEl !== endEl || !ui.storyChapters.contains(startEl)) {
+    clearPendingStoryCommentAnchor();
+    return;
+  }
+  const chapterIndex = Number(startEl.dataset.chapterIndex);
+  if (!Number.isInteger(chapterIndex) || chapterIndex < 0) {
+    clearPendingStoryCommentAnchor();
+    return;
+  }
+  let offsets;
+  try {
+    offsets = getSelectionOffsetsWithin(startEl, range);
+  } catch {
+    clearPendingStoryCommentAnchor();
+    return;
+  }
+  const rawText = startEl.textContent || '';
+  const start = Math.max(0, Math.min(offsets.start, rawText.length));
+  const end = Math.max(start, Math.min(offsets.end, rawText.length));
+  if (end - start < 2) {
+    clearPendingStoryCommentAnchor();
+    return;
+  }
+  const selectedText = rawText.slice(start, end).trim();
+  if (!selectedText) {
+    clearPendingStoryCommentAnchor();
+    return;
+  }
+  state.pendingStoryCommentAnchor = {
+    chapter_index: chapterIndex,
+    start_offset: start,
+    end_offset: end,
+    selected_text: selectedText
+  };
+  const rect = range.getBoundingClientRect();
+  const x = rect.left + rect.width / 2;
+  const y = rect.top - 14;
+  ui.storySelectionCommentBtn.style.left = `${Math.round(x)}px`;
+  ui.storySelectionCommentBtn.style.top = `${Math.round(y)}px`;
+  ui.storySelectionCommentBtn.style.transform = 'translate(-50%, -100%)';
+  ui.storySelectionCommentBtn.hidden = false;
+}
+
+function renderStoryAnchorPreview() {
+  if (!ui.storySocialAnchor) return;
+  const anchor = state.pendingStoryCommentAnchor;
+  if (!anchor?.selected_text) {
+    ui.storySocialAnchor.hidden = true;
+    ui.storySocialAnchor.textContent = '';
+    return;
+  }
+  ui.storySocialAnchor.hidden = false;
+  ui.storySocialAnchor.textContent = `Replying to: "${clipText(anchor.selected_text, 120)}"`;
+}
+
+function handleStorySelectionCommentClick() {
+  if (!state.pendingStoryCommentAnchor) return;
+  hideStorySelectionCommentButton();
+  openStorySocialSheet();
+  renderStoryAnchorPreview();
+  ui.storySocialInput?.focus();
 }
 
 function attachStoryEndObserver(node) {
@@ -1409,6 +1531,7 @@ function restoreStoryDraft() {
 
 function resetStoryFlow(options = {}) {
   const { clearDraft = false } = options;
+  clearPendingStoryCommentAnchor();
   closeStorySocialSheet();
   closeStoryPerspectiveMenu();
   setStoryChronicleMode(false);
@@ -1548,6 +1671,7 @@ function closeStorySocialSheet() {
     ui.storySocialSheet.hidden = true;
     state.storySocialHideTimer = null;
   }, 240);
+  clearPendingStoryCommentAnchor();
 }
 
 function renderStorySocialSheet() {
@@ -1560,6 +1684,7 @@ function renderStorySocialSheet() {
   renderStoryStampPicker(storyId);
   renderStoryReactionCounts(storyId);
   renderStoryComments(storyId);
+  renderStoryAnchorPreview();
 }
 
 function renderStoryStampPicker(storyId) {
@@ -1637,7 +1762,14 @@ function renderStoryComments(storyId) {
     const text = document.createElement('p');
     text.className = 'story-social-comment-text';
     text.textContent = entry.comment || '';
-    row.append(meta, text);
+    if (typeof entry.selected_text === 'string' && entry.selected_text.trim()) {
+      const quote = document.createElement('p');
+      quote.className = 'story-social-comment-quote';
+      quote.textContent = `“${clipText(entry.selected_text.trim(), 160)}”`;
+      row.append(meta, quote, text);
+    } else {
+      row.append(meta, text);
+    }
     ui.storySocialComments.appendChild(row);
   });
 }
@@ -1713,17 +1845,33 @@ async function handleStoryCommentSubmit(evt) {
     button.disabled = true;
     button.textContent = 'Sending…';
   }
+  const anchor = state.pendingStoryCommentAnchor;
+  const row = { story_id: storyId, user: state.user, comment: text };
+  if (anchor && Number.isInteger(anchor.chapter_index)) {
+    row.chapter_index = anchor.chapter_index;
+    row.start_offset = Number(anchor.start_offset) || 0;
+    row.end_offset = Number(anchor.end_offset) || row.start_offset;
+    row.selected_text = anchor.selected_text || '';
+  }
   try {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('story_comments')
-      .insert({ story_id: storyId, user: state.user, comment: text })
+      .insert(row)
       .select()
       .single();
+    if (error && anchor && isStoryAnchorColumnsMissing(error)) {
+      ({ data, error } = await supabase
+        .from('story_comments')
+        .insert({ story_id: storyId, user: state.user, comment: text })
+        .select()
+        .single());
+    }
     if (error) throw error;
     applyStoryCommentRow(data);
     renderChronicles();
     refreshStorySocialSummary();
     ui.storySocialInput.value = '';
+    clearPendingStoryCommentAnchor();
     await broadcastCommentEvent('storyComment:new', { ...data, sender: state.user });
     sendWhatsAppNotification({
       type: 'story',
@@ -2073,6 +2221,7 @@ function parseFragments(text) {
 
 async function runStoryGeneration() {
   if (state.storyMirrorBusy) return;
+  clearPendingStoryCommentAnchor();
   setStoryFlowMode('editor');
   setStoryPerspectiveSelection(getStoryPerspective(), null);
   const yFragments = parseFragments(ui.storyFragmentsY?.value || '');
@@ -2325,10 +2474,13 @@ async function requestStoryText({
 function renderStoryChapters() {
   if (!ui.storyChapters || !ui.storyEmpty) return;
   const source = state.storyChapters;
+  const storyId = getActiveStoryId();
+  const commentEntries = storyId ? state.storyComments[storyId] || [] : [];
   if (!source || source.length === 0) {
     ui.storyEmpty.hidden = false;
     ui.storyEmpty.setAttribute('aria-hidden', 'false');
     ui.storyChapters.innerHTML = '';
+    clearPendingStoryCommentAnchor();
     return;
   }
   ui.storyEmpty.hidden = true;
@@ -2340,7 +2492,9 @@ function renderStoryChapters() {
     const title = document.createElement('h3');
     title.textContent = chapter.title || `Chapter ${idx + 1}`;
     const text = document.createElement('p');
-    text.textContent = chapter.text || '';
+    text.className = 'storymirror-chapter-text';
+    text.dataset.chapterIndex = String(idx);
+    text.innerHTML = renderAnchoredChapterText(chapter.text || '', idx, commentEntries);
     const imageWrap = document.createElement('div');
     imageWrap.className = 'storymirror-image';
     const img = document.createElement('img');
@@ -2366,6 +2520,60 @@ function renderStoryChapters() {
   sentinel.dataset.storyEnd = 'true';
   ui.storyChapters.appendChild(sentinel);
   attachStoryEndObserver(sentinel);
+}
+
+function escapeStoryHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function getStoryAnchorRangesForChapter(chapterText, chapterIndex, comments) {
+  if (!Array.isArray(comments) || !comments.length) return [];
+  const max = chapterText.length;
+  const ranges = comments
+    .map((entry) => {
+      if (!Number.isInteger(entry?.chapter_index) || entry.chapter_index !== chapterIndex) return null;
+      const start = Math.max(0, Math.min(Number(entry.start_offset) || 0, max));
+      const end = Math.max(start, Math.min(Number(entry.end_offset) || start, max));
+      if (end - start < 1) return null;
+      return { start, end };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.start - b.start || a.end - b.end);
+  if (!ranges.length) return [];
+  const merged = [];
+  ranges.forEach((range) => {
+    const last = merged[merged.length - 1];
+    if (!last || range.start > last.end) {
+      merged.push({ ...range });
+      return;
+    }
+    last.end = Math.max(last.end, range.end);
+  });
+  return merged;
+}
+
+function renderAnchoredChapterText(chapterText, chapterIndex, comments) {
+  const text = String(chapterText || '');
+  const ranges = getStoryAnchorRangesForChapter(text, chapterIndex, comments);
+  if (!ranges.length) return escapeStoryHtml(text);
+  let cursor = 0;
+  let html = '';
+  ranges.forEach((range) => {
+    if (range.start > cursor) {
+      html += escapeStoryHtml(text.slice(cursor, range.start));
+    }
+    html += `<mark class="storymirror-anchor-highlight">${escapeStoryHtml(text.slice(range.start, range.end))}</mark>`;
+    cursor = range.end;
+  });
+  if (cursor < text.length) {
+    html += escapeStoryHtml(text.slice(cursor));
+  }
+  return html;
 }
 
 async function generateChapterImages(chapters) {
@@ -2817,10 +3025,17 @@ async function loadStoryReactions() {
 }
 
 async function loadStoryComments() {
-  const { data, error } = await supabase
+  let query = supabase
     .from('story_comments')
-    .select('id,story_id,user,comment,created_at')
+    .select('id,story_id,user,comment,created_at,chapter_index,start_offset,end_offset,selected_text')
     .order('created_at', { ascending: true });
+  let { data, error } = await query;
+  if (error && isStoryAnchorColumnsMissing(error)) {
+    ({ data, error } = await supabase
+      .from('story_comments')
+      .select('id,story_id,user,comment,created_at')
+      .order('created_at', { ascending: true }));
+  }
   if (error) {
     if (!isMissingTableError(error)) {
       console.error('story comments load', error);
@@ -2980,6 +3195,7 @@ function renderChronicles(options = {}) {
 
 function openChronicleStory(story) {
   if (!story) return;
+  clearPendingStoryCommentAnchor();
   state.activeChronicle = story;
   showStoryMirror();
   markChronicleOpened(story);
@@ -4603,6 +4819,23 @@ function isUpdatedAtMissing(error) {
   );
 }
 
+function isStoryAnchorColumnsMissing(error) {
+  if (!error) return false;
+  const message = String(error.message || '').toLowerCase();
+  const hint = String(error.hint || '').toLowerCase();
+  if (error.code !== '42703') return false;
+  return (
+    message.includes('chapter_index') ||
+    message.includes('start_offset') ||
+    message.includes('end_offset') ||
+    message.includes('selected_text') ||
+    hint.includes('chapter_index') ||
+    hint.includes('start_offset') ||
+    hint.includes('end_offset') ||
+    hint.includes('selected_text')
+  );
+}
+
 function isMissingTableError(error) {
   if (!error) return false;
   return error.code === '42P01' || error.message?.toLowerCase().includes('does not exist');
@@ -4890,6 +5123,12 @@ function applyStoryCommentRow(row) {
     entries.push(row);
   }
   entries.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  if (state.storyMirrorOpen && state.activeChronicle?.id === storyId) {
+    renderStoryChapters();
+    if (state.storySocialOpen) {
+      renderStorySocialSheet();
+    }
+  }
 }
 
 function removeStoryCommentRow(row) {
@@ -4900,6 +5139,12 @@ function removeStoryCommentRow(row) {
   state.storyComments[storyId] = state.storyComments[storyId].filter((entry) => entry.id !== commentId);
   if (!state.storyComments[storyId].length) {
     delete state.storyComments[storyId];
+  }
+  if (state.storyMirrorOpen && state.activeChronicle?.id === storyId) {
+    renderStoryChapters();
+    if (state.storySocialOpen) {
+      renderStorySocialSheet();
+    }
   }
 }
 
