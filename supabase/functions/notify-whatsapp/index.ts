@@ -105,7 +105,14 @@ serve(async (req) => {
       return new Response('Unknown sender', { status: 400, headers: corsHeaders });
     }
 
-    const message = buildMessage({ type, action, senderName, teaser, link });
+    const message = buildMessage({
+      type,
+      action,
+      senderName,
+      teaser,
+      link,
+      includeLink: !TWILIO_WHATSAPP_TEMPLATE_SID
+    });
     const result = await sendTwilioMessage(toNumber, message);
     return new Response(JSON.stringify({ ok: true, sid: result.sid || null }), {
       status: 200,
@@ -156,13 +163,15 @@ function buildMessage({
   action,
   senderName,
   teaser,
-  link
+  link,
+  includeLink = true
 }: {
   type?: string;
   action?: string;
   senderName: string;
   teaser?: string;
   link?: string;
+  includeLink?: boolean;
 }) {
   const cleanTeaser = clipText(teaser || '', 160);
   let line = '';
@@ -233,7 +242,7 @@ function buildMessage({
   if (cleanTeaser) {
     line = `${line} ${cleanTeaser}`;
   }
-  const cleanLink = (link || '').trim();
+  const cleanLink = includeLink ? (link || '').trim() : '';
   return cleanLink ? `${line}\n${cleanLink}` : line;
 }
 
