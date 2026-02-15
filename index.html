@@ -714,9 +714,9 @@ Our home at night felt soft and safe…"
               <div class="storymirror-input-card">
                 <p class="storymirror-muted">Perspective</p>
                 <div class="storymirror-toggle">
-                  <label><input type="radio" name="story-perspective" value="a" /> <span class="storymirror-choice-label">You</span></label>
-                  <label><input type="radio" name="story-perspective" value="b" /> <span class="storymirror-choice-label">Partner</span></label>
-                  <label><input type="radio" name="story-perspective" value="us" checked /> <span class="storymirror-choice-label">Us</span></label>
+                  <label><input type="radio" name="story-perspective" value="a" /> <span class="storymirror-choice-label" data-story-perspective-label="a">You</span></label>
+                  <label><input type="radio" name="story-perspective" value="b" /> <span class="storymirror-choice-label" data-story-perspective-label="b">Partner</span></label>
+                  <label><input type="radio" name="story-perspective" value="us" checked /> <span class="storymirror-choice-label" data-story-perspective-label="us">Us</span></label>
                 </div>
               </div>
             </div>
@@ -742,6 +742,21 @@ Our home at night felt soft and safe…"
         <section class="storymirror-output" id="story-output" aria-live="polite">
           <header class="storymirror-output-header">
             <h2>It begins here</h2>
+            <div class="storymirror-inline-perspective" id="story-perspective-switcher" hidden>
+              <p class="storymirror-inline-perspective-label">Read this chapter as</p>
+              <div class="storymirror-toggle storymirror-toggle-compact">
+                <label><input type="radio" name="story-perspective-output" value="a" /> <span class="storymirror-choice-label" data-story-perspective-label="a">You</span></label>
+                <label><input type="radio" name="story-perspective-output" value="b" /> <span class="storymirror-choice-label" data-story-perspective-label="b">Partner</span></label>
+                <label><input type="radio" name="story-perspective-output" value="us" checked /> <span class="storymirror-choice-label" data-story-perspective-label="us">Us</span></label>
+              </div>
+              <p
+                class="storymirror-inline-perspective-feedback"
+                id="story-perspective-feedback"
+                role="status"
+                aria-live="polite"
+                hidden
+              ></p>
+            </div>
             <button
               type="button"
               class="story-social-trigger"
