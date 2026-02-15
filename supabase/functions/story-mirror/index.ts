@@ -11,6 +11,8 @@ const PROFILE_CONFIG_KEY = 'loveboard_private';
 const STORY_ALLOWED_ORIGINS = Deno.env.get('STORY_ALLOWED_ORIGINS') ?? '';
 const STORY_TEXT_TIMEOUT_MS = Number(Deno.env.get('STORY_TEXT_TIMEOUT_MS') ?? '25000');
 const STORY_IMAGE_TIMEOUT_MS = Number(Deno.env.get('STORY_IMAGE_TIMEOUT_MS') ?? '30000');
+const STORY_IMAGE_SIZE = Deno.env.get('STORY_IMAGE_SIZE') ?? '512x512';
+const STORY_IMAGE_QUALITY = Deno.env.get('STORY_IMAGE_QUALITY') ?? 'low';
 
 const DEFAULT_ALLOWED_ORIGINS = [
   'https://yani.love',
@@ -171,8 +173,8 @@ async function handleImage(
     const data = await openaiRequest('https://api.openai.com/v1/images/generations', {
       model: STORY_IMAGE_MODEL,
       prompt,
-      size: '1024x1024',
-      quality: 'medium'
+      size: STORY_IMAGE_SIZE,
+      quality: STORY_IMAGE_QUALITY
     }, STORY_IMAGE_TIMEOUT_MS);
     const encoded = data?.data?.[0]?.b64_json;
     if (!encoded) {
