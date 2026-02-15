@@ -970,8 +970,8 @@ function updateStoryNavButtons() {
   if (state.storyFlowMode === 'intro') {
     const hasDraft = hasStoryDraft();
     ui.storyStepBack.hidden = !hasDraft;
-    ui.storyStepBack.textContent = 'Start story';
-    ui.storyStepNext.textContent = hasDraft ? 'Resume draft' : 'Start story';
+    ui.storyStepBack.textContent = 'Create new story';
+    ui.storyStepNext.textContent = hasDraft ? 'Continue draft' : 'Create new story';
     ui.storyMirrorView?.classList.toggle('storymirror-intro-single-action', !hasDraft);
     return;
   }
@@ -985,6 +985,10 @@ function setupStoryStepper() {
     ui.storyStepBack.addEventListener('click', () => {
       if (state.storyMirrorBusy) return;
       if (state.storyFlowMode === 'intro') {
+        if (hasStoryDraft()) {
+          const confirmed = window.confirm('You have a saved draft. Start a new story and remove this draft?');
+          if (!confirmed) return;
+        }
         startFreshStoryFlow();
         return;
       }
