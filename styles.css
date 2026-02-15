@@ -1581,6 +1581,7 @@ html {
   background: rgba(247, 208, 95, 0.38);
   border-radius: 3px;
   padding: 0 0.03em;
+  cursor: pointer;
 }
 
 .story-selection-comment-btn {
@@ -1869,6 +1870,11 @@ html {
 
 .story-social-comment.mine {
   background: rgba(245, 181, 197, 0.34);
+}
+
+.story-social-comment.is-focused {
+  outline: 2px solid rgba(247, 208, 95, 0.72);
+  box-shadow: 0 0 0 2px rgba(247, 208, 95, 0.24);
 }
 
 .story-social-comment-meta {

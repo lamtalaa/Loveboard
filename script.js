@@ -184,6 +184,7 @@ const state = {
   storyUserReactions: {},
   storyComments: {},
   pendingStoryCommentAnchor: null,
+  storyCommentFocusAnchorKey: null,
   storySocialOpen: false,
   storySocialHideTimer: null,
   ritualProgress: 0,
@@ -560,6 +561,7 @@ function setupStoryMirror() {
   if (ui.storyChapters) {
     ui.storyChapters.addEventListener('mouseup', handleStoryTextSelection);
     ui.storyChapters.addEventListener('keyup', handleStoryTextSelection);
+    ui.storyChapters.addEventListener('click', handleStoryChapterClick);
     ui.storyChapters.addEventListener('touchend', () => {
       setTimeout(handleStoryTextSelection, 0);
     }, { passive: true });
@@ -1059,6 +1061,16 @@ function handleStorySelectionCommentClick() {
   openStorySocialSheet();
   renderStoryAnchorPreview();
   ui.storySocialInput?.focus();
+}
+
+function handleStoryChapterClick(evt) {
+  const mark = evt.target?.closest?.('.storymirror-anchor-highlight');
+  if (!mark || !ui.storyChapters?.contains(mark)) return;
+  const anchorKey = String(mark.dataset.anchorKey || '').trim();
+  if (!anchorKey) return;
+  clearPendingStoryCommentAnchor();
+  state.storyCommentFocusAnchorKey = anchorKey;
+  openStorySocialSheet();
 }
 
 function attachStoryEndObserver(node) {
@@ -1671,6 +1683,7 @@ function closeStorySocialSheet() {
     ui.storySocialSheet.hidden = true;
     state.storySocialHideTimer = null;
   }, 240);
+  state.storyCommentFocusAnchorKey = null;
   clearPendingStoryCommentAnchor();
 }
 
@@ -1737,6 +1750,7 @@ function renderStoryComments(storyId) {
     ui.storySocialComments.appendChild(empty);
     return;
   }
+  let focusRow = null;
   comments.forEach((entry) => {
     const row = document.createElement('article');
     row.className = 'story-social-comment';
@@ -1763,6 +1777,12 @@ function renderStoryComments(storyId) {
     text.className = 'story-social-comment-text';
     text.textContent = entry.comment || '';
     if (typeof entry.selected_text === 'string' && entry.selected_text.trim()) {
+      const anchorKey = getStoryAnchorKey(entry.chapter_index, entry.start_offset, entry.end_offset);
+      row.dataset.anchorKey = anchorKey;
+      if (state.storyCommentFocusAnchorKey && state.storyCommentFocusAnchorKey === anchorKey) {
+        row.classList.add('is-focused');
+        if (!focusRow) focusRow = row;
+      }
       const quote = document.createElement('p');
       quote.className = 'story-social-comment-quote';
       quote.textContent = `“${clipText(entry.selected_text.trim(), 160)}”`;
@@ -1772,6 +1792,12 @@ function renderStoryComments(storyId) {
     }
     ui.storySocialComments.appendChild(row);
   });
+  if (focusRow) {
+    requestAnimationFrame(() => {
+      focusRow.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    });
+    state.storyCommentFocusAnchorKey = null;
+  }
 }
 
 async function handleStoryReactionSelection(storyId, reaction) {
@@ -2531,6 +2557,13 @@ function escapeStoryHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
+function getStoryAnchorKey(chapterIndex, startOffset, endOffset) {
+  const chapter = Number(chapterIndex) || 0;
+  const start = Math.max(0, Number(startOffset) || 0);
+  const end = Math.max(start, Number(endOffset) || start);
+  return `${chapter}:${start}-${end}`;
+}
+
 function getStoryAnchorRangesForChapter(chapterText, chapterIndex, comments) {
   if (!Array.isArray(comments) || !comments.length) return [];
   const max = chapterText.length;
@@ -2540,21 +2573,21 @@ function getStoryAnchorRangesForChapter(chapterText, chapterIndex, comments) {
       const start = Math.max(0, Math.min(Number(entry.start_offset) || 0, max));
       const end = Math.max(start, Math.min(Number(entry.end_offset) || start, max));
       if (end - start < 1) return null;
-      return { start, end };
+      return { start, end, key: getStoryAnchorKey(chapterIndex, start, end) };
     })
     .filter(Boolean)
     .sort((a, b) => a.start - b.start || a.end - b.end);
   if (!ranges.length) return [];
-  const merged = [];
+  const result = [];
+  const seen = new Set();
   ranges.forEach((range) => {
-    const last = merged[merged.length - 1];
-    if (!last || range.start > last.end) {
-      merged.push({ ...range });
-      return;
-    }
-    last.end = Math.max(last.end, range.end);
+    if (seen.has(range.key)) return;
+    const last = result[result.length - 1];
+    if (last && range.start < last.end) return;
+    seen.add(range.key);
+    result.push(range);
   });
-  return merged;
+  return result;
 }
 
 function renderAnchoredChapterText(chapterText, chapterIndex, comments) {
@@ -2567,7 +2600,7 @@ function renderAnchoredChapterText(chapterText, chapterIndex, comments) {
     if (range.start > cursor) {
       html += escapeStoryHtml(text.slice(cursor, range.start));
     }
-    html += `<mark class="storymirror-anchor-highlight">${escapeStoryHtml(text.slice(range.start, range.end))}</mark>`;
+    html += `<mark class="storymirror-anchor-highlight" data-anchor-key="${escapeStoryHtml(range.key)}">${escapeStoryHtml(text.slice(range.start, range.end))}</mark>`;
     cursor = range.end;
   });
   if (cursor < text.length) {
