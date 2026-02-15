@@ -743,11 +743,30 @@ Our home at night felt soft and safe…"
           <header class="storymirror-output-header">
             <h2>It begins here</h2>
             <div class="storymirror-inline-perspective" id="story-perspective-switcher" hidden>
-              <p class="storymirror-inline-perspective-label">Read this chapter as</p>
-              <div class="storymirror-toggle storymirror-toggle-compact">
-                <label><input type="radio" name="story-perspective-output" value="a" /> <span class="storymirror-choice-label" data-story-perspective-label="a">You</span></label>
-                <label><input type="radio" name="story-perspective-output" value="b" /> <span class="storymirror-choice-label" data-story-perspective-label="b">Partner</span></label>
-                <label><input type="radio" name="story-perspective-output" value="us" checked /> <span class="storymirror-choice-label" data-story-perspective-label="us">Us</span></label>
+              <button
+                type="button"
+                class="storymirror-perspective-trigger"
+                id="story-perspective-toggle"
+                aria-expanded="false"
+                aria-haspopup="menu"
+                aria-controls="story-perspective-panel"
+              >
+                <span>Perspective</span>
+                <span class="storymirror-perspective-current" id="story-perspective-current">Us</span>
+              </button>
+              <div class="storymirror-perspective-panel" id="story-perspective-panel" role="menu" hidden>
+                <button type="button" class="storymirror-perspective-option" data-perspective-value="a" role="menuitemradio" aria-checked="false">
+                  <span data-story-perspective-label="a">You</span>
+                  <span class="storymirror-perspective-check" aria-hidden="true">✓</span>
+                </button>
+                <button type="button" class="storymirror-perspective-option" data-perspective-value="b" role="menuitemradio" aria-checked="false">
+                  <span data-story-perspective-label="b">Partner</span>
+                  <span class="storymirror-perspective-check" aria-hidden="true">✓</span>
+                </button>
+                <button type="button" class="storymirror-perspective-option" data-perspective-value="us" role="menuitemradio" aria-checked="true">
+                  <span data-story-perspective-label="us">Us</span>
+                  <span class="storymirror-perspective-check" aria-hidden="true">✓</span>
+                </button>
               </div>
               <p
                 class="storymirror-inline-perspective-feedback"

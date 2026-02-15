@@ -194,7 +194,10 @@ const state = {
   ritualFinishDuration: 1800,
   ritualSpeed: 0.35,
   ritualDrift: 0.02,
-  storyPerspectiveFeedbackTimer: null
+  storyPerspectiveFeedbackTimer: null,
+  storyPerspectiveMenuOpen: false,
+  pendingStoryPerspective: null,
+  storyPerspectiveEnterTimer: null
 };
 
 const ui = {
@@ -286,7 +289,10 @@ const ui = {
   storyIntimacyInputs: document.querySelectorAll('input[name="story-intimacy"]'),
   storyPerspectiveInputs: document.querySelectorAll('input[name="story-perspective"]'),
   storyPerspectiveSwitcher: document.getElementById('story-perspective-switcher'),
-  storyPerspectiveSwitchInputs: document.querySelectorAll('input[name="story-perspective-output"]'),
+  storyPerspectiveToggle: document.getElementById('story-perspective-toggle'),
+  storyPerspectivePanel: document.getElementById('story-perspective-panel'),
+  storyPerspectiveOptions: document.querySelectorAll('.storymirror-perspective-option[data-perspective-value]'),
+  storyPerspectiveCurrent: document.getElementById('story-perspective-current'),
   storyPerspectiveFeedback: document.getElementById('story-perspective-feedback'),
   storyGenerate: document.getElementById('story-generate'),
   storyStatus: document.getElementById('story-status'),
@@ -513,16 +519,32 @@ function setupStoryMirror() {
       });
     });
   }
-  if (ui.storyPerspectiveSwitchInputs?.length) {
-    ui.storyPerspectiveSwitchInputs.forEach((node) => {
-      node.addEventListener('change', () => {
-        if (!node.checked) return;
-        setStoryPerspectiveSelection(node.value, 'output');
-        if (!state.storyChapters.length || state.activeChronicle) return;
-        void switchStoryPerspective();
+  if (ui.storyPerspectiveToggle) {
+    ui.storyPerspectiveToggle.addEventListener('click', (evt) => {
+      evt.stopPropagation();
+      toggleStoryPerspectiveMenu();
+    });
+  }
+  if (ui.storyPerspectiveOptions?.length) {
+    ui.storyPerspectiveOptions.forEach((option) => {
+      option.addEventListener('click', () => {
+        const next = normalizeStoryPerspective(option.dataset.perspectiveValue);
+        requestStoryPerspectiveSwitch(next);
       });
     });
   }
+  document.addEventListener('click', (evt) => {
+    if (!state.storyPerspectiveMenuOpen) return;
+    const root = ui.storyPerspectiveSwitcher;
+    if (!root) return;
+    if (root.contains(evt.target)) return;
+    closeStoryPerspectiveMenu();
+  });
+  document.addEventListener('keydown', (evt) => {
+    if (evt.key === 'Escape' && state.storyPerspectiveMenuOpen) {
+      closeStoryPerspectiveMenu();
+    }
+  });
   if (ui.storyNewBtn) {
     ui.storyNewBtn.addEventListener('click', () => resetStoryFlow({ clearDraft: true }));
   }
@@ -1285,6 +1307,7 @@ async function resumeStoryDraftImages() {
   } finally {
     state.storyMirrorBusy = false;
     setStoryButtonsDisabled(false);
+    flushPendingStoryPerspectiveSwitch();
   }
 }
 
@@ -1387,6 +1410,7 @@ function restoreStoryDraft() {
 function resetStoryFlow(options = {}) {
   const { clearDraft = false } = options;
   closeStorySocialSheet();
+  closeStoryPerspectiveMenu();
   setStoryChronicleMode(false);
   if (ui.storyMirrorView) {
     ui.storyMirrorView.classList.remove('storymirror-generated');
@@ -1400,6 +1424,7 @@ function resetStoryFlow(options = {}) {
   state.storyImages = [];
   state.storyImagesComplete = false;
   state.storySaved = false;
+  state.pendingStoryPerspective = null;
   state.activeChronicle = null;
   renderStoryChapters();
   resetStoryHero();
@@ -1751,6 +1776,7 @@ async function saveStoryChronicle() {
     ui.storySaveBtn.textContent = 'Saving…';
   }
   const inputs = getStoryInputSnapshot();
+  const perspectiveCache = buildStoryPerspectiveCachePayload();
   const payload = {
     title: ui.storyHeroTitle?.textContent || 'Our Future, Soon',
     inputs: {
@@ -1758,7 +1784,9 @@ async function saveStoryChronicle() {
       profile_y: inputs.profile_y || state.storyDefaults.profileY || '',
       profile_n: inputs.profile_n || state.storyDefaults.profileN || '',
       lens: getStoryLensProfile(),
-      fantasy: getStoryFantasyProfile()
+      fantasy: getStoryFantasyProfile(),
+      active_perspective: normalizeStoryPerspective(state.storyActivePerspective || inputs.perspective || 'us'),
+      text_by_perspective: perspectiveCache
     },
     chapters: state.storyChapters,
     images: state.storyImages,
@@ -1821,9 +1849,13 @@ function setStoryPerspectiveSelection(value, source = null) {
       input.checked = input.value === next;
     });
   }
-  if (source !== 'output' && ui.storyPerspectiveSwitchInputs?.length) {
-    ui.storyPerspectiveSwitchInputs.forEach((input) => {
-      input.checked = input.value === next;
+  if (ui.storyPerspectiveCurrent) {
+    ui.storyPerspectiveCurrent.textContent = getStoryPerspectiveLabel(next);
+  }
+  if (ui.storyPerspectiveOptions?.length) {
+    ui.storyPerspectiveOptions.forEach((option) => {
+      const selected = option.dataset.perspectiveValue === next;
+      option.setAttribute('aria-checked', selected ? 'true' : 'false');
     });
   }
 }
@@ -1854,21 +1886,115 @@ function getCachedStoryPerspectiveText(perspective) {
   };
 }
 
+function buildStoryPerspectiveCachePayload() {
+  const payload = {};
+  Object.entries(state.storyTextByPerspective || {}).forEach(([key, value]) => {
+    const normalizedKey = normalizeStoryPerspective(key);
+    if (!value || !Array.isArray(value.chapters) || !value.chapters.length) return;
+    payload[normalizedKey] = {
+      chapters: cloneStoryChapters(value.chapters),
+      title: typeof value.title === 'string' ? value.title : ''
+    };
+  });
+  return payload;
+}
+
+async function persistActiveChroniclePerspectiveCache() {
+  const storyId = state.activeChronicle?.id;
+  if (!storyId) return;
+  const currentInputs =
+    state.activeChronicle?.inputs && typeof state.activeChronicle.inputs === 'object'
+      ? state.activeChronicle.inputs
+      : {};
+  const normalizedActive = normalizeStoryPerspective(state.storyActivePerspective || 'us');
+  const nextInputs = {
+    ...currentInputs,
+    perspective: normalizedActive,
+    active_perspective: normalizedActive,
+    text_by_perspective: buildStoryPerspectiveCachePayload()
+  };
+  try {
+    const { data, error } = await supabase
+      .from('story_chronicles')
+      .update({ inputs: nextInputs })
+      .eq('id', storyId)
+      .select('*')
+      .single();
+    if (error) throw error;
+    applyChronicleRemoteUpdate(data);
+  } catch (error) {
+    console.warn('chronicle perspective cache sync', error);
+  }
+}
+
 function updateStoryPerspectiveSwitcher() {
   const generated = Boolean(ui.storyMirrorView?.classList.contains('storymirror-generated'));
-  const chronicle = Boolean(ui.storyMirrorView?.classList.contains('storymirror-chronicle'));
-  const shouldShow = generated && !chronicle && state.storyChapters.length > 0;
+  const shouldShow = generated && state.storyChapters.length > 0;
   if (ui.storyPerspectiveSwitcher) {
     ui.storyPerspectiveSwitcher.hidden = !shouldShow;
   }
-  if (ui.storyPerspectiveSwitchInputs?.length) {
-    ui.storyPerspectiveSwitchInputs.forEach((input) => {
-      input.disabled = state.storyMirrorBusy || !shouldShow;
-    });
+  if (ui.storyPerspectiveToggle) {
+    ui.storyPerspectiveToggle.disabled = !shouldShow;
   }
+  if (!shouldShow) closeStoryPerspectiveMenu();
   if (!shouldShow) {
     setStoryPerspectiveFeedback('', 'info');
   }
+}
+
+function openStoryPerspectiveMenu() {
+  if (!ui.storyPerspectivePanel || !ui.storyPerspectiveToggle) return;
+  if (ui.storyPerspectiveToggle.disabled) return;
+  ui.storyPerspectivePanel.hidden = false;
+  ui.storyPerspectiveToggle.setAttribute('aria-expanded', 'true');
+  state.storyPerspectiveMenuOpen = true;
+}
+
+function closeStoryPerspectiveMenu() {
+  if (!ui.storyPerspectivePanel || !ui.storyPerspectiveToggle) return;
+  ui.storyPerspectivePanel.hidden = true;
+  ui.storyPerspectiveToggle.setAttribute('aria-expanded', 'false');
+  state.storyPerspectiveMenuOpen = false;
+}
+
+function toggleStoryPerspectiveMenu() {
+  if (state.storyPerspectiveMenuOpen) {
+    closeStoryPerspectiveMenu();
+    return;
+  }
+  openStoryPerspectiveMenu();
+}
+
+function requestStoryPerspectiveSwitch(perspective) {
+  const next = normalizeStoryPerspective(perspective);
+  closeStoryPerspectiveMenu();
+  if (!state.storyChapters.length) return;
+  const current = normalizeStoryPerspective(state.storyActivePerspective || getStoryPerspective());
+  if (!state.storyMirrorBusy && next === current) return;
+  setStoryPerspectiveFeedback('Switching', 'info', { loading: true });
+  setStoryStatus('Switching perspective…', 'info');
+  if (state.storyMirrorBusy) {
+    state.pendingStoryPerspective = next;
+    return;
+  }
+  state.pendingStoryPerspective = null;
+  void switchStoryPerspective(next);
+}
+
+function flushPendingStoryPerspectiveSwitch() {
+  if (state.storyMirrorBusy) return;
+  const pending = state.pendingStoryPerspective;
+  if (!pending) return;
+  state.pendingStoryPerspective = null;
+  const next = normalizeStoryPerspective(pending);
+  const current = normalizeStoryPerspective(state.storyActivePerspective || getStoryPerspective());
+  if (next === current) {
+    setStoryPerspectiveFeedback('', 'info');
+    return;
+  }
+  setStoryPerspectiveFeedback('Switching', 'info', { loading: true });
+  setStoryStatus('Switching perspective…', 'info');
+  void switchStoryPerspective(next);
 }
 
 function getStoryPerspectiveLabel(value) {
@@ -1893,7 +2019,21 @@ function setStoryPerspectiveFeedback(message, tone = 'info', options = {}) {
     ui.storyPerspectiveSwitcher.classList.toggle('is-loading', Boolean(loading));
   }
   if (ui.storyChapters) {
+    const wasSwitching = ui.storyChapters.classList.contains('is-switching');
     ui.storyChapters.classList.toggle('is-switching', Boolean(loading));
+    if (state.storyPerspectiveEnterTimer) {
+      clearTimeout(state.storyPerspectiveEnterTimer);
+      state.storyPerspectiveEnterTimer = null;
+    }
+    if (wasSwitching && !loading) {
+      ui.storyChapters.classList.remove('is-entering');
+      void ui.storyChapters.offsetWidth;
+      ui.storyChapters.classList.add('is-entering');
+      state.storyPerspectiveEnterTimer = setTimeout(() => {
+        ui.storyChapters?.classList.remove('is-entering');
+        state.storyPerspectiveEnterTimer = null;
+      }, 320);
+    }
   }
   if (autoHideMs > 0 && message) {
     state.storyPerspectiveFeedbackTimer = setTimeout(() => {
@@ -1945,6 +2085,8 @@ async function runStoryGeneration() {
   state.storyChapters = [];
   state.storyTextByPerspective = {};
   state.storyImagesComplete = false;
+  state.pendingStoryPerspective = null;
+  closeStoryPerspectiveMenu();
   setStoryChronicleMode(false);
   if (ui.storyMirrorView) {
     ui.storyMirrorView.classList.remove('storymirror-generated');
@@ -2017,16 +2159,20 @@ async function runStoryGeneration() {
     state.storyMirrorBusy = false;
     setStoryButtonsDisabled(false);
     updateStoryPerspectiveSwitcher();
+    flushPendingStoryPerspectiveSwitch();
   }
 }
 
-async function switchStoryPerspective() {
-  if (state.storyMirrorBusy || !state.storyChapters.length || state.activeChronicle) return;
-  const yFragments = parseFragments(ui.storyFragmentsY?.value || '');
-  const nFragments = parseFragments(ui.storyFragmentsN?.value || '');
+async function switchStoryPerspective(targetPerspective = null) {
+  if (state.storyMirrorBusy || !state.storyChapters.length) return;
+  const chronicleInputs =
+    state.activeChronicle?.inputs && typeof state.activeChronicle.inputs === 'object'
+      ? state.activeChronicle.inputs
+      : {};
+  const yFragments = parseFragments(ui.storyFragmentsY?.value || chronicleInputs.fragments_y || '');
+  const nFragments = parseFragments(ui.storyFragmentsN?.value || chronicleInputs.fragments_n || '');
   if (!yFragments.length && !nFragments.length) return;
-  const selectedPerspective = normalizeStoryPerspective(getStoryPerspective());
-  const selectedLabel = getStoryPerspectiveLabel(selectedPerspective);
+  const selectedPerspective = normalizeStoryPerspective(targetPerspective || getStoryPerspective());
   const previousPerspective = normalizeStoryPerspective(state.storyActivePerspective || 'us');
   if (selectedPerspective === previousPerspective) return;
   const previousImages = state.storyImages.slice();
@@ -2044,9 +2190,11 @@ async function switchStoryPerspective() {
     }
     state.storyImagesComplete = true;
     renderStoryChapters();
+    setStoryPerspectiveSelection(selectedPerspective, null);
     persistStoryDraft();
+    await persistActiveChroniclePerspectiveCache();
     updateStorySaveButton();
-    setStoryPerspectiveFeedback(`Loaded ${selectedLabel} perspective instantly.`, 'success', { autoHideMs: 1200 });
+    setStoryPerspectiveFeedback('', 'info');
     setStoryStatus('Perspective updated.', 'success');
     return;
   }
@@ -2054,19 +2202,17 @@ async function switchStoryPerspective() {
   state.storyMirrorBusy = true;
   setStoryButtonsDisabled(true);
   updateStoryPerspectiveSwitcher();
-  setStoryPerspectiveFeedback(`Switching to ${selectedLabel} perspective...`, 'info', { loading: true });
-  setStoryStatus('Switching perspective…', 'info');
   try {
     const responseData = await requestStoryText({
       yFragments,
       nFragments,
       chapterCount: currentCount,
-      profileY: ui.storyProfileY?.value || state.storyDefaults.profileY || '',
-      profileN: ui.storyProfileN?.value || state.storyDefaults.profileN || '',
-      extraDetails: ui.storyExtra?.value || '',
-      fantasy: getStoryFantasyProfile(),
-      lens: getStoryLensProfile(),
-      intimacy: getStoryIntimacy(),
+      profileY: ui.storyProfileY?.value || chronicleInputs.profile_y || state.storyDefaults.profileY || '',
+      profileN: ui.storyProfileN?.value || chronicleInputs.profile_n || state.storyDefaults.profileN || '',
+      extraDetails: ui.storyExtra?.value || chronicleInputs.moment || '',
+      fantasy: chronicleInputs.fantasy || getStoryFantasyProfile(),
+      lens: chronicleInputs.lens || getStoryLensProfile(),
+      intimacy: chronicleInputs.intimacy || getStoryIntimacy(),
       perspective: selectedPerspective
     });
     if (!responseData || !responseData.chapters?.length) {
@@ -2087,19 +2233,21 @@ async function switchStoryPerspective() {
     // Keep existing images stable when only the perspective text changes.
     state.storyImagesComplete = true;
     renderStoryChapters();
+    setStoryPerspectiveSelection(selectedPerspective, null);
     persistStoryDraft();
+    await persistActiveChroniclePerspectiveCache();
     updateStorySaveButton();
-    setStoryPerspectiveFeedback(`Now reading as ${selectedLabel}.`, 'success', { autoHideMs: 1600 });
+    setStoryPerspectiveFeedback('', 'info');
     setStoryStatus('Perspective updated.', 'success');
   } catch (error) {
     console.error('story perspective switch', error);
-    setStoryPerspectiveSelection(previousPerspective, null);
-    setStoryPerspectiveFeedback(error.message || 'Could not switch perspective.', 'error', { autoHideMs: 2400 });
+    setStoryPerspectiveFeedback('Could not switch.', 'error', { autoHideMs: 1800 });
     setStoryStatus(error.message || 'Could not switch perspective.', 'error');
   } finally {
     state.storyMirrorBusy = false;
     setStoryButtonsDisabled(false);
     updateStoryPerspectiveSwitcher();
+    flushPendingStoryPerspectiveSwitch();
   }
 }
 
@@ -2108,11 +2256,6 @@ function setStoryButtonsDisabled(disabled) {
   if (ui.storyGenerateMoment) ui.storyGenerateMoment.disabled = disabled;
   if (ui.storyStepNext) ui.storyStepNext.disabled = disabled;
   if (ui.storyStepBack) ui.storyStepBack.disabled = disabled;
-  if (ui.storyPerspectiveSwitchInputs?.length) {
-    ui.storyPerspectiveSwitchInputs.forEach((input) => {
-      input.disabled = disabled || !state.storyChapters.length || Boolean(state.activeChronicle);
-    });
-  }
 }
 
 function setStoryStatus(message, tone) {
@@ -2842,7 +2985,22 @@ function openChronicleStory(story) {
   markChronicleOpened(story);
   state.storyChapters = Array.isArray(story.chapters) ? story.chapters : [];
   state.storyTextByPerspective = {};
-  state.storyActivePerspective = normalizeStoryPerspective(story?.inputs?.perspective || 'us');
+  const storyInputs = story?.inputs && typeof story.inputs === 'object' ? story.inputs : {};
+  state.storyActivePerspective = normalizeStoryPerspective(
+    storyInputs.active_perspective || storyInputs.perspective || 'us'
+  );
+  if (storyInputs.text_by_perspective && typeof storyInputs.text_by_perspective === 'object') {
+    Object.entries(storyInputs.text_by_perspective).forEach(([key, value]) => {
+      if (!value || typeof value !== 'object') return;
+      const cachedChapters = Array.isArray(value.chapters) ? value.chapters : [];
+      const cachedTitle = typeof value.title === 'string' ? value.title : '';
+      cacheStoryPerspectiveText(key, cachedChapters, cachedTitle);
+    });
+  }
+  if (!getCachedStoryPerspectiveText(state.storyActivePerspective)) {
+    cacheStoryPerspectiveText(state.storyActivePerspective, state.storyChapters, story?.title || '');
+  }
+  setStoryPerspectiveSelection(state.storyActivePerspective, null);
   state.storyImages = Array.isArray(story.images) ? story.images : [];
   state.storyImagesComplete = true;
   state.storySaved = true;
