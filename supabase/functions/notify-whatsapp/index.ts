@@ -93,16 +93,19 @@ serve(async (req) => {
       return new Response('Missing WhatsApp numbers', { status: 400, headers: corsHeaders });
     }
 
+    const isSenderA = isSameUser(sender, userAId, users.a?.display, 'a');
+    const isSenderB = isSameUser(sender, userBId, users.b?.display, 'b');
+
     let toNumber = '';
     let senderName = '';
-    if (sender === userAId) {
+    if (isSenderA) {
       toNumber = numberB;
       senderName = users.a?.display || userAId;
-    } else if (sender === userBId) {
+    } else if (isSenderB) {
       toNumber = numberA;
       senderName = users.b?.display || userBId;
     } else {
-      return new Response('Unknown sender', { status: 400, headers: corsHeaders });
+      return new Response(`Unknown sender: ${String(sender)}`, { status: 400, headers: corsHeaders });
     }
 
     const message = buildMessage({
@@ -252,6 +255,25 @@ function clipText(value: string, max: number) {
   if (clean.length <= max) return clean;
   const limit = Math.max(4, max);
   return `${clean.slice(0, limit - 3).trim()}...`;
+}
+
+function normalizeUserKey(value: string) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, '');
+}
+
+function isSameUser(sender: string, userId: string, displayName: string | undefined, slot: 'a' | 'b') {
+  const normalizedSender = normalizeUserKey(sender);
+  if (!normalizedSender) return false;
+  const normalizedId = normalizeUserKey(userId);
+  const normalizedDisplay = normalizeUserKey(displayName || '');
+  if (normalizedId && normalizedSender === normalizedId) return true;
+  if (normalizedDisplay && normalizedSender === normalizedDisplay) return true;
+  if (slot === 'a' && ['a', 'usera'].includes(normalizedSender)) return true;
+  if (slot === 'b' && ['b', 'userb'].includes(normalizedSender)) return true;
+  return false;
 }
 
 function formatWhatsAppNumber(value: string) {
