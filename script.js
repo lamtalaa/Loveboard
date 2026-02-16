@@ -2550,7 +2550,11 @@ async function switchStoryPerspective(targetPerspective = null) {
       if (spineCheck.reason === 'chapter-count') {
         throw new Error('Perspective switch changed chapter count. Please try again.');
       }
-      console.warn('story perspective spine mismatch', spineCheck.reason);
+      const host = window.location?.hostname || '';
+      const isDevHost = host === 'localhost' || host === '127.0.0.1';
+      if (isDevHost) {
+        console.warn('story perspective spine mismatch', spineCheck.reason);
+      }
     }
     if (!shouldAutoSaveChronicle) {
       state.storySaved = false;
