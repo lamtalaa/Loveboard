@@ -2547,7 +2547,10 @@ async function switchStoryPerspective(targetPerspective = null) {
     }
     const spineCheck = validateStoryAgainstEventSpine(responseData.chapters, lockedSpine);
     if (!spineCheck.ok) {
-      throw new Error('Perspective switch changed locked events. Please try again.');
+      if (spineCheck.reason === 'chapter-count') {
+        throw new Error('Perspective switch changed chapter count. Please try again.');
+      }
+      console.warn('story perspective spine mismatch', spineCheck.reason);
     }
     if (!shouldAutoSaveChronicle) {
       state.storySaved = false;
