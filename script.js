@@ -1031,6 +1031,34 @@ function findStoryCommentById(storyId, commentId) {
   return comments.find((entry) => entry.id === commentId) || null;
 }
 
+function collectStoryCommentThreadIds(storyId, rootCommentId) {
+  if (!storyId || !rootCommentId) return [];
+  const comments = state.storyComments[storyId] || [];
+  if (!comments.length) return [rootCommentId];
+  const childrenByParent = new Map();
+  comments.forEach((entry) => {
+    const parentId = entry?.reply_to_comment_id;
+    const childId = entry?.id;
+    if (!parentId || !childId) return;
+    if (!childrenByParent.has(parentId)) {
+      childrenByParent.set(parentId, []);
+    }
+    childrenByParent.get(parentId).push(childId);
+  });
+  const ids = new Set([rootCommentId]);
+  const queue = [rootCommentId];
+  while (queue.length) {
+    const currentId = queue.shift();
+    const childIds = childrenByParent.get(currentId) || [];
+    childIds.forEach((childId) => {
+      if (ids.has(childId)) return;
+      ids.add(childId);
+      queue.push(childId);
+    });
+  }
+  return Array.from(ids);
+}
+
 function clearPendingStoryCommentReply() {
   state.pendingStoryCommentReplyTo = null;
 }
@@ -2490,10 +2518,11 @@ async function handleStoryCommentEditSubmit(storyId, commentId, input) {
     renderChronicles();
     refreshStorySocialSummary();
     await broadcastCommentEvent('storyComment:update', { ...data, _edited: true, sender: state.user });
+    const action = data?.reply_to_comment_id ? 'storyCommentReply:update' : 'storyComment:update';
     sendWhatsAppNotification({
       type: 'story',
       sender: state.user,
-      action: 'storyComment:update',
+      action,
       teaser: clipText(text, 120),
       link: getShareLink()
     });
@@ -2544,6 +2573,14 @@ async function addStoryCommentReaction(storyId, commentId, reaction) {
   renderChronicles();
   refreshStorySocialSummary();
   await broadcastCommentEvent('storyCommentReaction:add', { row, sender: state.user });
+  const isReplyReaction = Boolean(findStoryCommentById(storyId, commentId)?.reply_to_comment_id);
+  sendWhatsAppNotification({
+    type: 'story',
+    sender: state.user,
+    action: isReplyReaction ? 'storyCommentReplyReaction:add' : 'storyCommentReaction:add',
+    teaser: reaction,
+    link: getShareLink()
+  });
 }
 
 async function removeStoryCommentReaction(storyId, commentId, reaction) {
@@ -2566,6 +2603,14 @@ async function removeStoryCommentReaction(storyId, commentId, reaction) {
   await broadcastCommentEvent('storyCommentReaction:remove', {
     row: { story_id: storyId, comment_id: commentId, reaction, user: state.user },
     sender: state.user
+  });
+  const isReplyReaction = Boolean(findStoryCommentById(storyId, commentId)?.reply_to_comment_id);
+  sendWhatsAppNotification({
+    type: 'story',
+    sender: state.user,
+    action: isReplyReaction ? 'storyCommentReplyReaction:remove' : 'storyCommentReaction:remove',
+    teaser: reaction,
+    link: getShareLink()
   });
 }
 
@@ -2721,10 +2766,11 @@ async function handleStoryCommentSubmit(evt) {
     ui.storySocialInput.value = '';
     clearPendingStoryCommentDraftTargets();
     await broadcastCommentEvent('storyComment:new', { ...data, sender: state.user });
+    const action = data?.reply_to_comment_id ? 'storyCommentReply:new' : 'storyComment:new';
     sendWhatsAppNotification({
       type: 'story',
       sender: state.user,
-      action: 'storyComment:new',
+      action,
       teaser: clipText(text, 120),
       link: getShareLink()
     });
@@ -2743,25 +2789,41 @@ async function handleStoryCommentDelete(storyId, commentId) {
   if (!state.user || !storyId || !commentId) return;
   const ok = window.confirm('Delete this story comment?');
   if (!ok) return;
-  const { error } = await supabase.from('story_comments').delete().eq('id', commentId);
+  const target = findStoryCommentById(storyId, commentId);
+  const commentIds = collectStoryCommentThreadIds(storyId, commentId);
+  const { error: reactionError } = await supabase
+    .from('story_comment_reactions')
+    .delete()
+    .eq('story_id', storyId)
+    .in('comment_id', commentIds);
+  if (reactionError && !isMissingTableError(reactionError)) {
+    console.warn('story comment reactions cleanup', reactionError);
+    showToast('Failed to delete story comment.', 'error');
+    return;
+  }
+  const { error } = await supabase.from('story_comments').delete().in('id', commentIds);
   if (error) {
     console.error('story comment delete', error);
     showToast('Failed to delete story comment.', 'error');
     return;
   }
-  removeStoryCommentRow({ story_id: storyId, id: commentId, user: state.user });
+  commentIds.forEach((id) => {
+    removeStoryCommentRow({ story_id: storyId, id, user: state.user });
+  });
   state.storyCommentActionsOpenId = null;
   renderChronicles();
   refreshStorySocialSummary();
   await broadcastCommentEvent('storyComment:delete', {
     story_id: storyId,
     id: commentId,
+    ids: commentIds,
     sender: state.user
   });
+  const action = target?.reply_to_comment_id ? 'storyCommentReply:delete' : 'storyComment:delete';
   sendWhatsAppNotification({
     type: 'story',
     sender: state.user,
-    action: 'storyComment:delete',
+    action,
     link: getShareLink()
   });
 }
@@ -5778,7 +5840,11 @@ function subscribeCommentBroadcast() {
     })
     .on('broadcast', { event: 'storyComment:delete' }, ({ payload }) => {
       if (!payload || payload?.sender === state.user) return;
-      removeStoryCommentRow(payload);
+      const ids = Array.isArray(payload?.ids) && payload.ids.length ? payload.ids : [payload?.id];
+      ids.forEach((id) => {
+        if (!id) return;
+        removeStoryCommentRow({ story_id: payload.story_id, id, user: payload.user || '' });
+      });
       renderChronicles();
       refreshStorySocialSummary();
     })

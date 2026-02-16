@@ -185,9 +185,6 @@ function buildMessage({
     case 'postcard:delete':
       line = `${senderName} deleted a postcard.`;
       break;
-    case 'story:generate':
-      line = `New story from ${senderName}.`;
-      break;
     case 'story:save':
       line = `${senderName} saved a story.`;
       break;
@@ -203,8 +200,32 @@ function buildMessage({
     case 'storyComment:new':
       line = `${senderName} left a story comment.`;
       break;
+    case 'storyCommentReply:new':
+      line = `${senderName} replied to a story comment.`;
+      break;
+    case 'storyComment:update':
+      line = `${senderName} edited a story comment.`;
+      break;
+    case 'storyCommentReply:update':
+      line = `${senderName} edited a story reply.`;
+      break;
     case 'storyComment:delete':
       line = `${senderName} deleted a story comment.`;
+      break;
+    case 'storyCommentReply:delete':
+      line = `${senderName} deleted a story reply.`;
+      break;
+    case 'storyCommentReaction:add':
+      line = `${senderName} reacted to a story comment.`;
+      break;
+    case 'storyCommentReplyReaction:add':
+      line = `${senderName} reacted to a story reply.`;
+      break;
+    case 'storyCommentReaction:remove':
+      line = `${senderName} removed a story comment reaction.`;
+      break;
+    case 'storyCommentReplyReaction:remove':
+      line = `${senderName} removed a story reply reaction.`;
       break;
     case 'mood:update':
       line = `${senderName} updated their mood.`;
