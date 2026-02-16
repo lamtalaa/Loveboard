@@ -1572,6 +1572,7 @@ async function resumeStoryDraftImages() {
     updateStorySaveButton();
   } finally {
     state.storyMirrorBusy = false;
+    renderStoryChapters();
     setStoryButtonsDisabled(false);
     flushPendingStoryPerspectiveSwitch();
   }
@@ -2117,6 +2118,7 @@ async function saveStoryChronicle() {
   state.chronicles = [data, ...state.chronicles];
   renderChronicles();
   showToast('Saved to Chronicle.', 'success');
+  state.activeChronicle = data;
   state.storySaved = true;
   clearStoryDraft();
   updateStorySaveButton();
@@ -2471,6 +2473,7 @@ async function runStoryGeneration() {
     closeStoryRitual();
   } finally {
     state.storyMirrorBusy = false;
+    renderStoryChapters();
     setStoryButtonsDisabled(false);
     updateStoryPerspectiveSwitcher();
     flushPendingStoryPerspectiveSwitch();
@@ -2489,12 +2492,15 @@ async function switchStoryPerspective(targetPerspective = null) {
   const selectedPerspective = normalizeStoryPerspective(targetPerspective || getStoryPerspective());
   const previousPerspective = normalizeStoryPerspective(state.storyActivePerspective || 'us');
   if (selectedPerspective === previousPerspective) return;
+  const shouldAutoSaveChronicle = Boolean(state.storySaved && state.activeChronicle?.id);
   const previousImages = state.storyImages.slice();
   const lockedSpine = ensureStoryEventSpine(state.storyChapters, state.storyEventSpine);
   state.storyEventSpine = lockedSpine;
   const cached = getCachedStoryPerspectiveText(selectedPerspective);
   if (cached) {
-    state.storySaved = false;
+    if (!shouldAutoSaveChronicle) {
+      state.storySaved = false;
+    }
     state.storyChapters = cached.chapters;
     state.storyActivePerspective = selectedPerspective;
     if (cached.title) {
@@ -2507,8 +2513,12 @@ async function switchStoryPerspective(targetPerspective = null) {
     state.storyImagesComplete = true;
     renderStoryChapters();
     setStoryPerspectiveSelection(selectedPerspective, null);
-    persistStoryDraft();
-    await persistActiveChroniclePerspectiveCache();
+    if (shouldAutoSaveChronicle) {
+      await persistActiveChroniclePerspectiveCache();
+    } else {
+      persistStoryDraft();
+      await persistActiveChroniclePerspectiveCache();
+    }
     updateStorySaveButton();
     setStoryPerspectiveFeedback('', 'info');
     setStoryStatus('Perspective updated.', 'success');
@@ -2539,7 +2549,9 @@ async function switchStoryPerspective(targetPerspective = null) {
     if (!spineCheck.ok) {
       throw new Error('Perspective switch changed locked events. Please try again.');
     }
-    state.storySaved = false;
+    if (!shouldAutoSaveChronicle) {
+      state.storySaved = false;
+    }
     state.storyChapters = responseData.chapters;
     state.storyActivePerspective = selectedPerspective;
     cacheStoryPerspectiveText(
@@ -2555,8 +2567,12 @@ async function switchStoryPerspective(targetPerspective = null) {
     state.storyImagesComplete = true;
     renderStoryChapters();
     setStoryPerspectiveSelection(selectedPerspective, null);
-    persistStoryDraft();
-    await persistActiveChroniclePerspectiveCache();
+    if (shouldAutoSaveChronicle) {
+      await persistActiveChroniclePerspectiveCache();
+    } else {
+      persistStoryDraft();
+      await persistActiveChroniclePerspectiveCache();
+    }
     updateStorySaveButton();
     setStoryPerspectiveFeedback('', 'info');
     setStoryStatus('Perspective updated.', 'success');
@@ -2677,9 +2693,11 @@ function renderStoryChapters() {
     img.loading = 'lazy';
     imageWrap.appendChild(img);
     if (state.storyImages[idx]) {
+      imageWrap.classList.remove('is-loading');
       img.src = state.storyImages[idx];
     } else {
-      imageWrap.classList.add('is-loading');
+      const shouldShowLoading = Boolean(state.storyMirrorBusy && chapter?.image_prompt);
+      imageWrap.classList.toggle('is-loading', shouldShowLoading);
       img.src =
         'data:image/svg+xml;charset=UTF-8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22300%22 height=%22225%22%3E%3Crect width=%22300%22 height=%22225%22 fill=%22%23f5e4ef%22/%3E%3C/svg%3E';
     }
