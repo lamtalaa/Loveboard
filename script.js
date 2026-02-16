@@ -170,6 +170,8 @@ const state = {
   storyTextByPerspective: {},
   storyActivePerspective: 'us',
   storyImages: [],
+  storyImageFailures: {},
+  storyImageRetryingIndex: null,
   storyImagesComplete: false,
   storySaved: false,
   storyDefaults: {
@@ -969,6 +971,42 @@ function clearPendingStoryCommentAnchor() {
   hideStorySelectionCommentButton();
 }
 
+function getStoryImageFailureMessage(index) {
+  const key = String(index);
+  const value = state.storyImageFailures?.[key];
+  return typeof value === 'string' ? value : '';
+}
+
+function setStoryImageFailure(index, message) {
+  const key = String(index);
+  if (!state.storyImageFailures || typeof state.storyImageFailures !== 'object') {
+    state.storyImageFailures = {};
+  }
+  state.storyImageFailures[key] = String(message || 'Image unavailable.');
+}
+
+function clearStoryImageFailure(index) {
+  const key = String(index);
+  if (!state.storyImageFailures || typeof state.storyImageFailures !== 'object') return;
+  if (Object.prototype.hasOwnProperty.call(state.storyImageFailures, key)) {
+    delete state.storyImageFailures[key];
+  }
+}
+
+function resetStoryImageFailures() {
+  state.storyImageFailures = {};
+  state.storyImageRetryingIndex = null;
+}
+
+function hasStoryImageFailures() {
+  return Object.keys(state.storyImageFailures || {}).length > 0;
+}
+
+function computeStoryImagesComplete(chapters = state.storyChapters, images = state.storyImages) {
+  if (!Array.isArray(chapters) || !chapters.length) return false;
+  return chapters.every((chapter, idx) => !chapter?.image_prompt || Boolean(images?.[idx]));
+}
+
 function getSelectionOffsetsWithin(root, range) {
   const pre = range.cloneRange();
   pre.selectNodeContents(root);
@@ -1064,6 +1102,14 @@ function handleStorySelectionCommentClick() {
 }
 
 function handleStoryChapterClick(evt) {
+  const retryBtn = evt.target?.closest?.('.storymirror-image-retry-btn');
+  if (retryBtn && ui.storyChapters?.contains(retryBtn)) {
+    const index = Number(retryBtn.dataset.index);
+    if (Number.isInteger(index) && index >= 0) {
+      void retryStoryChapterImage(index);
+    }
+    return;
+  }
   const mark = evt.target?.closest?.('.storymirror-anchor-highlight');
   if (!mark || !ui.storyChapters?.contains(mark)) return;
   const anchorKey = String(mark.dataset.anchorKey || '').trim();
@@ -1417,7 +1463,7 @@ async function resumeStoryDraftImages() {
   if (state.storyMirrorBusy || !state.storyChapters.length || state.storySaved) return;
   const hasPending = state.storyChapters.some((chapter, idx) => chapter?.image_prompt && !state.storyImages[idx]);
   if (!hasPending) {
-    state.storyImagesComplete = true;
+    state.storyImagesComplete = computeStoryImagesComplete();
     persistStoryDraft();
     updateStorySaveButton();
     setStoryStatus('', 'info');
@@ -1428,10 +1474,10 @@ async function resumeStoryDraftImages() {
   setStoryStatus('Resuming image rendering...', 'info');
   try {
     await generateChapterImages(state.storyChapters);
-    state.storyImagesComplete = true;
+    state.storyImagesComplete = computeStoryImagesComplete();
     persistStoryDraft();
     updateStorySaveButton();
-    setStoryStatus('', 'info');
+    setStoryStatus(hasStoryImageFailures() ? 'Some images failed. Tap retry on the chapter.' : '', 'info');
   } catch (error) {
     console.error('story draft image resume', error);
     state.storyImagesComplete = true;
@@ -1499,6 +1545,7 @@ function restoreStoryDraft() {
   if (!getCachedStoryPerspectiveText(restoredPerspective)) {
     cacheStoryPerspectiveText(restoredPerspective, draft.chapters, draft.title || '');
   }
+  resetStoryImageFailures();
   state.storyImages = Array.isArray(draft.images) ? draft.images.slice(0, draft.chapters.length) : [];
   while (state.storyImages.length < state.storyChapters.length) {
     state.storyImages.push('');
@@ -1544,6 +1591,7 @@ function resetStoryFlow(options = {}) {
   state.storyTextByPerspective = {};
   state.storyActivePerspective = 'us';
   state.storyImages = [];
+  resetStoryImageFailures();
   state.storyImagesComplete = false;
   state.storySaved = false;
   state.pendingStoryPerspective = null;
@@ -2244,6 +2292,7 @@ async function runStoryGeneration() {
     return;
   }
   state.storyImages = [];
+  resetStoryImageFailures();
   state.storyChapters = [];
   state.storyTextByPerspective = {};
   state.storyImagesComplete = false;
@@ -2285,6 +2334,7 @@ async function runStoryGeneration() {
       responseData.story_title || responseData.title || ''
     );
     state.storyImages = new Array(responseData.chapters.length).fill('');
+    resetStoryImageFailures();
     renderStoryChapters();
     const storyTitle =
       responseData.story_title || responseData.title || responseData.chapters?.[0]?.title || 'Our Future, Soon';
@@ -2302,10 +2352,13 @@ async function runStoryGeneration() {
     state.ritualFinishStart = Date.now();
     setTimeout(() => closeStoryRitual(), state.ritualFinishDuration);
     await generateChapterImages(responseData.chapters);
-    state.storyImagesComplete = true;
+    state.storyImagesComplete = computeStoryImagesComplete();
     persistStoryDraft();
     updateStorySaveButton();
-    setStoryStatus('Story ready.', 'success');
+    setStoryStatus(
+      hasStoryImageFailures() ? 'Story ready. Some images failed, tap retry.' : 'Story ready.',
+      hasStoryImageFailures() ? 'error' : 'success'
+    );
   } catch (error) {
     console.error('story mirror', error);
     if (state.storyChapters.length) {
@@ -2347,6 +2400,7 @@ async function switchStoryPerspective(targetPerspective = null) {
       setStoryHeroTitle(cached.title);
     }
     state.storyImages = previousImages.slice(0, state.storyChapters.length);
+    resetStoryImageFailures();
     while (state.storyImages.length < state.storyChapters.length) {
       state.storyImages.push('');
     }
@@ -2389,6 +2443,7 @@ async function switchStoryPerspective(targetPerspective = null) {
       responseData.story_title || responseData.title || ''
     );
     state.storyImages = previousImages.slice(0, state.storyChapters.length);
+    resetStoryImageFailures();
     while (state.storyImages.length < state.storyChapters.length) {
       state.storyImages.push('');
     }
@@ -2514,9 +2569,34 @@ function renderStoryChapters() {
     img.alt = chapter.caption || `Chapter ${idx + 1} visual`;
     img.dataset.index = String(idx);
     img.loading = 'lazy';
-    if (state.storyImages[idx]) {
+    const hasImage = Boolean(state.storyImages[idx]);
+    const imageFailure = getStoryImageFailureMessage(idx);
+    const chapterCanRenderImage = Boolean(chapter?.image_prompt);
+    const fallbackMissingMessage =
+      !state.storyMirrorBusy && chapterCanRenderImage && !hasImage ? 'Image unavailable.' : '';
+    const displayFailure = imageFailure || fallbackMissingMessage;
+    const isRetryingImage = state.storyImageRetryingIndex === idx;
+    if (hasImage) {
       img.src = state.storyImages[idx];
+      imageWrap.classList.remove('is-loading', 'is-failed');
+    } else if (displayFailure && !isRetryingImage) {
+      imageWrap.classList.remove('is-loading');
+      imageWrap.classList.add('is-failed');
+      img.src =
+        'data:image/svg+xml;charset=UTF-8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22300%22 height=%22225%22%3E%3Crect width=%22300%22 height=%22225%22 fill=%22%23f5e4ef%22/%3E%3C/svg%3E';
+      if (chapterCanRenderImage) {
+        const message = document.createElement('p');
+        message.className = 'storymirror-image-fail-msg';
+        message.textContent = displayFailure;
+        const retryBtn = document.createElement('button');
+        retryBtn.type = 'button';
+        retryBtn.className = 'storymirror-image-retry-btn';
+        retryBtn.dataset.index = String(idx);
+        retryBtn.textContent = 'Retry image';
+        imageWrap.append(message, retryBtn);
+      }
     } else {
+      imageWrap.classList.remove('is-failed');
       imageWrap.classList.add('is-loading');
       img.src =
         'data:image/svg+xml;charset=UTF-8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22300%22 height=%22225%22%3E%3Crect width=%22300%22 height=%22225%22 fill=%22%23f5e4ef%22/%3E%3C/svg%3E';
@@ -2603,13 +2683,27 @@ async function generateChapterImages(chapters) {
     if (!chapter?.image_prompt) continue;
     if (state.storyImages[i]) continue;
     setStoryStatus(`Rendering image ${i + 1} of ${chapters.length}...`, 'info');
-    const imgData = await requestStoryImage(chapter.image_prompt);
-    const imgEl = ui.storyChapters.querySelector(`img[data-index="${i}"]`);
-    if (imgEl && imgData) {
-      state.storyImages[i] = imgData;
-      imgEl.src = imgData;
-      imgEl.closest('.storymirror-image')?.classList.remove('is-loading');
-      persistStoryDraft();
+    clearStoryImageFailure(i);
+    state.storyImageRetryingIndex = i;
+    renderStoryChapters();
+    try {
+      const imgData = await requestStoryImage(chapter.image_prompt);
+      const imgEl = ui.storyChapters.querySelector(`img[data-index="${i}"]`);
+      if (imgEl && imgData) {
+        state.storyImages[i] = imgData;
+        imgEl.src = imgData;
+        imgEl.closest('.storymirror-image')?.classList.remove('is-loading', 'is-failed');
+        persistStoryDraft();
+        await persistActiveChronicleImages();
+      }
+    } catch (error) {
+      console.error('story image generation', error);
+      const message = error instanceof Error ? error.message : 'Image request failed';
+      setStoryImageFailure(i, message);
+      renderStoryChapters();
+    } finally {
+      state.storyImageRetryingIndex = null;
+      renderStoryChapters();
     }
   }
 }
@@ -2625,6 +2719,55 @@ async function requestStoryImage(prompt) {
     throw new Error(formatStoryFunctionError(error, 'Image request failed'));
   }
   return data?.image || '';
+}
+
+async function retryStoryChapterImage(index) {
+  if (state.storyMirrorBusy || state.storyImageRetryingIndex !== null) return;
+  if (!Number.isInteger(index) || index < 0 || index >= state.storyChapters.length) return;
+  if (state.storyImages[index]) return;
+  const chapter = state.storyChapters[index];
+  if (!chapter?.image_prompt) return;
+  clearStoryImageFailure(index);
+  state.storyImageRetryingIndex = index;
+  renderStoryChapters();
+  setStoryStatus('Retrying image...', 'info');
+  try {
+    const imgData = await requestStoryImage(chapter.image_prompt);
+    if (imgData) {
+      state.storyImages[index] = imgData;
+      state.storyImagesComplete = computeStoryImagesComplete();
+      persistStoryDraft();
+      await persistActiveChronicleImages();
+      updateStorySaveButton();
+      renderStoryChapters();
+      setStoryStatus('Image ready.', 'success');
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Image request failed';
+    setStoryImageFailure(index, message);
+    renderStoryChapters();
+    setStoryStatus('Image failed. Tap retry again.', 'error');
+  } finally {
+    state.storyImageRetryingIndex = null;
+    renderStoryChapters();
+  }
+}
+
+async function persistActiveChronicleImages() {
+  const storyId = state.activeChronicle?.id;
+  if (!storyId) return;
+  try {
+    const { data, error } = await supabase
+      .from('story_chronicles')
+      .update({ images: state.storyImages })
+      .eq('id', storyId)
+      .select('*')
+      .single();
+    if (error) throw error;
+    applyChronicleRemoteUpdate(data);
+  } catch (error) {
+    console.warn('chronicle image sync', error);
+  }
 }
 
 
@@ -3237,6 +3380,7 @@ function openChronicleStory(story) {
     cacheStoryPerspectiveText(state.storyActivePerspective, state.storyChapters, story?.title || '');
   }
   setStoryPerspectiveSelection(state.storyActivePerspective, null);
+  resetStoryImageFailures();
   state.storyImages = Array.isArray(story.images) ? story.images : [];
   state.storyImagesComplete = true;
   state.storySaved = true;
