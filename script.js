@@ -2568,6 +2568,7 @@ function renderStoryChapters() {
     img.alt = chapter.caption || `Chapter ${idx + 1} visual`;
     img.dataset.index = String(idx);
     img.loading = 'lazy';
+    imageWrap.appendChild(img);
     const hasImage = Boolean(state.storyImages[idx]);
     const imageFailure = getStoryImageFailureMessage(idx);
     const chapterCanRenderImage = Boolean(chapter?.image_prompt);
@@ -2603,7 +2604,6 @@ function renderStoryChapters() {
     const caption = document.createElement('p');
     caption.className = 'storymirror-caption';
     caption.textContent = chapter.caption || '';
-    imageWrap.appendChild(img);
     card.append(title, text, imageWrap, caption);
     ui.storyChapters.appendChild(card);
   });

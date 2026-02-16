@@ -1660,6 +1660,7 @@ html {
 
 .storymirror-image.is-failed img {
   opacity: 0.35;
+  pointer-events: none;
 }
 
 .storymirror-image-fail-msg {
@@ -1667,6 +1668,7 @@ html {
   bottom: 42px;
   left: 14px;
   right: 14px;
+  z-index: 2;
   margin: 0;
   text-align: center;
   font-size: 0.76rem;
@@ -1679,6 +1681,7 @@ html {
   bottom: 10px;
   left: 50%;
   transform: translateX(-50%);
+  z-index: 2;
   border: 1px solid rgba(145, 111, 126, 0.5);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.94);
