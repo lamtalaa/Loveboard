@@ -177,41 +177,47 @@ async function handleImage(
     return new Response('Missing prompt', { status: 400, headers: corsHeaders });
   }
   try {
-    const imagePayload = {
+    const imagePayload: StoryImagePayload = {
       model: STORY_IMAGE_MODEL,
       prompt,
       size: STORY_IMAGE_SIZE,
       quality: STORY_IMAGE_QUALITY
     };
-    let data;
+    let data: unknown = null;
     try {
-      data = await openaiRequestWithRetry(
-        'https://api.openai.com/v1/images/generations',
-        imagePayload,
-        STORY_IMAGE_TIMEOUT_MS,
-        STORY_IMAGE_ATTEMPTS,
-        'image'
-      );
+      data = await requestStoryImageGeneration(imagePayload, 'image');
     } catch (primaryError) {
-      const message = primaryError instanceof Error ? primaryError.message.toLowerCase() : '';
-      const sizeRejected = message.includes('size') || message.includes('resolution');
-      const nonDefaultSize = STORY_IMAGE_SIZE !== '1024x1024';
-      if (!sizeRejected || !nonDefaultSize) {
+      if (!isImageSafetyError(primaryError)) {
         throw primaryError;
       }
-      // Some image models reject smaller custom sizes. Retry once with a safe default.
-      data = await openaiRequestWithRetry(
-        'https://api.openai.com/v1/images/generations',
-        {
-          ...imagePayload,
-          size: '1024x1024'
-        },
-        STORY_IMAGE_TIMEOUT_MS,
-        STORY_IMAGE_ATTEMPTS,
-        'image:size-fallback'
-      );
+      const fallbackPrompts = buildSafeImagePromptVariants(prompt);
+      let recovered = false;
+      let lastError: unknown = primaryError;
+      for (let i = 0; i < fallbackPrompts.length; i += 1) {
+        const safePrompt = fallbackPrompts[i];
+        try {
+          console.warn(`story-mirror image safety fallback ${i + 1}/${fallbackPrompts.length}`);
+          data = await requestStoryImageGeneration(
+            {
+              ...imagePayload,
+              prompt: safePrompt
+            },
+            `image:safety-fallback-${i + 1}`
+          );
+          recovered = true;
+          break;
+        } catch (fallbackError) {
+          lastError = fallbackError;
+          if (!isImageSafetyError(fallbackError)) {
+            throw fallbackError;
+          }
+        }
+      }
+      if (!recovered) {
+        throw lastError;
+      }
     }
-    const encoded = data?.data?.[0]?.b64_json;
+    const encoded = (data as { data?: Array<{ b64_json?: string }> })?.data?.[0]?.b64_json;
     if (!encoded) {
       return new Response('No image returned', { status: 502, headers: corsHeaders });
     }
@@ -224,11 +230,115 @@ async function handleImage(
     if (isTimeoutError(error)) {
       return new Response('Image generation timed out. Please try again.', { status: 504, headers: corsHeaders });
     }
+    if (isImageSafetyError(error)) {
+      return new Response('Image blocked by safety policy after fallback tuning.', {
+        status: 422,
+        headers: corsHeaders
+      });
+    }
     const message = error instanceof Error && error.message
       ? error.message
       : 'Failed to generate image';
     return new Response(message, { status: 502, headers: corsHeaders });
   }
+}
+
+type StoryImagePayload = {
+  model: string;
+  prompt: string;
+  size: string;
+  quality: string;
+};
+
+async function requestStoryImageGeneration(payload: StoryImagePayload, label: string) {
+  try {
+    return await openaiRequestWithRetry(
+      'https://api.openai.com/v1/images/generations',
+      payload,
+      STORY_IMAGE_TIMEOUT_MS,
+      STORY_IMAGE_ATTEMPTS,
+      label
+    );
+  } catch (primaryError) {
+    const nonDefaultSize = payload.size !== '1024x1024';
+    if (!isImageSizeError(primaryError) || !nonDefaultSize) {
+      throw primaryError;
+    }
+    // Some image models reject smaller custom sizes. Retry once with a safe default.
+    return await openaiRequestWithRetry(
+      'https://api.openai.com/v1/images/generations',
+      {
+        ...payload,
+        size: '1024x1024'
+      },
+      STORY_IMAGE_TIMEOUT_MS,
+      STORY_IMAGE_ATTEMPTS,
+      `${label}:size-fallback`
+    );
+  }
+}
+
+function isImageSizeError(error: unknown) {
+  const message = getErrorMessage(error).toLowerCase();
+  return message.includes('size') || message.includes('resolution');
+}
+
+function isImageSafetyError(error: unknown) {
+  if (!(error instanceof Error)) return false;
+  const withStatus = error as Error & { status?: number };
+  const status = Number(withStatus.status);
+  if (Number.isFinite(status) && status !== 400 && status !== 403) {
+    return false;
+  }
+  const message = getErrorMessage(error).toLowerCase();
+  return (
+    message.includes('safety') ||
+    message.includes('safety_violations') ||
+    message.includes('sexual') ||
+    message.includes('nudity') ||
+    message.includes('adult') ||
+    message.includes('content policy') ||
+    message.includes('policy')
+  );
+}
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message || '';
+  return String(error || '');
+}
+
+function buildSafeImagePromptVariants(prompt: string) {
+  const tonedBase = softenImagePrompt(prompt);
+  const variants = [
+    `${tonedBase}. Cinematic romantic scene with two fully clothed adults, tasteful and non-sexual, no nudity, no explicit body focus, dreamy-realistic, no text.`,
+    `Cinematic romantic scene of two fully clothed adult partners in an urban setting, emotional closeness, warm moody lighting, tasteful and non-sexual, no nudity, no text.`,
+    `Dreamy cinematic love scene: two adults holding hands at dusk in a city street, fully clothed, emotional and intimate but non-sexual, no nudity, no text.`
+  ]
+    .map((value) => value.replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+  const deduped: string[] = [];
+  variants.forEach((value) => {
+    if (!deduped.includes(value)) {
+      deduped.push(value);
+    }
+  });
+  return deduped;
+}
+
+function softenImagePrompt(value: string) {
+  const replacements: Array<[RegExp, string]> = [
+    [/\b(doggy\s*style|cow\s*girl|missionary|oral sex|anal sex|penetration|blowjob|deepthroat)\b/gi, 'tender embrace'],
+    [/\b(fuck(?:ing|ed)?|slut|bitch)\b/gi, 'intense emotion'],
+    [/\b(cock|dick|penis|pussy|vagina|asshole|ass|tits?|boobs?|breasts?|nipple?s?)\b/gi, 'presence'],
+    [/\b(nude|nudity|naked|undress(?:ed|ing)?|bare skin)\b/gi, 'fully clothed'],
+    [/\b(sexual|explicit|porn|fetish)\b/gi, 'romantic'],
+    [/\b(thrust(?:ing|s)?|moan(?:ing|s)?|orgasm|cum)\b/gi, 'closeness']
+  ];
+  let next = String(value || '').replace(/\s+/g, ' ').trim();
+  replacements.forEach(([pattern, replacement]) => {
+    next = next.replace(pattern, replacement);
+  });
+  return next.replace(/\s+/g, ' ').trim();
 }
 
 function isTimeoutError(error: unknown) {

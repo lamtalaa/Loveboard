@@ -78,6 +78,8 @@ const DEFAULT_POSTCARD_BATCH = 3;
 const STORY_MIN_CHAPTERS = 3;
 const STORY_MAX_CHAPTERS = 10;
 const STORY_STEP_COUNT = 4;
+const STORY_IMAGE_PLACEHOLDER =
+  'data:image/svg+xml;charset=UTF-8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22300%22 height=%22225%22%3E%3Crect width=%22300%22 height=%22225%22 fill=%22%23f5e4ef%22/%3E%3C/svg%3E';
 const CHRONICLE_LONG_PRESS_MS = 520;
 const CHRONICLE_HOLD_CANCEL_PX = 14;
 const STORY_RITUAL_STARS = 18;
@@ -197,6 +199,7 @@ const state = {
   storyActivePerspective: 'us',
   storyEventSpine: [],
   storyImages: [],
+  storyImageFailedIndices: new Set(),
   storyImagesComplete: false,
   storySaved: false,
   storyDefaults: {
@@ -1109,6 +1112,20 @@ function computeStoryImagesComplete(chapters = state.storyChapters, images = sta
   return chapters.every((chapter, idx) => !chapter?.image_prompt || Boolean(images?.[idx]));
 }
 
+function pruneStoryImageFailures(chapters = state.storyChapters, images = state.storyImages) {
+  if (!(state.storyImageFailedIndices instanceof Set)) return;
+  const limit = Array.isArray(chapters) ? chapters.length : 0;
+  state.storyImageFailedIndices.forEach((index) => {
+    if (!Number.isInteger(index)) {
+      state.storyImageFailedIndices.delete(index);
+      return;
+    }
+    if (index < 0 || index >= limit || images?.[index]) {
+      state.storyImageFailedIndices.delete(index);
+    }
+  });
+}
+
 function normalizeStoryMatchText(value) {
   return String(value || '')
     .toLowerCase()
@@ -1718,6 +1735,7 @@ function persistStoryDraft() {
 
 async function resumeStoryDraftImages() {
   if (state.storyMirrorBusy || !state.storyChapters.length || state.storySaved) return;
+  pruneStoryImageFailures(state.storyChapters, state.storyImages);
   const hasPending = state.storyChapters.some((chapter, idx) => chapter?.image_prompt && !state.storyImages[idx]);
   if (!hasPending) {
     state.storyImagesComplete = computeStoryImagesComplete();
@@ -1745,6 +1763,46 @@ async function resumeStoryDraftImages() {
     state.storyMirrorBusy = false;
     renderStoryChapters();
     setStoryButtonsDisabled(false);
+    flushPendingStoryPerspectiveSwitch();
+  }
+}
+
+async function resumeChronicleMissingImages() {
+  if (state.storyMirrorBusy || !state.storyChapters.length || !state.storySaved || !state.activeChronicle?.id) return;
+  pruneStoryImageFailures(state.storyChapters, state.storyImages);
+  const hasPending = state.storyChapters.some((chapter, idx) => chapter?.image_prompt && !state.storyImages[idx]);
+  state.storyImagesComplete = computeStoryImagesComplete();
+  if (!hasPending) {
+    setStoryStatus('', 'info');
+    updateStorySaveButton();
+    return;
+  }
+  state.storyMirrorBusy = true;
+  setStoryButtonsDisabled(true);
+  renderStoryChapters();
+  setStoryStatus('Rendering missing images...', 'info');
+  try {
+    await generateChapterImages(state.storyChapters, {
+      continueOnError: true,
+      onChapterError: (error, index) => {
+        console.warn('story chronicle image chapter failed', { index, message: error?.message || String(error) });
+      }
+    });
+    state.storyImagesComplete = computeStoryImagesComplete();
+    if (!state.storyImagesComplete) {
+      setStoryStatus('Some images are still missing. We will try again next time you open this story.', 'error');
+    } else {
+      setStoryStatus('', 'info');
+    }
+  } catch (error) {
+    console.warn('story chronicle image resume interrupted', error);
+    state.storyImagesComplete = computeStoryImagesComplete();
+    setStoryStatus('Some images are still missing. We will try again next time you open this story.', 'error');
+  } finally {
+    state.storyMirrorBusy = false;
+    renderStoryChapters();
+    setStoryButtonsDisabled(false);
+    updateStorySaveButton();
     flushPendingStoryPerspectiveSwitch();
   }
 }
@@ -1811,6 +1869,8 @@ function restoreStoryDraft() {
   while (state.storyImages.length < state.storyChapters.length) {
     state.storyImages.push('');
   }
+  state.storyImageFailedIndices.clear();
+  pruneStoryImageFailures(state.storyChapters, state.storyImages);
   state.storyImagesComplete =
     Boolean(draft.images_complete) && state.storyImages.length === state.storyChapters.length && state.storyImages.every(Boolean);
 
@@ -1853,6 +1913,7 @@ function resetStoryFlow(options = {}) {
   state.storyActivePerspective = 'us';
   state.storyEventSpine = [];
   state.storyImages = [];
+  state.storyImageFailedIndices.clear();
   state.storyImagesComplete = false;
   state.storySaved = false;
   state.storyEditingComment = null;
@@ -3148,6 +3209,7 @@ async function runStoryGeneration() {
   state.storyChapters = [];
   state.storyTextByPerspective = {};
   state.storyEventSpine = [];
+  state.storyImageFailedIndices.clear();
   state.storyImagesComplete = false;
   state.pendingStoryPerspective = null;
   closeStoryPerspectiveMenu();
@@ -3420,6 +3482,7 @@ async function requestStoryText({
 function renderStoryChapters() {
   if (!ui.storyChapters || !ui.storyEmpty) return;
   const source = state.storyChapters;
+  pruneStoryImageFailures(source, state.storyImages);
   const storyId = getActiveStoryId();
   const commentEntries = storyId ? state.storyComments[storyId] || [] : [];
   if (!source || source.length === 0) {
@@ -3452,10 +3515,11 @@ function renderStoryChapters() {
       imageWrap.classList.remove('is-loading');
       img.src = state.storyImages[idx];
     } else {
-      const shouldShowLoading = Boolean(state.storyMirrorBusy && chapter?.image_prompt);
+      const shouldShowLoading = Boolean(
+        state.storyMirrorBusy && chapter?.image_prompt && !state.storyImageFailedIndices.has(idx)
+      );
       imageWrap.classList.toggle('is-loading', shouldShowLoading);
-      img.src =
-        'data:image/svg+xml;charset=UTF-8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22300%22 height=%22225%22%3E%3Crect width=%22300%22 height=%22225%22 fill=%22%23f5e4ef%22/%3E%3C/svg%3E';
+      img.src = STORY_IMAGE_PLACEHOLDER;
     }
     const caption = document.createElement('p');
     caption.className = 'storymirror-caption';
@@ -3542,21 +3606,39 @@ function renderAnchoredChapterText(chapterText, chapterIndex, comments) {
   return html;
 }
 
-async function generateChapterImages(chapters) {
+async function generateChapterImages(chapters, options = {}) {
   if (!ui.storyChapters) return;
+  const continueOnError = Boolean(options?.continueOnError);
+  const onChapterError = typeof options?.onChapterError === 'function' ? options.onChapterError : null;
   for (let i = 0; i < chapters.length; i += 1) {
     const chapter = chapters[i];
     if (!chapter?.image_prompt) continue;
     if (state.storyImages[i]) continue;
+    state.storyImageFailedIndices.delete(i);
     setStoryStatus(`Rendering image ${i + 1} of ${chapters.length}...`, 'info');
-    const imgData = await requestStoryImage(chapter.image_prompt);
     const imgEl = ui.storyChapters.querySelector(`img[data-index="${i}"]`);
-    if (imgEl && imgData) {
-      state.storyImages[i] = imgData;
-      imgEl.src = imgData;
-      imgEl.closest('.storymirror-image')?.classList.remove('is-loading');
-      persistStoryDraft();
-      await persistActiveChronicleImages();
+    const imageWrap = imgEl?.closest('.storymirror-image');
+    try {
+      const imgData = await requestStoryImage(chapter.image_prompt);
+      if (imgEl && imgData) {
+        state.storyImages[i] = imgData;
+        imgEl.src = imgData;
+        imageWrap?.classList.remove('is-loading');
+        persistStoryDraft();
+        await persistActiveChronicleImages();
+      }
+    } catch (error) {
+      state.storyImageFailedIndices.add(i);
+      if (imgEl && !state.storyImages[i]) {
+        imgEl.src = STORY_IMAGE_PLACEHOLDER;
+      }
+      imageWrap?.classList.remove('is-loading');
+      if (onChapterError) {
+        onChapterError(error, i, chapter);
+      }
+      if (!continueOnError) {
+        throw error;
+      }
     }
   }
 }
@@ -4250,8 +4332,13 @@ function openChronicleStory(story) {
     Array.isArray(storyInputs.event_spine) ? storyInputs.event_spine : []
   );
   setStoryPerspectiveSelection(state.storyActivePerspective, null);
-  state.storyImages = Array.isArray(story.images) ? story.images : [];
-  state.storyImagesComplete = true;
+  state.storyImages = Array.isArray(story.images) ? story.images.slice(0, state.storyChapters.length) : [];
+  while (state.storyImages.length < state.storyChapters.length) {
+    state.storyImages.push('');
+  }
+  state.storyImageFailedIndices.clear();
+  pruneStoryImageFailures(state.storyChapters, state.storyImages);
+  state.storyImagesComplete = computeStoryImagesComplete();
   state.storySaved = true;
   if (ui.storyMirrorView) {
     ui.storyMirrorView.classList.add('storymirror-generated');
@@ -4262,6 +4349,7 @@ function openChronicleStory(story) {
   updateStorySaveButton();
   updateStoryBackButton();
   refreshStorySocialSummary();
+  void resumeChronicleMissingImages();
 }
 
 function openChronicleModal(story) {
