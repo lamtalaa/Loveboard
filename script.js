@@ -169,6 +169,7 @@ const state = {
   storyChapters: [],
   storyTextByPerspective: {},
   storyActivePerspective: 'us',
+  storyEventSpine: [],
   storyImages: [],
   storyImagesComplete: false,
   storySaved: false,
@@ -974,6 +975,133 @@ function computeStoryImagesComplete(chapters = state.storyChapters, images = sta
   return chapters.every((chapter, idx) => !chapter?.image_prompt || Boolean(images?.[idx]));
 }
 
+function normalizeStoryMatchText(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function clipStoryEventToken(value, max = 140) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!text) return '';
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
+function extractStoryDateTime(text) {
+  const content = String(text || '');
+  if (!content) return '';
+  const dateMatch = content.match(
+    /\b(?:\d{4}-\d{2}-\d{2}|\d{1,2}\s+[A-Za-z]+\s+\d{4}|[A-Za-z]+\s+\d{1,2},\s+\d{4})\b/
+  );
+  const timeMatch = content.match(/\b\d{1,2}[:.]\d{2}(?:\s*(?:a\.m\.|p\.m\.|am|pm))?\b/i);
+  if (dateMatch && timeMatch) return clipStoryEventToken(`${dateMatch[0]} ${timeMatch[0]}`, 80);
+  if (dateMatch) return clipStoryEventToken(dateMatch[0], 80);
+  if (timeMatch) return clipStoryEventToken(timeMatch[0], 80);
+  return '';
+}
+
+function extractStoryLocation(text) {
+  const content = String(text || '');
+  if (!content) return '';
+  const match = content.match(/\b(?:in|at)\s+([A-Z][A-Za-z'’-]*(?:[\s,]+[A-Z][A-Za-z'’-]*){0,4})/);
+  return clipStoryEventToken(match?.[1] || '', 90);
+}
+
+function extractStoryWeatherTime(text) {
+  const content = String(text || '');
+  if (!content) return '';
+  const weather = content.match(
+    /\b(rain|storm|sun|wind|snow|fog|humid|cold|hot|warm|chill|cloud|night|dawn|morning|afternoon|evening)\w*\b/i
+  );
+  const daytime = content.match(/\b(dawn|sunrise|morning|noon|afternoon|sunset|evening|night|midnight)\b/i);
+  if (weather && daytime) return clipStoryEventToken(`${weather[0]} ${daytime[0]}`, 70);
+  return clipStoryEventToken(weather?.[0] || daytime?.[0] || '', 70);
+}
+
+function extractStoryKeyEvents(text) {
+  const content = String(text || '').replace(/\s+/g, ' ').trim();
+  if (!content) return [];
+  return content
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean)
+    .slice(0, 5)
+    .map((sentence) => clipStoryEventToken(sentence, 140));
+}
+
+function normalizeStoryEventSpine(spine) {
+  if (!Array.isArray(spine)) return [];
+  return spine
+    .map((entry, idx) => {
+      if (!entry || typeof entry !== 'object') return null;
+      const chapterIndex = Number(entry.chapter_index);
+      return {
+        chapter_index: Number.isInteger(chapterIndex) ? chapterIndex : idx,
+        date_time: clipStoryEventToken(entry.date_time || '', 80),
+        location: clipStoryEventToken(entry.location || '', 90),
+        weather_time: clipStoryEventToken(entry.weather_time || '', 70),
+        key_events: Array.isArray(entry.key_events)
+          ? entry.key_events.map((item) => clipStoryEventToken(item || '', 140)).filter(Boolean).slice(0, 6)
+          : []
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.chapter_index - b.chapter_index);
+}
+
+function buildStoryEventSpine(chapters) {
+  if (!Array.isArray(chapters) || !chapters.length) return [];
+  return chapters.map((chapter, idx) => {
+    const text = String(chapter?.text || '');
+    return {
+      chapter_index: idx,
+      date_time: extractStoryDateTime(text),
+      location: extractStoryLocation(text),
+      weather_time: extractStoryWeatherTime(text),
+      key_events: extractStoryKeyEvents(text)
+    };
+  });
+}
+
+function ensureStoryEventSpine(chapters = state.storyChapters, current = state.storyEventSpine) {
+  const normalizedCurrent = normalizeStoryEventSpine(current);
+  if (normalizedCurrent.length && Array.isArray(chapters) && normalizedCurrent.length === chapters.length) {
+    return normalizedCurrent;
+  }
+  return normalizeStoryEventSpine(buildStoryEventSpine(chapters));
+}
+
+function chapterMatchesSpine(chapter, spineEntry) {
+  if (!chapter || !spineEntry) return false;
+  const normalizedText = normalizeStoryMatchText(chapter.text || '');
+  const requiredTokens = [];
+  if (spineEntry.date_time) requiredTokens.push(spineEntry.date_time);
+  if (spineEntry.location) requiredTokens.push(spineEntry.location);
+  if (spineEntry.weather_time) requiredTokens.push(spineEntry.weather_time);
+  const keyTokens = Array.isArray(spineEntry.key_events) ? spineEntry.key_events.slice(0, 2) : [];
+  requiredTokens.push(...keyTokens);
+  const filteredTokens = requiredTokens
+    .map((token) => normalizeStoryMatchText(token))
+    .filter((token) => token.length >= 4);
+  if (!filteredTokens.length) return true;
+  return filteredTokens.every((token) => normalizedText.includes(token));
+}
+
+function validateStoryAgainstEventSpine(chapters, spine) {
+  if (!Array.isArray(spine) || !spine.length) return { ok: true };
+  if (!Array.isArray(chapters) || chapters.length !== spine.length) {
+    return { ok: false, reason: 'chapter-count' };
+  }
+  for (let i = 0; i < spine.length; i += 1) {
+    if (!chapterMatchesSpine(chapters[i], spine[i])) {
+      return { ok: false, reason: `chapter-${i + 1}-mismatch` };
+    }
+  }
+  return { ok: true };
+}
+
 function getSelectionOffsetsWithin(root, range) {
   const pre = range.cloneRange();
   pre.selectNodeContents(root);
@@ -1404,6 +1532,7 @@ function persistStoryDraft() {
     inputs: getStoryInputSnapshot(),
     active_perspective: normalizeStoryPerspective(state.storyActivePerspective || getStoryPerspective()),
     text_by_perspective: textByPerspective,
+    event_spine: ensureStoryEventSpine(state.storyChapters, state.storyEventSpine),
     chapters: state.storyChapters,
     images: state.storyImages,
     images_complete: Boolean(state.storyImagesComplete)
@@ -1502,6 +1631,10 @@ function restoreStoryDraft() {
   if (!getCachedStoryPerspectiveText(restoredPerspective)) {
     cacheStoryPerspectiveText(restoredPerspective, draft.chapters, draft.title || '');
   }
+  state.storyEventSpine = ensureStoryEventSpine(
+    draft.chapters,
+    Array.isArray(draft.event_spine) ? draft.event_spine : []
+  );
   state.storyImages = Array.isArray(draft.images) ? draft.images.slice(0, draft.chapters.length) : [];
   while (state.storyImages.length < state.storyChapters.length) {
     state.storyImages.push('');
@@ -1546,6 +1679,7 @@ function resetStoryFlow(options = {}) {
   state.storyChapters = [];
   state.storyTextByPerspective = {};
   state.storyActivePerspective = 'us';
+  state.storyEventSpine = [];
   state.storyImages = [];
   state.storyImagesComplete = false;
   state.storySaved = false;
@@ -1961,7 +2095,8 @@ async function saveStoryChronicle() {
       lens: getStoryLensProfile(),
       fantasy: getStoryFantasyProfile(),
       active_perspective: normalizeStoryPerspective(state.storyActivePerspective || inputs.perspective || 'us'),
-      text_by_perspective: perspectiveCache
+      text_by_perspective: perspectiveCache,
+      event_spine: ensureStoryEventSpine(state.storyChapters, state.storyEventSpine)
     },
     chapters: state.storyChapters,
     images: state.storyImages,
@@ -2086,7 +2221,8 @@ async function persistActiveChroniclePerspectiveCache() {
     ...currentInputs,
     perspective: normalizedActive,
     active_perspective: normalizedActive,
-    text_by_perspective: buildStoryPerspectiveCachePayload()
+    text_by_perspective: buildStoryPerspectiveCachePayload(),
+    event_spine: ensureStoryEventSpine(state.storyChapters, state.storyEventSpine)
   };
   try {
     const { data, error } = await supabase
@@ -2260,6 +2396,7 @@ async function runStoryGeneration() {
   state.storyImages = [];
   state.storyChapters = [];
   state.storyTextByPerspective = {};
+  state.storyEventSpine = [];
   state.storyImagesComplete = false;
   state.pendingStoryPerspective = null;
   closeStoryPerspectiveMenu();
@@ -2293,6 +2430,7 @@ async function runStoryGeneration() {
     state.storySaved = false;
     state.storyChapters = responseData.chapters;
     state.storyActivePerspective = normalizeStoryPerspective(getStoryPerspective());
+    state.storyEventSpine = ensureStoryEventSpine(responseData.chapters, []);
     cacheStoryPerspectiveText(
       state.storyActivePerspective,
       responseData.chapters,
@@ -2352,6 +2490,8 @@ async function switchStoryPerspective(targetPerspective = null) {
   const previousPerspective = normalizeStoryPerspective(state.storyActivePerspective || 'us');
   if (selectedPerspective === previousPerspective) return;
   const previousImages = state.storyImages.slice();
+  const lockedSpine = ensureStoryEventSpine(state.storyChapters, state.storyEventSpine);
+  state.storyEventSpine = lockedSpine;
   const cached = getCachedStoryPerspectiveText(selectedPerspective);
   if (cached) {
     state.storySaved = false;
@@ -2389,10 +2529,15 @@ async function switchStoryPerspective(targetPerspective = null) {
       fantasy: chronicleInputs.fantasy || getStoryFantasyProfile(),
       lens: chronicleInputs.lens || getStoryLensProfile(),
       intimacy: chronicleInputs.intimacy || getStoryIntimacy(),
-      perspective: selectedPerspective
+      perspective: selectedPerspective,
+      eventSpine: lockedSpine
     });
     if (!responseData || !responseData.chapters?.length) {
       throw new Error('No chapters returned.');
+    }
+    const spineCheck = validateStoryAgainstEventSpine(responseData.chapters, lockedSpine);
+    if (!spineCheck.ok) {
+      throw new Error('Perspective switch changed locked events. Please try again.');
     }
     state.storySaved = false;
     state.storyChapters = responseData.chapters;
@@ -2475,7 +2620,8 @@ async function requestStoryText({
   lens,
   intimacy,
   perspective,
-  extraDetails
+  extraDetails,
+  eventSpine = null
 }) {
   const { data, error } = await supabase.functions.invoke('story-mirror', {
     body: {
@@ -2489,7 +2635,8 @@ async function requestStoryText({
       lens,
       intimacy,
       perspective,
-      extraDetails
+      extraDetails,
+      eventSpine
     }
   });
   if (error) {
@@ -3279,6 +3426,10 @@ function openChronicleStory(story) {
   if (!getCachedStoryPerspectiveText(state.storyActivePerspective)) {
     cacheStoryPerspectiveText(state.storyActivePerspective, state.storyChapters, story?.title || '');
   }
+  state.storyEventSpine = ensureStoryEventSpine(
+    state.storyChapters,
+    Array.isArray(storyInputs.event_spine) ? storyInputs.event_spine : []
+  );
   setStoryPerspectiveSelection(state.storyActivePerspective, null);
   state.storyImages = Array.isArray(story.images) ? story.images : [];
   state.storyImagesComplete = true;

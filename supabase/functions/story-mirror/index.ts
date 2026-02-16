@@ -87,6 +87,7 @@ async function handleText(
   body: {
     yFragments?: string[];
     nFragments?: string[];
+    eventSpine?: unknown;
     perspective?: string;
     lens?: string;
     fantasy?: string;
@@ -107,6 +108,7 @@ async function handleText(
   const profileY = body.profileY || '';
   const profileN = body.profileN || '';
   const extraDetails = body.extraDetails || '';
+  const eventSpineJson = serializeEventSpine(body.eventSpine);
   const requestedChapters =
     typeof body.chapterCount === 'number' ? Math.round(body.chapterCount) : 4;
 
@@ -137,6 +139,7 @@ async function handleText(
     fragments_a: yFragments.join(' | '),
     fragments_b: nFragments.join(' | '),
     extra_details: extraDetails,
+    event_spine_json: eventSpineJson,
     chapter_count: String(chapterCount)
   });
 
@@ -341,6 +344,35 @@ function sanitizeDelay(raw: string | null, fallback: number) {
   return Math.min(15000, Math.max(50, Math.round(value)));
 }
 
+function serializeEventSpine(eventSpine: unknown) {
+  if (!Array.isArray(eventSpine) || !eventSpine.length) return '[]';
+  const compact = eventSpine
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object') return null;
+      const row = entry as {
+        chapter_index?: unknown;
+        date_time?: unknown;
+        location?: unknown;
+        weather_time?: unknown;
+        key_events?: unknown;
+      };
+      const chapterIndex = Number(row.chapter_index);
+      const keyEvents = Array.isArray(row.key_events)
+        ? row.key_events.map((item) => String(item || '').trim()).filter(Boolean).slice(0, 6)
+        : [];
+      return {
+        chapter_index: Number.isInteger(chapterIndex) ? chapterIndex : 0,
+        date_time: String(row.date_time || '').slice(0, 100),
+        location: String(row.location || '').slice(0, 120),
+        weather_time: String(row.weather_time || '').slice(0, 90),
+        key_events: keyEvents
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 16);
+  return JSON.stringify(compact);
+}
+
 function extractOutputText(data: {
   output_text?: string;
   output?: Array<{ content?: Array<{ type?: string; text?: string }> }>;
@@ -377,6 +409,9 @@ Use simple English for A2/B1 readers:
 User input may be in any language, but the story must be written in English. Preserve the meaning of the input while writing in English.
 Tone: {{lens}}. Fantasy balance: {{fantasy}}. Perspective: {{perspective}}.
 Intimacy direction: {{intimacy}}.
+EVENT_SPINE_JSON (authoritative facts to preserve when switching perspective): {{event_spine_json}}
+When EVENT_SPINE_JSON is provided, preserve chapter order, dates, locations, weather, and key events exactly.
+Only change the narrator viewpoint and emotional framing for the selected perspective.
 {{name_a}} profile: {{profile_a}}
 {{name_b}} profile: {{profile_b}}
 {{name_a}} moments: {{fragments_a}}.
