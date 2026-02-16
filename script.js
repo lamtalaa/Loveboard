@@ -551,7 +551,10 @@ function setupStoryMirror() {
     }
   });
   if (ui.storyNewBtn) {
-    ui.storyNewBtn.addEventListener('click', () => resetStoryFlow({ clearDraft: true }));
+    ui.storyNewBtn.addEventListener('click', () => {
+      if (!confirmStartNewStory()) return;
+      resetStoryFlow({ clearDraft: true });
+    });
   }
   if (ui.storySaveBtn) {
     ui.storySaveBtn.addEventListener('click', saveStoryChronicle);
@@ -1271,6 +1274,15 @@ function hasStoryDraft() {
   return Boolean(readStoredJSON(STORY_DRAFT_KEY, null)?.chapters?.length);
 }
 
+function hasExistingGeneratedStory() {
+  return Array.isArray(state.storyChapters) && state.storyChapters.length > 0;
+}
+
+function confirmStartNewStory() {
+  if (!hasExistingGeneratedStory() && !hasStoryDraft()) return true;
+  return window.confirm('Start a new story? Your current generated story/draft will be replaced.');
+}
+
 function updateStoryNavButtons() {
   if (!ui.storyStepBack || !ui.storyStepNext) return;
   ui.storyStepBack.hidden = false;
@@ -1295,10 +1307,7 @@ function setupStoryStepper() {
     ui.storyStepBack.addEventListener('click', () => {
       if (state.storyMirrorBusy) return;
       if (state.storyFlowMode === 'intro') {
-        if (hasStoryDraft()) {
-          const confirmed = window.confirm('You have a saved draft. Start a new story and remove this draft?');
-          if (!confirmed) return;
-        }
+        if (!confirmStartNewStory()) return;
         startFreshStoryFlow();
         return;
       }
@@ -1811,6 +1820,13 @@ function closeStorySocialSheet() {
     state.storySocialHideTimer = null;
   }
   state.storySocialOpen = false;
+  const focusedElement = document.activeElement;
+  if (focusedElement && ui.storySocialSheet.contains(focusedElement) && typeof focusedElement.blur === 'function') {
+    focusedElement.blur();
+  }
+  if (ui.storySocialTrigger && !ui.storySocialTrigger.hidden) {
+    ui.storySocialTrigger.focus({ preventScroll: true });
+  }
   ui.storySocialBackdrop.classList.remove('is-visible');
   ui.storySocialSheet.classList.remove('is-visible');
   ui.storySocialSheet.setAttribute('aria-hidden', 'true');
