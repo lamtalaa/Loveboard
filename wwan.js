@@ -2,7 +2,8 @@ import { supabase } from './supabase.js';
 
 const OPEN_METEO_WEATHER_URL = 'https://api.open-meteo.com/v1/forecast';
 const OPEN_METEO_GEO_URL = 'https://geocoding-api.open-meteo.com/v1/search';
-const UNSPLASH_SOURCE_URL = 'https://source.unsplash.com';
+const WIKIPEDIA_SEARCH_URL =
+  'https://en.wikipedia.org/w/api.php?action=query&generator=search&format=json&origin=*&gsrlimit=5&prop=pageimages&piprop=original|thumbnail&pithumbsize=1200';
 const QUOTE_URL = 'https://dummyjson.com/quotes/random';
 const DEFAULT_PHOTO_A = './assets/placeholder-a.svg';
 const DEFAULT_PHOTO_B = './assets/placeholder-b.svg';
@@ -50,7 +51,8 @@ const state = {
   weather: { A: null, B: null },
   lastQuote: null,
   currentUser: null,
-  skipPersistUser: null
+  skipPersistUser: null,
+  photoRequestVersion: { A: 0, B: 0 }
 };
 
 export function setWwanDefaults(nextDefaults) {
@@ -163,7 +165,12 @@ async function hydrateRemoteSettings() {
 
 async function persistCityRow(user, payload) {
   try {
-    await supabase.from(WWAN_TABLE).upsert({ user, ...payload, updated_at: new Date().toISOString() });
+    const { error } = await supabase
+      .from(WWAN_TABLE)
+      .upsert({ user, ...payload, updated_at: new Date().toISOString() });
+    if (error) {
+      console.warn('wwan settings save', error);
+    }
   } catch (error) {
     console.warn('wwan settings save', error);
   }
@@ -171,8 +178,8 @@ async function persistCityRow(user, payload) {
 
 export function applyRemoteCity(row) {
   if (!row || !row.user) return;
-  const isA = row.user === defaults.personA.name;
-  const isB = row.user === defaults.personB.name;
+  const isA = userMatchesSlot(row.user, 'A');
+  const isB = userMatchesSlot(row.user, 'B');
   if (!isA && !isB) return;
   if (isA) {
     state.settings.personA.city = row.city || state.settings.personA.city;
@@ -473,6 +480,23 @@ function normalizeQuery(value) {
     .replace(/\s+/g, ' ');
 }
 
+function normalizeUserKey(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, '');
+}
+
+function userMatchesSlot(userValue, slot) {
+  const normalized = normalizeUserKey(userValue);
+  if (!normalized) return false;
+  const refs =
+    slot === 'A'
+      ? [defaults.personA.id, defaults.personA.name, state.settings.personA?.name]
+      : [defaults.personB.id, defaults.personB.name, state.settings.personB?.name];
+  return refs.some((ref) => normalizeUserKey(ref) === normalized);
+}
+
 function handleWeatherSuccess(id, data, originalQuery, resolved) {
   setWeatherSuccess(id, data);
   if (typeof data.utc_offset_seconds === 'number') {
@@ -507,8 +531,10 @@ function handleWeatherSuccess(id, data, originalQuery, resolved) {
   updateLabels();
   fetchCityPhoto(id, cityName, country);
 
-  const actor = id === 'A' ? defaults.personA.name : defaults.personB.name;
-  if (state.currentUser === actor && state.skipPersistUser !== actor) {
+  const slot = id === 'A' ? 'A' : 'B';
+  const actor = id === 'A' ? defaults.personA.id || defaults.personA.name : defaults.personB.id || defaults.personB.name;
+  const skipPersistForSlot = userMatchesSlot(state.skipPersistUser, slot);
+  if (userMatchesSlot(state.currentUser, slot) && !skipPersistForSlot) {
     persistCityRow(actor, {
       city: id === 'A' ? state.settings.personA.city : state.settings.personB.city,
       country: id === 'A' ? state.settings.personA.country : state.settings.personB.country,
@@ -516,10 +542,7 @@ function handleWeatherSuccess(id, data, originalQuery, resolved) {
       time_zone: id === 'A' ? state.settings.personA.timeZone : state.settings.personB.timeZone
     });
   }
-  if (state.skipPersistUser === actor) {
-    state.skipPersistUser = null;
-  }
-  if (state.skipPersistUser === actor) {
+  if (skipPersistForSlot) {
     state.skipPersistUser = null;
   }
 
@@ -548,6 +571,16 @@ function setPhoto(id, url, alt) {
   target.classList.remove('is-loaded');
   const fallback = id === 'A' ? DEFAULT_PHOTO_A : DEFAULT_PHOTO_B;
   const finalUrl = url || fallback;
+  const fallbackUrl = new URL(fallback, window.location.href).href;
+  target.onerror = () => {
+    const current = target.currentSrc || target.src;
+    if (current === fallbackUrl) {
+      target.classList.add('is-loaded');
+      return;
+    }
+    target.src = fallback;
+    target.alt = '';
+  };
   target.src = finalUrl;
   target.alt = alt || '';
   target.onload = () => target.classList.add('is-loaded');
@@ -559,17 +592,61 @@ function setDefaultPhoto(id) {
 }
 
 async function fetchCityPhoto(id, city, country) {
+  state.photoRequestVersion[id] = (state.photoRequestVersion[id] || 0) + 1;
+  const requestVersion = state.photoRequestVersion[id];
   if (!city) {
     setDefaultPhoto(id);
     return;
   }
-  const query = encodeURIComponent(`${city} ${country || ''} skyline night`.trim());
-  const url = `${UNSPLASH_SOURCE_URL}/1600x900/?${query}`;
   try {
+    const url = await resolveCityPhotoUrl(city, country);
+    if (state.photoRequestVersion[id] !== requestVersion) return;
+    if (!url) {
+      setDefaultPhoto(id);
+      return;
+    }
     setPhoto(id, url, `${city} photo`);
   } catch (error) {
+    if (state.photoRequestVersion[id] !== requestVersion) return;
     setDefaultPhoto(id);
   }
+}
+
+function buildWikipediaSearchQueries(city, country) {
+  const raw = [`${city} ${country || ''} skyline`, `${city} ${country || ''}`, `${city} skyline`, city];
+  const unique = [];
+  raw.forEach((value) => {
+    const candidate = String(value || '').replace(/\s+/g, ' ').trim();
+    if (!candidate) return;
+    if (!unique.includes(candidate)) {
+      unique.push(candidate);
+    }
+  });
+  return unique;
+}
+
+async function resolveCityPhotoUrl(city, country) {
+  const queries = buildWikipediaSearchQueries(city, country);
+  for (let i = 0; i < queries.length; i += 1) {
+    const imageUrl = await requestWikipediaSearchImage(queries[i]);
+    if (imageUrl) return imageUrl;
+  }
+  return '';
+}
+
+async function requestWikipediaSearchImage(query) {
+  const url = `${WIKIPEDIA_SEARCH_URL}&gsrsearch=${encodeURIComponent(query)}`;
+  const response = await fetch(url, {
+    headers: { Accept: 'application/json' }
+  });
+  if (!response.ok) return '';
+  const data = await response.json();
+  const pages = Object.values(data?.query?.pages || {}).sort((a, b) => (a.index || 0) - (b.index || 0));
+  for (let i = 0; i < pages.length; i += 1) {
+    const imageUrl = pages[i]?.original?.source || pages[i]?.thumbnail?.source || '';
+    if (imageUrl) return imageUrl;
+  }
+  return '';
 }
 
 async function fetchQuote() {
@@ -616,8 +693,8 @@ function hydrateForm() {
 
 function handleSubmit(event) {
   event.preventDefault();
-  const isA = state.currentUser === defaults.personA.name;
-  const isB = state.currentUser === defaults.personB.name;
+  const isA = userMatchesSlot(state.currentUser, 'A');
+  const isB = userMatchesSlot(state.currentUser, 'B');
   if (!isA && !isB) return;
 
   if (isA) {
@@ -639,8 +716,8 @@ function handleSubmit(event) {
 }
 
 function updateEditingAccess() {
-  const isA = state.currentUser === (defaults.personA.id || defaults.personA.name);
-  const isB = state.currentUser === (defaults.personB.id || defaults.personB.name);
+  const isA = userMatchesSlot(state.currentUser, 'A');
+  const isB = userMatchesSlot(state.currentUser, 'B');
   if (elements.openSettings) {
     elements.openSettings.disabled = !state.currentUser;
     elements.openSettings.textContent = state.currentUser ? 'Change my city' : 'Change city (log in)';
