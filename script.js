@@ -170,8 +170,6 @@ const state = {
   storyTextByPerspective: {},
   storyActivePerspective: 'us',
   storyImages: [],
-  storyImageFailures: {},
-  storyImageRetryingIndex: null,
   storyImagesComplete: false,
   storySaved: false,
   storyDefaults: {
@@ -971,37 +969,6 @@ function clearPendingStoryCommentAnchor() {
   hideStorySelectionCommentButton();
 }
 
-function getStoryImageFailureMessage(index) {
-  const key = String(index);
-  const value = state.storyImageFailures?.[key];
-  return typeof value === 'string' ? value : '';
-}
-
-function setStoryImageFailure(index, message) {
-  const key = String(index);
-  if (!state.storyImageFailures || typeof state.storyImageFailures !== 'object') {
-    state.storyImageFailures = {};
-  }
-  state.storyImageFailures[key] = String(message || 'Image unavailable.');
-}
-
-function clearStoryImageFailure(index) {
-  const key = String(index);
-  if (!state.storyImageFailures || typeof state.storyImageFailures !== 'object') return;
-  if (Object.prototype.hasOwnProperty.call(state.storyImageFailures, key)) {
-    delete state.storyImageFailures[key];
-  }
-}
-
-function resetStoryImageFailures() {
-  state.storyImageFailures = {};
-  state.storyImageRetryingIndex = null;
-}
-
-function hasStoryImageFailures() {
-  return Object.keys(state.storyImageFailures || {}).length > 0;
-}
-
 function computeStoryImagesComplete(chapters = state.storyChapters, images = state.storyImages) {
   if (!Array.isArray(chapters) || !chapters.length) return false;
   return chapters.every((chapter, idx) => !chapter?.image_prompt || Boolean(images?.[idx]));
@@ -1095,20 +1062,11 @@ function handleStorySelectionCommentClick() {
   } catch {
     // no-op
   }
-  openStorySocialSheet();
+  openStorySocialSheet({ focusInput: true });
   renderStoryAnchorPreview();
-  ui.storySocialInput?.focus();
 }
 
 function handleStoryChapterClick(evt) {
-  const retryBtn = evt.target?.closest?.('.storymirror-image-retry-btn');
-  if (retryBtn && ui.storyChapters?.contains(retryBtn)) {
-    const index = Number(retryBtn.dataset.index);
-    if (Number.isInteger(index) && index >= 0) {
-      void retryStoryChapterImage(index);
-    }
-    return;
-  }
   const mark = evt.target?.closest?.('.storymirror-anchor-highlight');
   if (!mark || !ui.storyChapters?.contains(mark)) return;
   const anchorKey = String(mark.dataset.anchorKey || '').trim();
@@ -1476,7 +1434,7 @@ async function resumeStoryDraftImages() {
     state.storyImagesComplete = computeStoryImagesComplete();
     persistStoryDraft();
     updateStorySaveButton();
-    setStoryStatus(hasStoryImageFailures() ? 'Some images failed. Tap retry on the chapter.' : '', 'info');
+    setStoryStatus('', 'info');
   } catch (error) {
     console.error('story draft image resume', error);
     state.storyImagesComplete = true;
@@ -1544,7 +1502,6 @@ function restoreStoryDraft() {
   if (!getCachedStoryPerspectiveText(restoredPerspective)) {
     cacheStoryPerspectiveText(restoredPerspective, draft.chapters, draft.title || '');
   }
-  resetStoryImageFailures();
   state.storyImages = Array.isArray(draft.images) ? draft.images.slice(0, draft.chapters.length) : [];
   while (state.storyImages.length < state.storyChapters.length) {
     state.storyImages.push('');
@@ -1590,7 +1547,6 @@ function resetStoryFlow(options = {}) {
   state.storyTextByPerspective = {};
   state.storyActivePerspective = 'us';
   state.storyImages = [];
-  resetStoryImageFailures();
   state.storyImagesComplete = false;
   state.storySaved = false;
   state.pendingStoryPerspective = null;
@@ -1684,7 +1640,14 @@ function refreshStorySocialSummary() {
   }
 }
 
-function openStorySocialSheet() {
+function focusStorySocialInput() {
+  if (!ui.storySocialInput) return;
+  ui.storySocialInput.focus({ preventScroll: true });
+  ui.storySocialInput.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
+}
+
+function openStorySocialSheet(options = {}) {
+  const { focusInput = false } = options;
   const storyId = getActiveStoryId();
   if (!storyId || !ui.storySocialSheet || !ui.storySocialBackdrop) return;
   if (state.storySocialHideTimer) {
@@ -1698,6 +1661,10 @@ function openStorySocialSheet() {
   requestAnimationFrame(() => {
     ui.storySocialBackdrop?.classList.add('is-visible');
     ui.storySocialSheet?.classList.add('is-visible');
+    if (focusInput) {
+      // Wait for sheet transition so mobile keyboard anchors to the open sheet.
+      setTimeout(() => focusStorySocialInput(), 230);
+    }
   });
   renderStorySocialSheet();
 }
@@ -2291,7 +2258,6 @@ async function runStoryGeneration() {
     return;
   }
   state.storyImages = [];
-  resetStoryImageFailures();
   state.storyChapters = [];
   state.storyTextByPerspective = {};
   state.storyImagesComplete = false;
@@ -2333,7 +2299,6 @@ async function runStoryGeneration() {
       responseData.story_title || responseData.title || ''
     );
     state.storyImages = new Array(responseData.chapters.length).fill('');
-    resetStoryImageFailures();
     renderStoryChapters();
     const storyTitle =
       responseData.story_title || responseData.title || responseData.chapters?.[0]?.title || 'Our Future, Soon';
@@ -2354,10 +2319,7 @@ async function runStoryGeneration() {
     state.storyImagesComplete = computeStoryImagesComplete();
     persistStoryDraft();
     updateStorySaveButton();
-    setStoryStatus(
-      hasStoryImageFailures() ? 'Story ready. Some images failed, tap retry.' : 'Story ready.',
-      hasStoryImageFailures() ? 'error' : 'success'
-    );
+    setStoryStatus('Story ready.', 'success');
   } catch (error) {
     console.error('story mirror', error);
     if (state.storyChapters.length) {
@@ -2399,7 +2361,6 @@ async function switchStoryPerspective(targetPerspective = null) {
       setStoryHeroTitle(cached.title);
     }
     state.storyImages = previousImages.slice(0, state.storyChapters.length);
-    resetStoryImageFailures();
     while (state.storyImages.length < state.storyChapters.length) {
       state.storyImages.push('');
     }
@@ -2442,7 +2403,6 @@ async function switchStoryPerspective(targetPerspective = null) {
       responseData.story_title || responseData.title || ''
     );
     state.storyImages = previousImages.slice(0, state.storyChapters.length);
-    resetStoryImageFailures();
     while (state.storyImages.length < state.storyChapters.length) {
       state.storyImages.push('');
     }
@@ -2569,34 +2529,9 @@ function renderStoryChapters() {
     img.dataset.index = String(idx);
     img.loading = 'lazy';
     imageWrap.appendChild(img);
-    const hasImage = Boolean(state.storyImages[idx]);
-    const imageFailure = getStoryImageFailureMessage(idx);
-    const chapterCanRenderImage = Boolean(chapter?.image_prompt);
-    const fallbackMissingMessage =
-      !state.storyMirrorBusy && chapterCanRenderImage && !hasImage ? 'Image unavailable.' : '';
-    const displayFailure = imageFailure || fallbackMissingMessage;
-    const isRetryingImage = state.storyImageRetryingIndex === idx;
-    if (hasImage) {
+    if (state.storyImages[idx]) {
       img.src = state.storyImages[idx];
-      imageWrap.classList.remove('is-loading', 'is-failed');
-    } else if (displayFailure && !isRetryingImage) {
-      imageWrap.classList.remove('is-loading');
-      imageWrap.classList.add('is-failed');
-      img.src =
-        'data:image/svg+xml;charset=UTF-8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22300%22 height=%22225%22%3E%3Crect width=%22300%22 height=%22225%22 fill=%22%23f5e4ef%22/%3E%3C/svg%3E';
-      if (chapterCanRenderImage) {
-        const message = document.createElement('p');
-        message.className = 'storymirror-image-fail-msg';
-        message.textContent = displayFailure;
-        const retryBtn = document.createElement('button');
-        retryBtn.type = 'button';
-        retryBtn.className = 'storymirror-image-retry-btn';
-        retryBtn.dataset.index = String(idx);
-        retryBtn.textContent = 'Retry image';
-        imageWrap.append(message, retryBtn);
-      }
     } else {
-      imageWrap.classList.remove('is-failed');
       imageWrap.classList.add('is-loading');
       img.src =
         'data:image/svg+xml;charset=UTF-8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22300%22 height=%22225%22%3E%3Crect width=%22300%22 height=%22225%22 fill=%22%23f5e4ef%22/%3E%3C/svg%3E';
@@ -2693,27 +2628,14 @@ async function generateChapterImages(chapters) {
     if (!chapter?.image_prompt) continue;
     if (state.storyImages[i]) continue;
     setStoryStatus(`Rendering image ${i + 1} of ${chapters.length}...`, 'info');
-    clearStoryImageFailure(i);
-    state.storyImageRetryingIndex = i;
-    renderStoryChapters();
-    try {
-      const imgData = await requestStoryImage(chapter.image_prompt);
-      const imgEl = ui.storyChapters.querySelector(`img[data-index="${i}"]`);
-      if (imgEl && imgData) {
-        state.storyImages[i] = imgData;
-        imgEl.src = imgData;
-        imgEl.closest('.storymirror-image')?.classList.remove('is-loading', 'is-failed');
-        persistStoryDraft();
-        await persistActiveChronicleImages();
-      }
-    } catch (error) {
-      console.error('story image generation', error);
-      const message = error instanceof Error ? error.message : 'Image request failed';
-      setStoryImageFailure(i, message);
-      renderStoryChapters();
-    } finally {
-      state.storyImageRetryingIndex = null;
-      renderStoryChapters();
+    const imgData = await requestStoryImage(chapter.image_prompt);
+    const imgEl = ui.storyChapters.querySelector(`img[data-index="${i}"]`);
+    if (imgEl && imgData) {
+      state.storyImages[i] = imgData;
+      imgEl.src = imgData;
+      imgEl.closest('.storymirror-image')?.classList.remove('is-loading');
+      persistStoryDraft();
+      await persistActiveChronicleImages();
     }
   }
 }
@@ -2729,38 +2651,6 @@ async function requestStoryImage(prompt) {
     throw new Error(formatStoryFunctionError(error, 'Image request failed'));
   }
   return data?.image || '';
-}
-
-async function retryStoryChapterImage(index) {
-  if (state.storyMirrorBusy || state.storyImageRetryingIndex !== null) return;
-  if (!Number.isInteger(index) || index < 0 || index >= state.storyChapters.length) return;
-  if (state.storyImages[index]) return;
-  const chapter = state.storyChapters[index];
-  if (!chapter?.image_prompt) return;
-  clearStoryImageFailure(index);
-  state.storyImageRetryingIndex = index;
-  renderStoryChapters();
-  setStoryStatus('Retrying image...', 'info');
-  try {
-    const imgData = await requestStoryImage(chapter.image_prompt);
-    if (imgData) {
-      state.storyImages[index] = imgData;
-      state.storyImagesComplete = computeStoryImagesComplete();
-      persistStoryDraft();
-      await persistActiveChronicleImages();
-      updateStorySaveButton();
-      renderStoryChapters();
-      setStoryStatus('Image ready.', 'success');
-    }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Image request failed';
-    setStoryImageFailure(index, message);
-    renderStoryChapters();
-    setStoryStatus('Image failed. Tap retry again.', 'error');
-  } finally {
-    state.storyImageRetryingIndex = null;
-    renderStoryChapters();
-  }
 }
 
 async function persistActiveChronicleImages() {
@@ -3390,7 +3280,6 @@ function openChronicleStory(story) {
     cacheStoryPerspectiveText(state.storyActivePerspective, state.storyChapters, story?.title || '');
   }
   setStoryPerspectiveSelection(state.storyActivePerspective, null);
-  resetStoryImageFailures();
   state.storyImages = Array.isArray(story.images) ? story.images : [];
   state.storyImagesComplete = true;
   state.storySaved = true;

@@ -1590,15 +1590,16 @@ html {
   left: 50%;
   bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
   transform: translateX(-50%);
-  border: 1px solid rgba(145, 111, 126, 0.5);
+  border: 1px solid rgba(120, 44, 63, 0.66);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.96);
-  color: rgba(62, 44, 53, 0.92);
+  background: linear-gradient(135deg, rgba(133, 51, 72, 0.95), rgba(101, 36, 62, 0.95));
+  color: rgba(255, 246, 250, 0.98);
   font-family: 'Work Sans', sans-serif;
-  font-size: 0.76rem;
+  font-size: 0.82rem;
+  font-weight: 600;
   letter-spacing: 0.05em;
-  padding: 0.46rem 0.86rem;
-  box-shadow: 0 14px 28px rgba(40, 29, 35, 0.22);
+  padding: 0.54rem 1.02rem;
+  box-shadow: 0 16px 28px rgba(40, 29, 35, 0.26);
   backdrop-filter: blur(8px);
   cursor: pointer;
 }
@@ -1650,47 +1651,6 @@ html {
 
 .storymirror-image.is-loading img {
   opacity: 0;
-}
-
-.storymirror-image.is-failed {
-  position: relative;
-  min-height: 180px;
-  background: linear-gradient(120deg, rgba(245, 181, 197, 0.12), rgba(227, 212, 249, 0.22));
-}
-
-.storymirror-image.is-failed img {
-  opacity: 0.35;
-  pointer-events: none;
-}
-
-.storymirror-image-fail-msg {
-  position: absolute;
-  bottom: 42px;
-  left: 14px;
-  right: 14px;
-  z-index: 2;
-  margin: 0;
-  text-align: center;
-  font-size: 0.76rem;
-  color: rgba(70, 50, 60, 0.8);
-  line-height: 1.35;
-}
-
-.storymirror-image-retry-btn {
-  position: absolute;
-  bottom: 10px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 2;
-  border: 1px solid rgba(145, 111, 126, 0.5);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.94);
-  color: rgba(62, 44, 53, 0.92);
-  font-family: 'Work Sans', sans-serif;
-  font-size: 0.72rem;
-  letter-spacing: 0.05em;
-  padding: 0.3rem 0.62rem;
-  cursor: pointer;
 }
 
 .storymirror-caption {
