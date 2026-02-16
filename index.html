@@ -603,6 +603,51 @@
         >
           <span aria-hidden="true">←</span>
         </button>
+        <div class="storymirror-top-meta">
+          <div class="storymirror-inline-perspective" id="story-perspective-switcher" hidden>
+            <button
+              type="button"
+              class="storymirror-perspective-trigger"
+              id="story-perspective-toggle"
+              aria-expanded="false"
+              aria-haspopup="menu"
+              aria-controls="story-perspective-panel"
+            >
+              <span>Perspective</span>
+              <span class="storymirror-perspective-current" id="story-perspective-current">Us</span>
+            </button>
+            <div class="storymirror-perspective-panel" id="story-perspective-panel" role="menu" hidden>
+              <button type="button" class="storymirror-perspective-option" data-perspective-value="a" role="menuitemradio" aria-checked="false">
+                <span data-story-perspective-label="a">You</span>
+                <span class="storymirror-perspective-check" aria-hidden="true">✓</span>
+              </button>
+              <button type="button" class="storymirror-perspective-option" data-perspective-value="b" role="menuitemradio" aria-checked="false">
+                <span data-story-perspective-label="b">Partner</span>
+                <span class="storymirror-perspective-check" aria-hidden="true">✓</span>
+              </button>
+              <button type="button" class="storymirror-perspective-option" data-perspective-value="us" role="menuitemradio" aria-checked="true">
+                <span data-story-perspective-label="us">Us</span>
+                <span class="storymirror-perspective-check" aria-hidden="true">✓</span>
+              </button>
+            </div>
+            <p
+              class="storymirror-inline-perspective-feedback"
+              id="story-perspective-feedback"
+              role="status"
+              aria-live="polite"
+              hidden
+            ></p>
+          </div>
+          <button
+            type="button"
+            class="story-social-trigger"
+            id="story-social-trigger"
+            aria-label="Open story reactions and comments"
+            hidden
+          >
+            <span id="story-social-summary">✨ 0 · 💬 0</span>
+          </button>
+        </div>
       </header>
       <main class="storymirror-main">
         <header class="storymirror-hero">
@@ -740,52 +785,6 @@ Our home at night felt soft and safe…"
         </div>
 
         <section class="storymirror-output" id="story-output" aria-live="polite">
-          <header class="storymirror-output-header">
-            <h2>It begins here</h2>
-            <div class="storymirror-inline-perspective" id="story-perspective-switcher" hidden>
-              <button
-                type="button"
-                class="storymirror-perspective-trigger"
-                id="story-perspective-toggle"
-                aria-expanded="false"
-                aria-haspopup="menu"
-                aria-controls="story-perspective-panel"
-              >
-                <span>Perspective</span>
-                <span class="storymirror-perspective-current" id="story-perspective-current">Us</span>
-              </button>
-              <div class="storymirror-perspective-panel" id="story-perspective-panel" role="menu" hidden>
-                <button type="button" class="storymirror-perspective-option" data-perspective-value="a" role="menuitemradio" aria-checked="false">
-                  <span data-story-perspective-label="a">You</span>
-                  <span class="storymirror-perspective-check" aria-hidden="true">✓</span>
-                </button>
-                <button type="button" class="storymirror-perspective-option" data-perspective-value="b" role="menuitemradio" aria-checked="false">
-                  <span data-story-perspective-label="b">Partner</span>
-                  <span class="storymirror-perspective-check" aria-hidden="true">✓</span>
-                </button>
-                <button type="button" class="storymirror-perspective-option" data-perspective-value="us" role="menuitemradio" aria-checked="true">
-                  <span data-story-perspective-label="us">Us</span>
-                  <span class="storymirror-perspective-check" aria-hidden="true">✓</span>
-                </button>
-              </div>
-              <p
-                class="storymirror-inline-perspective-feedback"
-                id="story-perspective-feedback"
-                role="status"
-                aria-live="polite"
-                hidden
-              ></p>
-            </div>
-            <button
-              type="button"
-              class="story-social-trigger"
-              id="story-social-trigger"
-              aria-label="Open story reactions and comments"
-              hidden
-            >
-              <span id="story-social-summary">✨ 0 · 💬 0</span>
-            </button>
-          </header>
           <div class="storymirror-empty" id="story-empty">
             <p>Your future chapters will appear here.</p>
           </div>

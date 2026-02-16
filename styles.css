@@ -293,10 +293,12 @@ html {
   margin-bottom: 1rem;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 1rem;
   position: relative;
-  z-index: 1;
+  z-index: 5;
+  overflow: visible;
+  min-height: 2.25rem;
 }
 
 .storymirror-back-btn {
@@ -417,6 +419,16 @@ html {
   box-shadow: 0 20px 40px rgba(24, 20, 34, 0.35);
 }
 
+.storymirror-top-meta {
+  display: none;
+  position: relative;
+  flex: 1;
+  min-height: 2.25rem;
+  align-items: flex-start;
+  justify-content: center;
+  pointer-events: none;
+}
+
 .storymirror-eyebrow {
   text-transform: uppercase;
   letter-spacing: 0.2em;
@@ -443,6 +455,26 @@ html {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #f5e4ef;
+}
+
+.storymirror-view.storymirror-generated .storymirror-top-meta {
+  display: flex;
+  z-index: 6;
+}
+
+.storymirror-view.storymirror-generated .storymirror-top-meta .storymirror-inline-perspective {
+  position: relative;
+  z-index: 7;
+  pointer-events: auto;
+}
+
+.storymirror-view.storymirror-generated .storymirror-top-meta .story-social-trigger {
+  position: absolute;
+  right: 0;
+  top: 0;
+  margin: 0;
+  pointer-events: auto;
+  z-index: 7;
 }
 
 @keyframes storyBylineFade {
@@ -1394,7 +1426,7 @@ html {
   padding: 0.34rem;
   display: grid;
   gap: 0.2rem;
-  z-index: 8;
+  z-index: 60;
 }
 
 .storymirror-perspective-panel[hidden] {
