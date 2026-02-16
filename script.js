@@ -1072,12 +1072,6 @@ function handleStoryTextSelection() {
     end_offset: end,
     selected_text: selectedText
   };
-  const rect = range.getBoundingClientRect();
-  const x = rect.left + rect.width / 2;
-  const y = rect.top - 14;
-  ui.storySelectionCommentBtn.style.left = `${Math.round(x)}px`;
-  ui.storySelectionCommentBtn.style.top = `${Math.round(y)}px`;
-  ui.storySelectionCommentBtn.style.transform = 'translate(-50%, -100%)';
   ui.storySelectionCommentBtn.hidden = false;
 }
 
@@ -1096,6 +1090,11 @@ function renderStoryAnchorPreview() {
 function handleStorySelectionCommentClick() {
   if (!state.pendingStoryCommentAnchor) return;
   hideStorySelectionCommentButton();
+  try {
+    window.getSelection?.()?.removeAllRanges?.();
+  } catch {
+    // no-op
+  }
   openStorySocialSheet();
   renderStoryAnchorPreview();
   ui.storySocialInput?.focus();
@@ -2637,9 +2636,13 @@ function getStoryAnchorRangesForChapter(chapterText, chapterIndex, comments) {
   const ranges = comments
     .map((entry) => {
       if (!Number.isInteger(entry?.chapter_index) || entry.chapter_index !== chapterIndex) return null;
+      const selectedText = typeof entry?.selected_text === 'string' ? entry.selected_text.trim() : '';
+      if (!selectedText) return null;
       const start = Math.max(0, Math.min(Number(entry.start_offset) || 0, max));
       const end = Math.max(start, Math.min(Number(entry.end_offset) || start, max));
       if (end - start < 1) return null;
+      const chapterSlice = chapterText.slice(start, end);
+      if (normalizeStoryAnchorText(chapterSlice) !== normalizeStoryAnchorText(selectedText)) return null;
       return { start, end, key: getStoryAnchorKey(chapterIndex, start, end) };
     })
     .filter(Boolean)
@@ -2655,6 +2658,13 @@ function getStoryAnchorRangesForChapter(chapterText, chapterIndex, comments) {
     result.push(range);
   });
   return result;
+}
+
+function normalizeStoryAnchorText(value) {
+  return String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
 }
 
 function renderAnchoredChapterText(chapterText, chapterIndex, comments) {
