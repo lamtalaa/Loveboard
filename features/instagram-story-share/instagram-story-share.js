@@ -44,11 +44,14 @@ export function createInstagramStoryShare(options = {}) {
     previewUrl: '',
     previewDirty: false,
     busy: false,
-    previewTimer: 0
+    previewTimer: 0,
+    open: false,
+    returnFocusEl: null
   };
 
   const ui = createUi();
   bindEvents();
+  window.addEventListener('keydown', handleWindowKeydown);
 
   return {
     open,
@@ -56,16 +59,20 @@ export function createInstagramStoryShare(options = {}) {
   };
 
   function createUi() {
-    const dialog = document.createElement('dialog');
-    dialog.className = 'modal ig-story-modal';
-    dialog.innerHTML = `
-      <div class="modal-content ig-story-modal-content">
+    const screen = document.createElement('section');
+    screen.className = 'ig-story-screen';
+    screen.hidden = true;
+    screen.setAttribute('aria-hidden', 'true');
+    screen.setAttribute('role', 'dialog');
+    screen.setAttribute('aria-modal', 'true');
+    screen.innerHTML = `
+      <div class="ig-story-screen-shell">
         <header class="ig-story-head">
           <div class="ig-story-head-copy">
             <p class="ig-story-kicker">Instagram Story</p>
             <h2>Share This Moment</h2>
           </div>
-          <button type="button" class="ig-story-close" aria-label="Close">x</button>
+          <button type="button" class="ig-story-close" aria-label="Back">←</button>
         </header>
         <div class="ig-story-layout">
           <section class="ig-story-preview-shell" aria-label="Story preview">
@@ -125,47 +132,33 @@ export function createInstagramStoryShare(options = {}) {
               <span class="ig-story-share-btn-icon" aria-hidden="true"></span>
               <span>Share to Instagram Story</span>
             </button>
-            <button type="button" class="ghost ig-story-later-btn" data-action="close">Not now</button>
           </div>
         </footer>
       </div>
     `;
-    document.body.appendChild(dialog);
+    document.body.appendChild(screen);
 
     return {
-      dialog,
-      closeBtn: dialog.querySelector('.ig-story-close'),
-      cancelBtn: dialog.querySelector('[data-action="close"]'),
-      storyTitle: dialog.querySelector('[data-ig-story-title]'),
-      sourceInputs: dialog.querySelectorAll('input[name="ig-story-source"]'),
-      themeInputs: dialog.querySelectorAll('input[name="ig-story-theme"]'),
-      bgInputs: dialog.querySelectorAll('input[name="ig-story-background"]'),
-      snippet: dialog.querySelector('#ig-story-snippet'),
-      bgCover: dialog.querySelector('input[name="ig-story-background"][value="cover"]'),
-      bgGradient: dialog.querySelector('input[name="ig-story-background"][value="gradient"]'),
-      privacy: dialog.querySelector('#ig-story-privacy'),
-      watermark: dialog.querySelector('#ig-story-watermark'),
-      status: dialog.querySelector('[data-ig-story-status]'),
-      preview: dialog.querySelector('[data-ig-story-preview]'),
-      shareBtn: dialog.querySelector('[data-action="share"]')
+      screen,
+      closeBtn: screen.querySelector('.ig-story-close'),
+      storyTitle: screen.querySelector('[data-ig-story-title]'),
+      sourceInputs: screen.querySelectorAll('input[name="ig-story-source"]'),
+      themeInputs: screen.querySelectorAll('input[name="ig-story-theme"]'),
+      bgInputs: screen.querySelectorAll('input[name="ig-story-background"]'),
+      snippet: screen.querySelector('#ig-story-snippet'),
+      bgCover: screen.querySelector('input[name="ig-story-background"][value="cover"]'),
+      bgGradient: screen.querySelector('input[name="ig-story-background"][value="gradient"]'),
+      privacy: screen.querySelector('#ig-story-privacy'),
+      watermark: screen.querySelector('#ig-story-watermark'),
+      status: screen.querySelector('[data-ig-story-status]'),
+      preview: screen.querySelector('[data-ig-story-preview]'),
+      shareBtn: screen.querySelector('[data-action="share"]')
     };
   }
 
   function bindEvents() {
     if (ui.closeBtn) {
       ui.closeBtn.addEventListener('click', close);
-    }
-    if (ui.cancelBtn) {
-      ui.cancelBtn.addEventListener('click', close);
-    }
-    if (ui.dialog) {
-      ui.dialog.addEventListener('cancel', (evt) => {
-        evt.preventDefault();
-        close();
-      });
-      ui.dialog.addEventListener('close', () => {
-        setBusy(false);
-      });
     }
     [ui.snippet, ui.privacy, ui.watermark].forEach((el) => {
       if (!el) return;
@@ -237,8 +230,13 @@ export function createInstagramStoryShare(options = {}) {
     }
 
     markPreviewDirty(false);
-    if (ui.dialog && !ui.dialog.open) {
-      ui.dialog.showModal();
+    if (!state.open && ui.screen) {
+      state.returnFocusEl = document.activeElement;
+      state.open = true;
+      ui.screen.hidden = false;
+      ui.screen.setAttribute('aria-hidden', 'false');
+      ui.screen.classList.add('is-open');
+      document.body.classList.add('ig-story-screen-open');
     }
     void generatePreview();
   }
@@ -312,18 +310,37 @@ export function createInstagramStoryShare(options = {}) {
       window.clearTimeout(state.previewTimer);
       state.previewTimer = 0;
     }
-    if (!ui.dialog?.open) return;
-    ui.dialog.close();
+    if (!state.open || !ui.screen) return;
+    const focusedElement = document.activeElement;
+    if (focusedElement && ui.screen.contains(focusedElement) && typeof focusedElement.blur === 'function') {
+      focusedElement.blur();
+    }
+    state.open = false;
+    setBusy(false);
+    ui.screen.classList.remove('is-open');
+    ui.screen.setAttribute('aria-hidden', 'true');
+    ui.screen.hidden = true;
+    document.body.classList.remove('ig-story-screen-open');
+    if (state.returnFocusEl && typeof state.returnFocusEl.focus === 'function') {
+      try {
+        state.returnFocusEl.focus({ preventScroll: true });
+      } catch {
+        // no-op
+      }
+    }
+    state.returnFocusEl = null;
   }
 
   function destroy() {
+    window.removeEventListener('keydown', handleWindowKeydown);
     if (state.previewTimer) {
       window.clearTimeout(state.previewTimer);
       state.previewTimer = 0;
     }
+    close();
     cleanupPreviewUrl();
-    if (ui.dialog?.parentNode) {
-      ui.dialog.parentNode.removeChild(ui.dialog);
+    if (ui.screen?.parentNode) {
+      ui.screen.parentNode.removeChild(ui.screen);
     }
   }
 
@@ -354,11 +371,17 @@ export function createInstagramStoryShare(options = {}) {
   function setBusy(nextBusy) {
     state.busy = Boolean(nextBusy);
     if (ui.shareBtn) ui.shareBtn.disabled = state.busy;
-    if (ui.cancelBtn) ui.cancelBtn.disabled = state.busy;
     if (ui.closeBtn) ui.closeBtn.disabled = state.busy;
-    if (ui.dialog) {
-      ui.dialog.classList.toggle('ig-story-busy', state.busy);
+    if (ui.screen) {
+      ui.screen.classList.toggle('ig-story-busy', state.busy);
     }
+  }
+
+  function handleWindowKeydown(event) {
+    if (!state.open) return;
+    if (event.key !== 'Escape') return;
+    event.preventDefault();
+    close();
   }
 
   async function generatePreview() {
