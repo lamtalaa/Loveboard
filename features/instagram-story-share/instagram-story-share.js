@@ -39,6 +39,9 @@ export function createInstagramStoryShare(options = {}) {
     createdLabel: '',
     sensitiveTerms: [],
     selectedSnippet: '',
+    source: 'auto',
+    hideSensitive: false,
+    showWatermark: true,
     coverOptions: [],
     selectedCoverUrl: '',
     previewBlob: null,
@@ -84,6 +87,13 @@ export function createInstagramStoryShare(options = {}) {
               <legend>Story image</legend>
               <div class="ig-story-image-options" data-ig-story-image-options></div>
             </fieldset>
+            <fieldset class="ig-story-fieldset ig-story-pill-fieldset ig-story-source-fieldset">
+              <legend>Text source</legend>
+              <div class="ig-story-pill-options">
+                <label><input type="radio" name="ig-story-source" value="auto" checked /><span>Story line</span></label>
+                <label><input type="radio" name="ig-story-source" value="selected" /><span>Selected text</span></label>
+              </div>
+            </fieldset>
             <fieldset class="ig-story-fieldset ig-story-pill-fieldset ig-story-theme-fieldset">
               <legend>Look</legend>
               <div class="ig-story-pill-options">
@@ -104,14 +114,17 @@ export function createInstagramStoryShare(options = {}) {
                 <label><input type="radio" name="ig-story-background" value="gradient" checked /><span>Gradient</span></label>
               </div>
             </fieldset>
-            <div class="ig-story-toggles">
-              <label class="ig-story-toggle">
-                <input type="checkbox" id="ig-story-privacy" /> Hide names and locations
-              </label>
-              <label class="ig-story-toggle">
-                <input type="checkbox" id="ig-story-watermark" checked /> Show "From ${escapeHtml(appName)}"
-              </label>
-            </div>
+            <fieldset class="ig-story-fieldset ig-story-toggle-fieldset">
+              <legend>Details</legend>
+              <div class="ig-story-toggles">
+                <button type="button" class="ig-story-toggle-btn" data-ig-toggle="privacy" aria-pressed="false">
+                  Hide names and locations
+                </button>
+                <button type="button" class="ig-story-toggle-btn is-active" data-ig-toggle="watermark" aria-pressed="true">
+                  Show "From ${escapeHtml(appName)}"
+                </button>
+              </div>
+            </fieldset>
           </section>
         </div>
         <footer class="ig-story-footer">
@@ -131,14 +144,15 @@ export function createInstagramStoryShare(options = {}) {
       screen,
       closeBtn: screen.querySelector('.ig-story-close'),
       storyTitle: screen.querySelector('[data-ig-story-title]'),
+      sourceInputs: screen.querySelectorAll('input[name="ig-story-source"]'),
       themeInputs: screen.querySelectorAll('input[name="ig-story-theme"]'),
       bgInputs: screen.querySelectorAll('input[name="ig-story-background"]'),
       imagePicker: screen.querySelector('[data-ig-story-image-picker]'),
       imageOptions: screen.querySelector('[data-ig-story-image-options]'),
       bgCover: screen.querySelector('input[name="ig-story-background"][value="cover"]'),
       bgGradient: screen.querySelector('input[name="ig-story-background"][value="gradient"]'),
-      privacy: screen.querySelector('#ig-story-privacy'),
-      watermark: screen.querySelector('#ig-story-watermark'),
+      privacyToggle: screen.querySelector('[data-ig-toggle="privacy"]'),
+      watermarkToggle: screen.querySelector('[data-ig-toggle="watermark"]'),
       status: screen.querySelector('[data-ig-story-status]'),
       preview: screen.querySelector('[data-ig-story-preview]'),
       shareBtn: screen.querySelector('[data-action="share"]')
@@ -149,11 +163,14 @@ export function createInstagramStoryShare(options = {}) {
     if (ui.closeBtn) {
       ui.closeBtn.addEventListener('click', close);
     }
-    [ui.privacy, ui.watermark].forEach((el) => {
-      if (!el) return;
-      el.addEventListener('input', schedulePreviewRender);
-      el.addEventListener('change', schedulePreviewRender);
-    });
+    if (ui.sourceInputs?.length) {
+      ui.sourceInputs.forEach((input) => {
+        input.addEventListener('change', () => {
+          if (!input.checked) return;
+          setSource(input.value, { markDirty: true });
+        });
+      });
+    }
     if (ui.themeInputs?.length) {
       ui.themeInputs.forEach((input) => {
         input.addEventListener('change', () => {
@@ -173,6 +190,20 @@ export function createInstagramStoryShare(options = {}) {
     if (ui.imageOptions) {
       ui.imageOptions.addEventListener('click', handleImageOptionClick);
     }
+    if (ui.privacyToggle) {
+      ui.privacyToggle.addEventListener('click', () => {
+        state.hideSensitive = !state.hideSensitive;
+        syncToggleButtons();
+        schedulePreviewRender({ silent: true });
+      });
+    }
+    if (ui.watermarkToggle) {
+      ui.watermarkToggle.addEventListener('click', () => {
+        state.showWatermark = !state.showWatermark;
+        syncToggleButtons();
+        schedulePreviewRender({ silent: true });
+      });
+    }
     if (ui.shareBtn) {
       ui.shareBtn.addEventListener('click', () => {
         void handleShare();
@@ -189,12 +220,16 @@ export function createInstagramStoryShare(options = {}) {
     state.createdLabel = String(payload.createdLabel || '').trim();
     state.sensitiveTerms = normalizeSensitiveTerms(payload.sensitiveTerms || []);
     state.selectedSnippet = summarizeForStory(String(payload.selectedSnippet || ''), STORY_RENDER_SNIPPET_CHARS);
+    state.hideSensitive = false;
+    state.showWatermark = true;
     state.coverOptions = getCoverOptions(story);
     state.selectedCoverUrl = state.coverOptions[0] || '';
 
     if (ui.storyTitle) {
       ui.storyTitle.textContent = story.title ? String(story.title) : 'Untitled story';
     }
+    setSource(resolveInitialSource(), { markDirty: false });
+    syncToggleButtons();
     renderImageOptions();
 
     const hasCover = Boolean(state.selectedCoverUrl);
@@ -207,13 +242,6 @@ export function createInstagramStoryShare(options = {}) {
     }
     setRadioValue(ui.themeInputs, 'blush', 'blush');
     setRadioValue(ui.bgInputs, hasCover ? 'cover' : 'gradient', 'gradient');
-    if (ui.privacy) {
-      ui.privacy.checked = false;
-    }
-    if (ui.watermark) {
-      ui.watermark.checked = true;
-    }
-
     markPreviewDirty(false);
     setStatus('');
     if (ui.screen) {
@@ -282,6 +310,34 @@ export function createInstagramStoryShare(options = {}) {
       setRadioValue(ui.bgInputs, 'cover', 'gradient');
     }
     schedulePreviewRender();
+  }
+
+  function resolveInitialSource() {
+    return state.selectedSnippet ? 'selected' : 'auto';
+  }
+
+  function setSource(nextSource, options = {}) {
+    const { markDirty = false } = options;
+    let source = ['auto', 'selected'].includes(nextSource) ? nextSource : 'auto';
+    if (source === 'selected' && !state.selectedSnippet) {
+      source = 'auto';
+    }
+    state.source = source;
+    if (ui.sourceInputs?.length) {
+      ui.sourceInputs.forEach((input) => {
+        const value = input.value;
+        if (value === 'selected') input.disabled = !state.selectedSnippet;
+        input.checked = value === source;
+      });
+    }
+    if (markDirty) {
+      schedulePreviewRender();
+    }
+  }
+
+  function syncToggleButtons() {
+    setToggleButtonState(ui.privacyToggle, state.hideSensitive);
+    setToggleButtonState(ui.watermarkToggle, state.showWatermark);
   }
 
   function getSelectedRadioValue(inputs, fallback = '') {
@@ -370,14 +426,15 @@ export function createInstagramStoryShare(options = {}) {
     }
   }
 
-  function schedulePreviewRender() {
+  function schedulePreviewRender(options = {}) {
+    const { silent = false } = options;
     markPreviewDirty(false);
     if (state.previewTimer) {
       window.clearTimeout(state.previewTimer);
     }
     state.previewTimer = window.setTimeout(() => {
       state.previewTimer = 0;
-      void generatePreview();
+      void generatePreview({ silent });
     }, 180);
   }
 
@@ -409,14 +466,17 @@ export function createInstagramStoryShare(options = {}) {
     close();
   }
 
-  async function generatePreview() {
+  async function generatePreview(options = {}) {
+    const { silent = false } = options;
     if (!state.story) return null;
     if (state.busy) {
       schedulePreviewRender();
       return null;
     }
     setBusy(true);
-    setStatus('Rendering preview...');
+    if (!silent) {
+      setStatus('Rendering preview...');
+    }
 
     try {
       const config = readConfig();
@@ -441,10 +501,10 @@ export function createInstagramStoryShare(options = {}) {
 
   function readConfig() {
     const story = state.story || {};
-    const snippetSource = state.selectedSnippet || deriveSnippet(story);
+    const snippetSource = getSourceSnippet(state.source, story, state.selectedSnippet);
     const snippetRaw = String(snippetSource || '').trim();
     const titleRaw = String(story.title || 'Our story').trim();
-    const usePrivacy = Boolean(ui.privacy?.checked);
+    const usePrivacy = Boolean(state.hideSensitive);
     const sensitiveTerms = state.sensitiveTerms;
 
     const snippet = clipText(
@@ -466,7 +526,7 @@ export function createInstagramStoryShare(options = {}) {
       theme: getSelectedRadioValue(ui.themeInputs, 'blush'),
       useCover: getSelectedRadioValue(ui.bgInputs, 'gradient') === 'cover',
       coverUrl: state.selectedCoverUrl || getCoverUrl(story),
-      watermark: Boolean(ui.watermark?.checked)
+      watermark: Boolean(state.showWatermark)
     };
   }
 
@@ -721,6 +781,20 @@ function deriveSnippet(story) {
     }
   }
   return summarizeForStory(String(story?.title || 'A chapter from our story.'), STORY_RENDER_SNIPPET_CHARS);
+}
+
+function getSourceSnippet(source, story, selectedSnippet) {
+  if (source === 'selected' && selectedSnippet) {
+    return selectedSnippet;
+  }
+  return deriveSnippet(story);
+}
+
+function setToggleButtonState(button, isActive) {
+  if (!button) return;
+  const active = Boolean(isActive);
+  button.classList.toggle('is-active', active);
+  button.setAttribute('aria-pressed', active ? 'true' : 'false');
 }
 
 function getCoverUrl(story) {
