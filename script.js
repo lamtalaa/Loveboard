@@ -359,7 +359,6 @@ const ui = {
   chronicleActionsModal: document.getElementById('chronicle-actions-modal'),
   chronicleActionsTitle: document.getElementById('chronicle-actions-title'),
   chronicleActionsOpen: document.getElementById('chronicle-actions-open'),
-  chronicleActionsShare: document.getElementById('chronicle-actions-share'),
   chronicleActionsDelete: document.getElementById('chronicle-actions-delete'),
   chronicleActionsCancel: document.getElementById('chronicle-actions-cancel'),
   chronicleDeleteModal: document.getElementById('chronicle-delete-modal'),
@@ -428,9 +427,6 @@ async function init() {
   }
   if (ui.chronicleActionsOpen) {
     ui.chronicleActionsOpen.addEventListener('click', handleChronicleActionOpen);
-  }
-  if (ui.chronicleActionsShare) {
-    ui.chronicleActionsShare.addEventListener('click', handleChronicleActionShare);
   }
   if (ui.chronicleActionsDelete) {
     ui.chronicleActionsDelete.addEventListener('click', handleChronicleActionDelete);
@@ -3537,11 +3533,36 @@ function renderStoryChapters() {
     card.append(title, text, imageWrap, caption);
     ui.storyChapters.appendChild(card);
   });
+  const shareCta = createStoryEndShareCta();
+  if (shareCta) {
+    ui.storyChapters.appendChild(shareCta);
+  }
   const sentinel = document.createElement('div');
   sentinel.className = 'storymirror-end-sentinel';
   sentinel.dataset.storyEnd = 'true';
   ui.storyChapters.appendChild(sentinel);
   attachStoryEndObserver(sentinel);
+}
+
+function createStoryEndShareCta() {
+  if (!instagramStoryShareFeature) return null;
+  const story = getStoryForInstagramShare();
+  if (!story) return null;
+
+  const shell = document.createElement('div');
+  shell.className = 'storymirror-share-ig';
+
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'storymirror-share-ig-btn';
+  button.setAttribute('aria-label', 'Share this story to Instagram Story');
+  button.textContent = 'Share to Instagram Story';
+  button.addEventListener('click', () => {
+    openCurrentStoryShareSnippet();
+  });
+
+  shell.appendChild(button);
+  return shell;
 }
 
 function escapeStoryHtml(value) {
@@ -4227,22 +4248,6 @@ function renderChronicles(options = {}) {
       badge.setAttribute('aria-label', commentCount > 0 ? `${status} with ${commentCount} comments` : status);
       card.appendChild(badge);
     }
-    if (instagramStoryShareFeature) {
-      const shareBtn = document.createElement('button');
-      shareBtn.type = 'button';
-      shareBtn.className = 'chronicle-share-snippet-btn';
-      shareBtn.textContent = 'Share to IG';
-      shareBtn.setAttribute('aria-label', 'Share this story snippet to Instagram');
-      shareBtn.addEventListener('pointerdown', (evt) => {
-        evt.stopPropagation();
-      });
-      shareBtn.addEventListener('click', (evt) => {
-        evt.preventDefault();
-        evt.stopPropagation();
-        openChronicleShareSnippet(story);
-      });
-      card.appendChild(shareBtn);
-    }
     const holdTrack = document.createElement('div');
     holdTrack.className = 'chronicle-hold-progress';
     const holdFill = document.createElement('span');
@@ -4412,13 +4417,6 @@ function handleChronicleActionOpen() {
   openChronicleStory(story);
 }
 
-function handleChronicleActionShare() {
-  const story = state.activeChronicle;
-  closeChronicleActionsModal();
-  if (!story) return;
-  openChronicleShareSnippet(story);
-}
-
 function handleChronicleActionDelete() {
   closeChronicleActionsModal();
   openChronicleDeleteModal();
@@ -4432,6 +4430,28 @@ function openChronicleShareSnippet(story) {
     createdLabel: formatDate(story.created_at || new Date().toISOString()),
     sensitiveTerms: getChronicleShareSensitiveTerms()
   });
+}
+
+function openCurrentStoryShareSnippet() {
+  const story = getStoryForInstagramShare();
+  if (!story) return;
+  openChronicleShareSnippet(story);
+}
+
+function getStoryForInstagramShare() {
+  if (state.activeChronicle?.chapters?.length) {
+    return state.activeChronicle;
+  }
+  if (!Array.isArray(state.storyChapters) || !state.storyChapters.length) {
+    return null;
+  }
+  return {
+    title: ui.storyHeroTitle?.textContent || 'Our Future, Soon',
+    chapters: cloneStoryChapters(state.storyChapters),
+    images: Array.isArray(state.storyImages) ? state.storyImages.slice(0, state.storyChapters.length) : [],
+    user: state.user || '',
+    created_at: new Date().toISOString()
+  };
 }
 
 function getChronicleShareSensitiveTerms() {
