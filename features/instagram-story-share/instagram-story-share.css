@@ -63,9 +63,8 @@ body.ig-story-screen-open {
 .ig-story-layout {
   min-height: 0;
   display: grid;
-  grid-template-rows: auto auto;
-  align-content: start;
-  overflow: auto;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
 }
 
 .ig-story-preview-shell {
@@ -74,6 +73,9 @@ body.ig-story-screen-open {
   gap: 0.5rem;
   border-bottom: 1px solid rgba(76, 53, 42, 0.12);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 246, 238, 0.56));
+  position: sticky;
+  top: 0;
+  z-index: 3;
 }
 
 .ig-story-title-row {
@@ -115,7 +117,8 @@ body.ig-story-screen-open {
 
 .ig-story-controls {
   min-height: 0;
-  overflow: visible;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
   padding: 0.86rem 0.95rem 0.76rem;
   display: grid;
   gap: 0.72rem;

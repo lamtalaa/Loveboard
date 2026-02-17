@@ -347,6 +347,15 @@ html {
   padding-bottom: calc(5.8rem + env(safe-area-inset-bottom));
 }
 
+.storymirror-view.storymirror-generated {
+  padding-bottom: 1.15rem;
+}
+
+.storymirror-view.storymirror-generated .storymirror-main {
+  min-height: 0;
+  padding-bottom: calc(0.95rem + env(safe-area-inset-bottom));
+}
+
 .storymirror-view.storymirror-generated .storymirror-stepper,
 .storymirror-view.storymirror-generated .storymirror-steps,
 .storymirror-view.storymirror-generated .storymirror-nav {
