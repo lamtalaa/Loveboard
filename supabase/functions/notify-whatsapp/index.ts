@@ -114,7 +114,7 @@ serve(async (req) => {
       senderName,
       teaser,
       link,
-      includeLink: !TWILIO_WHATSAPP_TEMPLATE_SID
+      includeLink: true
     });
     const result = await sendTwilioMessage(toNumber, message);
     return new Response(JSON.stringify({ ok: true, sid: result.sid || null }), {
