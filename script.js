@@ -222,6 +222,7 @@ const state = {
   storyCommentUpdatedAtSupported: true,
   storyCommentReplySupported: true,
   pendingStoryCommentAnchor: null,
+  pendingStoryShareSnippet: '',
   pendingStoryCommentReplyTo: null,
   storyCommentFocusAnchorKey: null,
   storySocialOpen: false,
@@ -3564,6 +3565,17 @@ function createStoryEndShareCta() {
   const text = document.createElement('span');
   text.textContent = 'Share to Instagram Story';
   button.append(icon, text);
+  const primeSelectedSnippet = () => {
+    state.pendingStoryShareSnippet = getSelectedStorySnippetForShare();
+  };
+  button.addEventListener('pointerdown', primeSelectedSnippet);
+  button.addEventListener(
+    'touchstart',
+    () => {
+      primeSelectedSnippet();
+    },
+    { passive: true }
+  );
   button.addEventListener('click', () => {
     openCurrentStoryShareSnippet();
   });
@@ -4444,8 +4456,10 @@ function openChronicleShareSnippet(story, options = {}) {
 function openCurrentStoryShareSnippet() {
   const story = getStoryForInstagramShare();
   if (!story) return;
+  const primedSnippet = String(state.pendingStoryShareSnippet || '').trim();
+  state.pendingStoryShareSnippet = '';
   openChronicleShareSnippet(story, {
-    selectedSnippet: getSelectedStorySnippetForShare()
+    selectedSnippet: primedSnippet || getSelectedStorySnippetForShare()
   });
 }
 
