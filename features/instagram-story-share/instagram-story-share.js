@@ -38,10 +38,13 @@ export function createInstagramStoryShare(options = {}) {
     authorName: '',
     createdLabel: '',
     sensitiveTerms: [],
+    selectedSnippet: '',
+    source: 'auto',
     previewBlob: null,
     previewUrl: '',
     previewDirty: false,
-    busy: false
+    busy: false,
+    previewTimer: 0
   };
 
   const ui = createUi();
@@ -58,48 +61,73 @@ export function createInstagramStoryShare(options = {}) {
     dialog.innerHTML = `
       <div class="modal-content ig-story-modal-content">
         <header class="ig-story-head">
-          <h2>Instagram Story Snippet</h2>
+          <div class="ig-story-head-copy">
+            <p class="ig-story-kicker">Instagram Story</p>
+            <h2>Share This Moment</h2>
+          </div>
           <button type="button" class="ig-story-close" aria-label="Close">x</button>
         </header>
         <div class="ig-story-layout">
-          <section class="ig-story-controls">
+          <section class="ig-story-preview-shell" aria-label="Story preview">
             <p class="ig-story-story-title" data-ig-story-title>Story</p>
+            <figure class="ig-story-preview">
+              <img alt="Instagram story preview" data-ig-story-preview />
+            </figure>
+          </section>
+          <section class="ig-story-controls">
+            <fieldset class="ig-story-fieldset ig-story-pill-fieldset ig-story-source-fieldset">
+              <legend>Text source</legend>
+              <div class="ig-story-pill-options">
+                <label><input type="radio" name="ig-story-source" value="auto" checked /><span>Story line</span></label>
+                <label><input type="radio" name="ig-story-source" value="selected" /><span>Selected text</span></label>
+              </div>
+            </fieldset>
             <label class="ig-story-label" for="ig-story-snippet">Snippet</label>
             <textarea
               id="ig-story-snippet"
               maxlength="${MAX_SNIPPET_CHARS}"
-              placeholder="Pick the line you want to share..."
+              placeholder="Pick the line that will make them tap..."
             ></textarea>
-            <div class="ig-story-row">
-              <label class="ig-story-label" for="ig-story-theme">Theme</label>
-              <select id="ig-story-theme">
+            <fieldset class="ig-story-fieldset ig-story-pill-fieldset ig-story-theme-fieldset">
+              <legend>Look</legend>
+              <div class="ig-story-pill-options">
                 ${Object.entries(THEMES)
-                  .map(([key, value]) => `<option value="${key}">${value.label}</option>`)
+                  .map(
+                    ([key, value]) =>
+                      `<label><input type="radio" name="ig-story-theme" value="${key}" ${
+                        key === 'blush' ? 'checked' : ''
+                      } /><span>${value.label}</span></label>`
+                  )
                   .join('')}
-              </select>
-            </div>
-            <fieldset class="ig-story-fieldset">
-              <legend>Background</legend>
-              <label><input type="radio" name="ig-story-background" value="cover" /> Story cover</label>
-              <label><input type="radio" name="ig-story-background" value="gradient" checked /> Gradient only</label>
+              </div>
             </fieldset>
-            <label class="ig-story-toggle">
-              <input type="checkbox" id="ig-story-privacy" /> Hide names and locations
-            </label>
-            <label class="ig-story-toggle">
-              <input type="checkbox" id="ig-story-watermark" checked /> Show "From ${escapeHtml(appName)}"
-            </label>
-            <p class="ig-story-status" data-ig-story-status aria-live="polite"></p>
-            <div class="ig-story-actions">
-              <button type="button" class="ghost" data-action="generate">Update preview</button>
-              <button type="button" class="primary" data-action="share">Share</button>
-              <button type="button" class="ghost" data-action="download">Download</button>
+            <fieldset class="ig-story-fieldset ig-story-pill-fieldset ig-story-bg-fieldset">
+              <legend>Background</legend>
+              <div class="ig-story-pill-options">
+                <label><input type="radio" name="ig-story-background" value="cover" /><span>Story cover</span></label>
+                <label><input type="radio" name="ig-story-background" value="gradient" checked /><span>Gradient</span></label>
+              </div>
+            </fieldset>
+            <div class="ig-story-toggles">
+              <label class="ig-story-toggle">
+                <input type="checkbox" id="ig-story-privacy" /> Hide names and locations
+              </label>
+              <label class="ig-story-toggle">
+                <input type="checkbox" id="ig-story-watermark" checked /> Show "From ${escapeHtml(appName)}"
+              </label>
             </div>
-          </section>
-          <section class="ig-story-preview" aria-label="Story preview">
-            <img alt="Instagram story preview" data-ig-story-preview />
           </section>
         </div>
+        <footer class="ig-story-footer">
+          <p class="ig-story-status" data-ig-story-status aria-live="polite"></p>
+          <div class="ig-story-actions">
+            <button type="button" class="primary ig-story-share-btn" data-action="share">
+              <span class="ig-story-share-btn-icon" aria-hidden="true"></span>
+              <span>Share to Instagram Story</span>
+            </button>
+            <button type="button" class="ghost ig-story-later-btn" data-action="close">Not now</button>
+          </div>
+        </footer>
       </div>
     `;
     document.body.appendChild(dialog);
@@ -107,24 +135,28 @@ export function createInstagramStoryShare(options = {}) {
     return {
       dialog,
       closeBtn: dialog.querySelector('.ig-story-close'),
+      cancelBtn: dialog.querySelector('[data-action="close"]'),
       storyTitle: dialog.querySelector('[data-ig-story-title]'),
+      sourceInputs: dialog.querySelectorAll('input[name="ig-story-source"]'),
+      themeInputs: dialog.querySelectorAll('input[name="ig-story-theme"]'),
+      bgInputs: dialog.querySelectorAll('input[name="ig-story-background"]'),
       snippet: dialog.querySelector('#ig-story-snippet'),
-      theme: dialog.querySelector('#ig-story-theme'),
       bgCover: dialog.querySelector('input[name="ig-story-background"][value="cover"]'),
       bgGradient: dialog.querySelector('input[name="ig-story-background"][value="gradient"]'),
       privacy: dialog.querySelector('#ig-story-privacy'),
       watermark: dialog.querySelector('#ig-story-watermark'),
       status: dialog.querySelector('[data-ig-story-status]'),
       preview: dialog.querySelector('[data-ig-story-preview]'),
-      generateBtn: dialog.querySelector('[data-action="generate"]'),
-      shareBtn: dialog.querySelector('[data-action="share"]'),
-      downloadBtn: dialog.querySelector('[data-action="download"]')
+      shareBtn: dialog.querySelector('[data-action="share"]')
     };
   }
 
   function bindEvents() {
     if (ui.closeBtn) {
       ui.closeBtn.addEventListener('click', close);
+    }
+    if (ui.cancelBtn) {
+      ui.cancelBtn.addEventListener('click', close);
     }
     if (ui.dialog) {
       ui.dialog.addEventListener('cancel', (evt) => {
@@ -135,24 +167,38 @@ export function createInstagramStoryShare(options = {}) {
         setBusy(false);
       });
     }
-    [ui.snippet, ui.theme, ui.bgCover, ui.bgGradient, ui.privacy, ui.watermark].forEach((el) => {
+    [ui.snippet, ui.privacy, ui.watermark].forEach((el) => {
       if (!el) return;
-      el.addEventListener('input', markPreviewDirty);
-      el.addEventListener('change', markPreviewDirty);
+      el.addEventListener('input', schedulePreviewRender);
+      el.addEventListener('change', schedulePreviewRender);
     });
-    if (ui.generateBtn) {
-      ui.generateBtn.addEventListener('click', () => {
-        void generatePreview();
+    if (ui.sourceInputs?.length) {
+      ui.sourceInputs.forEach((input) => {
+        input.addEventListener('change', () => {
+          if (!input.checked) return;
+          setSource(input.value, { applySnippet: true, markDirty: true });
+        });
+      });
+    }
+    if (ui.themeInputs?.length) {
+      ui.themeInputs.forEach((input) => {
+        input.addEventListener('change', () => {
+          if (!input.checked) return;
+          schedulePreviewRender();
+        });
+      });
+    }
+    if (ui.bgInputs?.length) {
+      ui.bgInputs.forEach((input) => {
+        input.addEventListener('change', () => {
+          if (!input.checked) return;
+          schedulePreviewRender();
+        });
       });
     }
     if (ui.shareBtn) {
       ui.shareBtn.addEventListener('click', () => {
         void handleShare();
-      });
-    }
-    if (ui.downloadBtn) {
-      ui.downloadBtn.addEventListener('click', () => {
-        void handleDownload();
       });
     }
   }
@@ -165,13 +211,13 @@ export function createInstagramStoryShare(options = {}) {
     state.authorName = String(payload.authorName || '').trim();
     state.createdLabel = String(payload.createdLabel || '').trim();
     state.sensitiveTerms = normalizeSensitiveTerms(payload.sensitiveTerms || []);
+    state.selectedSnippet = summarizeForStory(String(payload.selectedSnippet || ''), STORY_RENDER_SNIPPET_CHARS);
 
     if (ui.storyTitle) {
       ui.storyTitle.textContent = story.title ? String(story.title) : 'Untitled story';
     }
-    if (ui.snippet) {
-      ui.snippet.value = deriveSnippet(story);
-    }
+    const initialSource = resolveInitialSource();
+    setSource(initialSource, { applySnippet: true, markDirty: false });
 
     const hasCover = Boolean(getCoverUrl(story));
     if (ui.bgCover) {
@@ -181,9 +227,8 @@ export function createInstagramStoryShare(options = {}) {
     if (ui.bgGradient) {
       ui.bgGradient.checked = !hasCover;
     }
-    if (ui.theme) {
-      ui.theme.value = 'blush';
-    }
+    setRadioValue(ui.themeInputs, 'blush', 'blush');
+    setRadioValue(ui.bgInputs, hasCover ? 'cover' : 'gradient', 'gradient');
     if (ui.privacy) {
       ui.privacy.checked = false;
     }
@@ -195,19 +240,87 @@ export function createInstagramStoryShare(options = {}) {
     if (ui.dialog && !ui.dialog.open) {
       ui.dialog.showModal();
     }
-    if (ui.snippet) {
-      ui.snippet.focus({ preventScroll: true });
-      ui.snippet.select();
-    }
     void generatePreview();
   }
 
+  function resolveInitialSource() {
+    if (state.selectedSnippet) return 'selected';
+    return 'auto';
+  }
+
+  function setSource(nextSource, options = {}) {
+    const { applySnippet = false, markDirty = false } = options;
+    let source = ['auto', 'selected'].includes(nextSource) ? nextSource : 'auto';
+    if (source === 'selected' && !state.selectedSnippet) {
+      source = 'auto';
+    }
+    state.source = source;
+
+    if (ui.sourceInputs?.length) {
+      ui.sourceInputs.forEach((input) => {
+        const value = input.value;
+        if (value === 'selected') input.disabled = !state.selectedSnippet;
+        if (value !== 'auto' && value !== 'selected') input.disabled = true;
+        input.checked = value === source;
+      });
+    }
+    if (applySnippet) {
+      applySourceSnippet({ markDirty });
+    }
+  }
+
+  function applySourceSnippet(options = {}) {
+    const { markDirty = false } = options;
+    if (!ui.snippet) return;
+    ui.snippet.value = getSourceSnippet(state.source);
+    if (markDirty) {
+      schedulePreviewRender();
+    }
+  }
+
+  function getSourceSnippet(source) {
+    if (source === 'selected' && state.selectedSnippet) {
+      return state.selectedSnippet;
+    }
+    return deriveSnippet(state.story);
+  }
+
+  function getSelectedRadioValue(inputs, fallback = '') {
+    const list = Array.from(inputs || []);
+    const selected = list.find((input) => input.checked && !input.disabled);
+    return selected?.value || fallback;
+  }
+
+  function setRadioValue(inputs, value, fallback = '') {
+    const list = Array.from(inputs || []);
+    if (!list.length) return '';
+    let selected = list.find((input) => input.value === value && !input.disabled);
+    if (!selected && fallback) {
+      selected = list.find((input) => input.value === fallback && !input.disabled);
+    }
+    if (!selected) {
+      selected = list.find((input) => !input.disabled) || list[0];
+    }
+    list.forEach((input) => {
+      input.checked = input === selected;
+    });
+    return selected?.value || '';
+  }
+
   function close() {
+    if (state.previewTimer) {
+      window.clearTimeout(state.previewTimer);
+      state.previewTimer = 0;
+    }
     if (!ui.dialog?.open) return;
     ui.dialog.close();
   }
 
   function destroy() {
+    if (state.previewTimer) {
+      window.clearTimeout(state.previewTimer);
+      state.previewTimer = 0;
+    }
     cleanupPreviewUrl();
     if (ui.dialog?.parentNode) {
       ui.dialog.parentNode.removeChild(ui.dialog);
@@ -217,8 +330,19 @@ export function createInstagramStoryShare(options = {}) {
   function markPreviewDirty(showMessage = true) {
     state.previewDirty = true;
     if (showMessage) {
-      setStatus('Preview needs update.');
+      setStatus('Updating preview...');
     }
+  }
+
+  function schedulePreviewRender() {
+    markPreviewDirty(false);
+    if (state.previewTimer) {
+      window.clearTimeout(state.previewTimer);
+    }
+    state.previewTimer = window.setTimeout(() => {
+      state.previewTimer = 0;
+      void generatePreview();
+    }, 180);
   }
 
   function setStatus(message, tone = 'info') {
@@ -229,9 +353,8 @@ export function createInstagramStoryShare(options = {}) {
 
   function setBusy(nextBusy) {
     state.busy = Boolean(nextBusy);
-    if (ui.generateBtn) ui.generateBtn.disabled = state.busy;
     if (ui.shareBtn) ui.shareBtn.disabled = state.busy;
-    if (ui.downloadBtn) ui.downloadBtn.disabled = state.busy;
+    if (ui.cancelBtn) ui.cancelBtn.disabled = state.busy;
     if (ui.closeBtn) ui.closeBtn.disabled = state.busy;
     if (ui.dialog) {
       ui.dialog.classList.toggle('ig-story-busy', state.busy);
@@ -239,9 +362,13 @@ export function createInstagramStoryShare(options = {}) {
   }
 
   async function generatePreview() {
-    if (!state.story || state.busy) return null;
+    if (!state.story) return null;
+    if (state.busy) {
+      schedulePreviewRender();
+      return null;
+    }
     setBusy(true);
-    setStatus('Rendering story image...');
+    setStatus('Rendering preview...');
 
     try {
       const config = readConfig();
@@ -252,7 +379,7 @@ export function createInstagramStoryShare(options = {}) {
       state.previewBlob = blob;
       state.previewDirty = false;
       updatePreviewImage(blob);
-      setStatus('Preview ready for Instagram Story.', 'success');
+      setStatus('Ready to share on Instagram.', 'success');
       return blob;
     } catch (error) {
       console.error('instagram story preview', error);
@@ -287,8 +414,8 @@ export function createInstagramStoryShare(options = {}) {
       snippet: snippet || 'A chapter from our Loveboard chronicle.',
       author,
       created,
-      theme: ui.theme?.value || 'blush',
-      useCover: Boolean(ui.bgCover?.checked),
+      theme: getSelectedRadioValue(ui.themeInputs, 'blush'),
+      useCover: getSelectedRadioValue(ui.bgInputs, 'gradient') === 'cover',
       coverUrl: getCoverUrl(story),
       watermark: Boolean(ui.watermark?.checked)
     };
@@ -387,7 +514,7 @@ export function createInstagramStoryShare(options = {}) {
     ctx.fillRect(0, 0, STORY_WIDTH, STORY_HEIGHT);
 
     ctx.fillStyle = chipColor || 'rgba(255,255,255,0.12)';
-    roundRect(ctx, 84, 110, 292, 56, 28);
+    roundRect(ctx, 84, 140, 292, 56, 28);
     ctx.fill();
 
     ctx.restore();
@@ -396,7 +523,7 @@ export function createInstagramStoryShare(options = {}) {
   function drawTextBlock(ctx, config, accent, chipColor, usedCover) {
     const side = 84;
     const blockWidth = STORY_WIDTH - side * 2;
-    const titleTop = 324;
+    const titleTop = 460;
     const panelPaddingX = 32;
     const panelPaddingTop = 48;
     const panelPaddingBottom = 46;
@@ -407,7 +534,7 @@ export function createInstagramStoryShare(options = {}) {
 
     ctx.fillStyle = accent;
     ctx.font = "700 24px 'Work Sans', sans-serif";
-    ctx.fillText('LOVEBOARD', 124, 146);
+    ctx.fillText('LOVEBOARD', 124, 176);
 
     ctx.fillStyle = '#ffffff';
     ctx.font = "700 82px 'Cormorant Garamond', serif";
@@ -486,14 +613,14 @@ export function createInstagramStoryShare(options = {}) {
           files: [file]
         });
         showToast('Shared. Add it to your Instagram Story.', 'success');
-        setStatus('Shared successfully.', 'success');
+        close();
         return;
       }
       if (navigator.share) {
         await navigator.share({ title: shareTitle, text: shareText });
         downloadBlob(blob, fileName);
         showToast('Caption shared. Image downloaded for Instagram.', 'info');
-        setStatus('Caption shared. Upload downloaded image to Instagram.', 'info');
+        close();
         return;
       }
     } catch (error) {
@@ -506,16 +633,7 @@ export function createInstagramStoryShare(options = {}) {
 
     downloadBlob(blob, fileName);
     showToast('Image downloaded. Upload it to your Instagram Story.', 'success');
-    setStatus('Image downloaded for Instagram upload.', 'success');
-  }
-
-  async function handleDownload() {
-    const blob = await ensurePreview();
-    if (!blob) return;
-    const fileName = `${slugify(state.story?.title || 'loveboard-story') || 'loveboard-story'}-snippet.png`;
-    downloadBlob(blob, fileName);
-    showToast('Snippet image downloaded.', 'success');
-    setStatus('Image downloaded.', 'success');
+    close();
   }
 
   async function ensurePreview() {

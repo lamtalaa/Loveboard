@@ -4432,20 +4432,23 @@ function handleChronicleActionDelete() {
   openChronicleDeleteModal();
 }
 
-function openChronicleShareSnippet(story) {
+function openChronicleShareSnippet(story, options = {}) {
   if (!story || !instagramStoryShareFeature) return;
   instagramStoryShareFeature.open({
     story,
     authorName: story.user ? getDisplayName(story.user) : '',
     createdLabel: formatDate(story.created_at || new Date().toISOString()),
-    sensitiveTerms: getChronicleShareSensitiveTerms()
+    sensitiveTerms: getChronicleShareSensitiveTerms(),
+    selectedSnippet: typeof options.selectedSnippet === 'string' ? options.selectedSnippet : ''
   });
 }
 
 function openCurrentStoryShareSnippet() {
   const story = getStoryForInstagramShare();
   if (!story) return;
-  openChronicleShareSnippet(story);
+  openChronicleShareSnippet(story, {
+    selectedSnippet: getSelectedStorySnippetForShare()
+  });
 }
 
 function getStoryForInstagramShare() {
@@ -4462,6 +4465,36 @@ function getStoryForInstagramShare() {
     user: state.user || '',
     created_at: new Date().toISOString()
   };
+}
+
+function getSelectedStorySnippetForShare() {
+  const pending = String(state.pendingStoryCommentAnchor?.selected_text || '').trim();
+  if (pending) {
+    return clipText(pending, 280);
+  }
+  const selection = window.getSelection?.();
+  if (!selection || selection.rangeCount === 0 || selection.isCollapsed || !ui.storyChapters) {
+    return '';
+  }
+  const range = selection.getRangeAt(0);
+  const startContainerEl =
+    range.startContainer?.nodeType === Node.ELEMENT_NODE
+      ? range.startContainer
+      : range.startContainer?.parentElement;
+  const endContainerEl =
+    range.endContainer?.nodeType === Node.ELEMENT_NODE
+      ? range.endContainer
+      : range.endContainer?.parentElement;
+  const startEl = startContainerEl?.closest?.('.storymirror-chapter-text');
+  const endEl = endContainerEl?.closest?.('.storymirror-chapter-text');
+  if (!startEl || !endEl || startEl !== endEl || !ui.storyChapters.contains(startEl)) {
+    return '';
+  }
+  const selectedText = String(selection.toString() || '').trim();
+  if (selectedText.length < 2) {
+    return '';
+  }
+  return clipText(selectedText, 280);
 }
 
 function getChronicleShareSensitiveTerms() {
