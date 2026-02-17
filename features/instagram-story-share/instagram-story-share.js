@@ -1,9 +1,9 @@
 const STORY_WIDTH = 1080;
 const STORY_HEIGHT = 1920;
-const MAX_SNIPPET_CHARS = 280;
 const STORY_TITLE_MAX_CHARS = 64;
 const STORY_RENDER_SNIPPET_CHARS = 180;
 const STORY_RENDER_SNIPPET_LINES = 5;
+const SCREEN_FADE_MS = 240;
 
 const THEMES = {
   blush: {
@@ -39,12 +39,14 @@ export function createInstagramStoryShare(options = {}) {
     createdLabel: '',
     sensitiveTerms: [],
     selectedSnippet: '',
-    source: 'auto',
+    coverOptions: [],
+    selectedCoverUrl: '',
     previewBlob: null,
     previewUrl: '',
     previewDirty: false,
     busy: false,
     previewTimer: 0,
+    closeTimer: 0,
     open: false,
     returnFocusEl: null
   };
@@ -67,34 +69,21 @@ export function createInstagramStoryShare(options = {}) {
     screen.setAttribute('aria-modal', 'true');
     screen.innerHTML = `
       <div class="ig-story-screen-shell">
-        <header class="ig-story-head">
-          <div class="ig-story-head-copy">
-            <p class="ig-story-kicker">Instagram Story</p>
-            <h2>Share This Moment</h2>
-          </div>
-          <button type="button" class="ig-story-close" aria-label="Back">←</button>
-        </header>
         <div class="ig-story-layout">
           <section class="ig-story-preview-shell" aria-label="Story preview">
-            <p class="ig-story-story-title" data-ig-story-title>Story</p>
+            <div class="ig-story-title-row">
+              <button type="button" class="ig-story-close" aria-label="Back">←</button>
+              <p class="ig-story-story-title" data-ig-story-title>Story</p>
+            </div>
             <figure class="ig-story-preview">
               <img alt="Instagram story preview" data-ig-story-preview />
             </figure>
           </section>
           <section class="ig-story-controls">
-            <fieldset class="ig-story-fieldset ig-story-pill-fieldset ig-story-source-fieldset">
-              <legend>Text source</legend>
-              <div class="ig-story-pill-options">
-                <label><input type="radio" name="ig-story-source" value="auto" checked /><span>Story line</span></label>
-                <label><input type="radio" name="ig-story-source" value="selected" /><span>Selected text</span></label>
-              </div>
+            <fieldset class="ig-story-fieldset ig-story-image-fieldset" data-ig-story-image-picker hidden>
+              <legend>Story image</legend>
+              <div class="ig-story-image-options" data-ig-story-image-options></div>
             </fieldset>
-            <label class="ig-story-label" for="ig-story-snippet">Snippet</label>
-            <textarea
-              id="ig-story-snippet"
-              maxlength="${MAX_SNIPPET_CHARS}"
-              placeholder="Pick the line that will make them tap..."
-            ></textarea>
             <fieldset class="ig-story-fieldset ig-story-pill-fieldset ig-story-theme-fieldset">
               <legend>Look</legend>
               <div class="ig-story-pill-options">
@@ -126,7 +115,7 @@ export function createInstagramStoryShare(options = {}) {
           </section>
         </div>
         <footer class="ig-story-footer">
-          <p class="ig-story-status" data-ig-story-status aria-live="polite"></p>
+          <p class="ig-story-status" data-ig-story-status aria-live="polite" hidden></p>
           <div class="ig-story-actions">
             <button type="button" class="primary ig-story-share-btn" data-action="share">
               <span class="ig-story-share-btn-icon" aria-hidden="true"></span>
@@ -142,10 +131,10 @@ export function createInstagramStoryShare(options = {}) {
       screen,
       closeBtn: screen.querySelector('.ig-story-close'),
       storyTitle: screen.querySelector('[data-ig-story-title]'),
-      sourceInputs: screen.querySelectorAll('input[name="ig-story-source"]'),
       themeInputs: screen.querySelectorAll('input[name="ig-story-theme"]'),
       bgInputs: screen.querySelectorAll('input[name="ig-story-background"]'),
-      snippet: screen.querySelector('#ig-story-snippet'),
+      imagePicker: screen.querySelector('[data-ig-story-image-picker]'),
+      imageOptions: screen.querySelector('[data-ig-story-image-options]'),
       bgCover: screen.querySelector('input[name="ig-story-background"][value="cover"]'),
       bgGradient: screen.querySelector('input[name="ig-story-background"][value="gradient"]'),
       privacy: screen.querySelector('#ig-story-privacy'),
@@ -160,19 +149,11 @@ export function createInstagramStoryShare(options = {}) {
     if (ui.closeBtn) {
       ui.closeBtn.addEventListener('click', close);
     }
-    [ui.snippet, ui.privacy, ui.watermark].forEach((el) => {
+    [ui.privacy, ui.watermark].forEach((el) => {
       if (!el) return;
       el.addEventListener('input', schedulePreviewRender);
       el.addEventListener('change', schedulePreviewRender);
     });
-    if (ui.sourceInputs?.length) {
-      ui.sourceInputs.forEach((input) => {
-        input.addEventListener('change', () => {
-          if (!input.checked) return;
-          setSource(input.value, { applySnippet: true, markDirty: true });
-        });
-      });
-    }
     if (ui.themeInputs?.length) {
       ui.themeInputs.forEach((input) => {
         input.addEventListener('change', () => {
@@ -188,6 +169,9 @@ export function createInstagramStoryShare(options = {}) {
           schedulePreviewRender();
         });
       });
+    }
+    if (ui.imageOptions) {
+      ui.imageOptions.addEventListener('click', handleImageOptionClick);
     }
     if (ui.shareBtn) {
       ui.shareBtn.addEventListener('click', () => {
@@ -205,14 +189,15 @@ export function createInstagramStoryShare(options = {}) {
     state.createdLabel = String(payload.createdLabel || '').trim();
     state.sensitiveTerms = normalizeSensitiveTerms(payload.sensitiveTerms || []);
     state.selectedSnippet = summarizeForStory(String(payload.selectedSnippet || ''), STORY_RENDER_SNIPPET_CHARS);
+    state.coverOptions = getCoverOptions(story);
+    state.selectedCoverUrl = state.coverOptions[0] || '';
 
     if (ui.storyTitle) {
       ui.storyTitle.textContent = story.title ? String(story.title) : 'Untitled story';
     }
-    const initialSource = resolveInitialSource();
-    setSource(initialSource, { applySnippet: true, markDirty: false });
+    renderImageOptions();
 
-    const hasCover = Boolean(getCoverUrl(story));
+    const hasCover = Boolean(state.selectedCoverUrl);
     if (ui.bgCover) {
       ui.bgCover.disabled = !hasCover;
       ui.bgCover.checked = hasCover;
@@ -230,57 +215,73 @@ export function createInstagramStoryShare(options = {}) {
     }
 
     markPreviewDirty(false);
-    if (!state.open && ui.screen) {
-      state.returnFocusEl = document.activeElement;
+    setStatus('');
+    if (ui.screen) {
+      if (state.closeTimer) {
+        window.clearTimeout(state.closeTimer);
+        state.closeTimer = 0;
+      }
+      if (!state.open) {
+        state.returnFocusEl = document.activeElement;
+      }
       state.open = true;
       ui.screen.hidden = false;
       ui.screen.setAttribute('aria-hidden', 'false');
-      ui.screen.classList.add('is-open');
       document.body.classList.add('ig-story-screen-open');
+      window.requestAnimationFrame(() => {
+        if (state.open) {
+          ui.screen.classList.add('is-open');
+        }
+      });
     }
     void generatePreview();
   }
 
-  function resolveInitialSource() {
-    if (state.selectedSnippet) return 'selected';
-    return 'auto';
+  function renderImageOptions() {
+    if (!ui.imagePicker || !ui.imageOptions) return;
+    if (!state.coverOptions.length) {
+      ui.imageOptions.innerHTML = '';
+      ui.imagePicker.hidden = true;
+      return;
+    }
+    const optionsHtml = state.coverOptions
+      .map((url, index) => {
+        const selected = url === state.selectedCoverUrl;
+        return `
+          <button
+            type="button"
+            class="ig-story-image-option${selected ? ' is-selected' : ''}"
+            data-ig-image-option
+            data-index="${index}"
+            aria-label="Use story image ${index + 1}"
+            aria-pressed="${selected ? 'true' : 'false'}"
+          >
+            <img src="${escapeHtml(url)}" alt="" loading="lazy" decoding="async" />
+          </button>
+        `;
+      })
+      .join('');
+    ui.imageOptions.innerHTML = optionsHtml;
+    ui.imagePicker.hidden = false;
   }
 
-  function setSource(nextSource, options = {}) {
-    const { applySnippet = false, markDirty = false } = options;
-    let source = ['auto', 'selected'].includes(nextSource) ? nextSource : 'auto';
-    if (source === 'selected' && !state.selectedSnippet) {
-      source = 'auto';
+  function handleImageOptionClick(event) {
+    const button = event.target.closest('[data-ig-image-option]');
+    if (!button || !ui.imageOptions?.contains(button)) return;
+    const index = Number(button.dataset.index);
+    const nextUrl = Number.isInteger(index) ? state.coverOptions[index] || '' : '';
+    if (!nextUrl || nextUrl === state.selectedCoverUrl) return;
+    state.selectedCoverUrl = nextUrl;
+    const optionButtons = ui.imageOptions.querySelectorAll('[data-ig-image-option]');
+    optionButtons.forEach((node) => {
+      const isSelected = node === button;
+      node.classList.toggle('is-selected', isSelected);
+      node.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
+    });
+    if (ui.bgCover && !ui.bgCover.disabled) {
+      setRadioValue(ui.bgInputs, 'cover', 'gradient');
     }
-    state.source = source;
-
-    if (ui.sourceInputs?.length) {
-      ui.sourceInputs.forEach((input) => {
-        const value = input.value;
-        if (value === 'selected') input.disabled = !state.selectedSnippet;
-        if (value !== 'auto' && value !== 'selected') input.disabled = true;
-        input.checked = value === source;
-      });
-    }
-    if (applySnippet) {
-      applySourceSnippet({ markDirty });
-    }
-  }
-
-  function applySourceSnippet(options = {}) {
-    const { markDirty = false } = options;
-    if (!ui.snippet) return;
-    ui.snippet.value = getSourceSnippet(state.source);
-    if (markDirty) {
-      schedulePreviewRender();
-    }
-  }
-
-  function getSourceSnippet(source) {
-    if (source === 'selected' && state.selectedSnippet) {
-      return state.selectedSnippet;
-    }
-    return deriveSnippet(state.story);
+    schedulePreviewRender();
   }
 
   function getSelectedRadioValue(inputs, fallback = '') {
@@ -305,10 +306,15 @@ export function createInstagramStoryShare(options = {}) {
     return selected?.value || '';
   }
 
-  function close() {
+  function close(options = {}) {
+    const immediate = Boolean(options.immediate);
     if (state.previewTimer) {
       window.clearTimeout(state.previewTimer);
       state.previewTimer = 0;
+    }
+    if (state.closeTimer) {
+      window.clearTimeout(state.closeTimer);
+      state.closeTimer = 0;
     }
     if (!state.open || !ui.screen) return;
     const focusedElement = document.activeElement;
@@ -319,8 +325,17 @@ export function createInstagramStoryShare(options = {}) {
     setBusy(false);
     ui.screen.classList.remove('is-open');
     ui.screen.setAttribute('aria-hidden', 'true');
-    ui.screen.hidden = true;
     document.body.classList.remove('ig-story-screen-open');
+    if (immediate) {
+      ui.screen.hidden = true;
+    } else {
+      state.closeTimer = window.setTimeout(() => {
+        if (!state.open && ui.screen) {
+          ui.screen.hidden = true;
+        }
+        state.closeTimer = 0;
+      }, SCREEN_FADE_MS);
+    }
     if (state.returnFocusEl && typeof state.returnFocusEl.focus === 'function') {
       try {
         state.returnFocusEl.focus({ preventScroll: true });
@@ -337,7 +352,11 @@ export function createInstagramStoryShare(options = {}) {
       window.clearTimeout(state.previewTimer);
       state.previewTimer = 0;
     }
-    close();
+    if (state.closeTimer) {
+      window.clearTimeout(state.closeTimer);
+      state.closeTimer = 0;
+    }
+    close({ immediate: true });
     cleanupPreviewUrl();
     if (ui.screen?.parentNode) {
       ui.screen.parentNode.removeChild(ui.screen);
@@ -364,8 +383,14 @@ export function createInstagramStoryShare(options = {}) {
 
   function setStatus(message, tone = 'info') {
     if (!ui.status) return;
-    ui.status.textContent = message || '';
-    ui.status.dataset.tone = tone;
+    const text = String(message || '').trim();
+    ui.status.textContent = text;
+    ui.status.hidden = !text;
+    if (text) {
+      ui.status.dataset.tone = tone;
+    } else {
+      ui.status.removeAttribute('data-tone');
+    }
   }
 
   function setBusy(nextBusy) {
@@ -402,7 +427,7 @@ export function createInstagramStoryShare(options = {}) {
       state.previewBlob = blob;
       state.previewDirty = false;
       updatePreviewImage(blob);
-      setStatus('Ready to share on Instagram.', 'success');
+      setStatus('');
       return blob;
     } catch (error) {
       console.error('instagram story preview', error);
@@ -416,7 +441,8 @@ export function createInstagramStoryShare(options = {}) {
 
   function readConfig() {
     const story = state.story || {};
-    const snippetRaw = String(ui.snippet?.value || '').trim();
+    const snippetSource = state.selectedSnippet || deriveSnippet(story);
+    const snippetRaw = String(snippetSource || '').trim();
     const titleRaw = String(story.title || 'Our story').trim();
     const usePrivacy = Boolean(ui.privacy?.checked);
     const sensitiveTerms = state.sensitiveTerms;
@@ -439,7 +465,7 @@ export function createInstagramStoryShare(options = {}) {
       created,
       theme: getSelectedRadioValue(ui.themeInputs, 'blush'),
       useCover: getSelectedRadioValue(ui.bgInputs, 'gradient') === 'cover',
-      coverUrl: getCoverUrl(story),
+      coverUrl: state.selectedCoverUrl || getCoverUrl(story),
       watermark: Boolean(ui.watermark?.checked)
     };
   }
@@ -701,6 +727,19 @@ function getCoverUrl(story) {
   if (!story || !Array.isArray(story.images)) return '';
   const first = story.images.find((value) => typeof value === 'string' && value.trim());
   return first ? first.trim() : '';
+}
+
+function getCoverOptions(story) {
+  if (!story || !Array.isArray(story.images)) return [];
+  const seen = new Set();
+  const options = [];
+  story.images.forEach((value) => {
+    const url = typeof value === 'string' ? value.trim() : '';
+    if (!url || seen.has(url)) return;
+    seen.add(url);
+    options.push(url);
+  });
+  return options;
 }
 
 function normalizeSensitiveTerms(list) {

@@ -3551,19 +3551,16 @@ function createStoryEndShareCta() {
 
   const shell = document.createElement('div');
   shell.className = 'storymirror-share-ig';
+  const actions = document.createElement('div');
+  actions.className = 'ig-story-actions';
 
   const button = document.createElement('button');
   button.type = 'button';
-  button.className = 'storymirror-share-ig-btn';
+  button.className = 'ig-story-share-btn';
   button.setAttribute('aria-label', 'Share this story to Instagram Story');
   const icon = document.createElement('span');
-  icon.className = 'storymirror-share-ig-btn-icon';
+  icon.className = 'ig-story-share-btn-icon';
   icon.setAttribute('aria-hidden', 'true');
-  const lens = document.createElement('span');
-  lens.className = 'storymirror-share-ig-btn-lens';
-  const dot = document.createElement('span');
-  dot.className = 'storymirror-share-ig-btn-dot';
-  icon.append(lens, dot);
   const text = document.createElement('span');
   text.textContent = 'Share to Instagram Story';
   button.append(icon, text);
@@ -3571,7 +3568,8 @@ function createStoryEndShareCta() {
     openCurrentStoryShareSnippet();
   });
 
-  shell.appendChild(button);
+  actions.appendChild(button);
+  shell.appendChild(actions);
   return shell;
 }
 
