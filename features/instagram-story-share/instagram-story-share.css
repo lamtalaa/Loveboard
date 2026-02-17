@@ -1,0 +1,204 @@
+.ig-story-modal {
+  z-index: 40;
+}
+
+.ig-story-modal-content {
+  width: min(94vw, 980px);
+  max-width: 980px;
+  padding: 1rem;
+}
+
+.ig-story-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.7rem;
+}
+
+.ig-story-head h2 {
+  margin: 0;
+}
+
+.ig-story-close {
+  border: 1px solid rgba(70, 50, 60, 0.22);
+  background: rgba(255, 255, 255, 0.86);
+  border-radius: 999px;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  line-height: 1;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.ig-story-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.9rem;
+}
+
+.ig-story-controls {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.ig-story-story-title {
+  margin: 0;
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 1.2rem;
+  color: rgba(70, 50, 60, 0.9);
+}
+
+.ig-story-label {
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(70, 50, 60, 0.74);
+}
+
+.ig-story-controls textarea,
+.ig-story-controls select {
+  width: 100%;
+  border: 1px solid rgba(70, 50, 60, 0.24);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.94);
+  padding: 0.6rem 0.72rem;
+  font-family: inherit;
+  color: rgba(70, 50, 60, 0.95);
+}
+
+.ig-story-controls textarea {
+  min-height: 110px;
+  resize: vertical;
+}
+
+.ig-story-controls textarea:focus,
+.ig-story-controls select:focus,
+.ig-story-close:focus-visible,
+.chronicle-share-snippet-btn:focus-visible {
+  outline: 2px solid rgba(245, 181, 197, 0.82);
+  outline-offset: 2px;
+}
+
+.ig-story-row {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.ig-story-fieldset {
+  margin: 0;
+  border: 1px solid rgba(70, 50, 60, 0.18);
+  border-radius: 12px;
+  padding: 0.45rem 0.6rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.ig-story-fieldset legend {
+  padding: 0 0.25rem;
+  font-size: 0.8rem;
+  color: rgba(70, 50, 60, 0.74);
+}
+
+.ig-story-fieldset label,
+.ig-story-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.88rem;
+  color: rgba(70, 50, 60, 0.9);
+}
+
+.ig-story-status {
+  margin: 0;
+  min-height: 1.15rem;
+  font-size: 0.82rem;
+  color: rgba(70, 50, 60, 0.68);
+}
+
+.ig-story-status[data-tone='error'] {
+  color: rgba(152, 51, 80, 0.95);
+}
+
+.ig-story-status[data-tone='success'] {
+  color: rgba(47, 115, 77, 0.96);
+}
+
+.ig-story-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.ig-story-actions button {
+  margin: 0;
+  min-height: 40px;
+}
+
+.ig-story-busy .ig-story-actions button,
+.ig-story-busy .ig-story-close {
+  opacity: 0.75;
+}
+
+.ig-story-preview {
+  margin: 0;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid rgba(70, 50, 60, 0.16);
+  background: linear-gradient(170deg, rgba(245, 181, 197, 0.25), rgba(138, 91, 214, 0.2));
+  min-height: 300px;
+  display: grid;
+  place-items: center;
+}
+
+.ig-story-preview img {
+  width: min(100%, 360px);
+  aspect-ratio: 9 / 16;
+  object-fit: cover;
+  border-radius: 12px;
+  box-shadow: 0 12px 26px rgba(36, 18, 27, 0.35);
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.chronicle-share-snippet-btn {
+  position: absolute;
+  top: 0.7rem;
+  right: 0.7rem;
+  border: 1px solid rgba(208, 118, 157, 0.56);
+  background: rgba(255, 241, 248, 0.96);
+  color: rgba(131, 58, 88, 0.95);
+  border-radius: 999px;
+  padding: 0.24rem 0.62rem;
+  font-family: 'Work Sans', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.chronicle-share-snippet-btn:hover {
+  background: rgba(254, 229, 240, 0.98);
+  transform: translateY(-1px);
+}
+
+@media (min-width: 920px) {
+  .ig-story-modal-content {
+    padding: 1.15rem;
+  }
+
+  .ig-story-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 0.9fr);
+    align-items: start;
+    gap: 1rem;
+  }
+
+  .ig-story-preview {
+    min-height: 620px;
+  }
+
+  .ig-story-preview img {
+    width: min(100%, 390px);
+  }
+}

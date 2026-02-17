@@ -1,5 +1,6 @@
 import { supabase } from './supabase.js';
 import { setWwanUser, applyRemoteCity, setWwanDefaults } from './wwan.js';
+import { createInstagramStoryShare } from './features/instagram-story-share/instagram-story-share.js';
 
 
 const DEFAULT_MOOD_PRESETS = {
@@ -358,6 +359,7 @@ const ui = {
   chronicleActionsModal: document.getElementById('chronicle-actions-modal'),
   chronicleActionsTitle: document.getElementById('chronicle-actions-title'),
   chronicleActionsOpen: document.getElementById('chronicle-actions-open'),
+  chronicleActionsShare: document.getElementById('chronicle-actions-share'),
   chronicleActionsDelete: document.getElementById('chronicle-actions-delete'),
   chronicleActionsCancel: document.getElementById('chronicle-actions-cancel'),
   chronicleDeleteModal: document.getElementById('chronicle-delete-modal'),
@@ -379,6 +381,7 @@ const ui = {
 };
 
 const template = document.getElementById('postcard-template');
+let instagramStoryShareFeature = null;
 
 init().catch((error) => console.error('init error', error));
 
@@ -426,6 +429,9 @@ async function init() {
   if (ui.chronicleActionsOpen) {
     ui.chronicleActionsOpen.addEventListener('click', handleChronicleActionOpen);
   }
+  if (ui.chronicleActionsShare) {
+    ui.chronicleActionsShare.addEventListener('click', handleChronicleActionShare);
+  }
   if (ui.chronicleActionsDelete) {
     ui.chronicleActionsDelete.addEventListener('click', handleChronicleActionDelete);
   }
@@ -448,6 +454,10 @@ async function init() {
   setupAudioRecorder();
   setupValentine();
   setupStoryMirror();
+  instagramStoryShareFeature = createInstagramStoryShare({
+    showToast,
+    appName: 'Loveboard'
+  });
   ui.moodButtons.forEach((btn) =>
     btn.addEventListener('click', () => openMoodPicker(btn))
   );
@@ -4217,6 +4227,22 @@ function renderChronicles(options = {}) {
       badge.setAttribute('aria-label', commentCount > 0 ? `${status} with ${commentCount} comments` : status);
       card.appendChild(badge);
     }
+    if (instagramStoryShareFeature) {
+      const shareBtn = document.createElement('button');
+      shareBtn.type = 'button';
+      shareBtn.className = 'chronicle-share-snippet-btn';
+      shareBtn.textContent = 'Share to IG';
+      shareBtn.setAttribute('aria-label', 'Share this story snippet to Instagram');
+      shareBtn.addEventListener('pointerdown', (evt) => {
+        evt.stopPropagation();
+      });
+      shareBtn.addEventListener('click', (evt) => {
+        evt.preventDefault();
+        evt.stopPropagation();
+        openChronicleShareSnippet(story);
+      });
+      card.appendChild(shareBtn);
+    }
     const holdTrack = document.createElement('div');
     holdTrack.className = 'chronicle-hold-progress';
     const holdFill = document.createElement('span');
@@ -4386,9 +4412,44 @@ function handleChronicleActionOpen() {
   openChronicleStory(story);
 }
 
+function handleChronicleActionShare() {
+  const story = state.activeChronicle;
+  closeChronicleActionsModal();
+  if (!story) return;
+  openChronicleShareSnippet(story);
+}
+
 function handleChronicleActionDelete() {
   closeChronicleActionsModal();
   openChronicleDeleteModal();
+}
+
+function openChronicleShareSnippet(story) {
+  if (!story || !instagramStoryShareFeature) return;
+  instagramStoryShareFeature.open({
+    story,
+    authorName: story.user ? getDisplayName(story.user) : '',
+    createdLabel: formatDate(story.created_at || new Date().toISOString()),
+    sensitiveTerms: getChronicleShareSensitiveTerms()
+  });
+}
+
+function getChronicleShareSensitiveTerms() {
+  const terms = [];
+  const push = (value) => {
+    const text = String(value || '').trim();
+    if (!text || text.length < 3) return;
+    terms.push(text);
+  };
+  push(state.appConfig?.users?.a?.display);
+  push(state.appConfig?.users?.b?.display);
+  push(state.appConfig?.wwanDefaults?.personA?.name);
+  push(state.appConfig?.wwanDefaults?.personB?.name);
+  push(state.appConfig?.wwanDefaults?.personA?.city);
+  push(state.appConfig?.wwanDefaults?.personB?.city);
+  push(state.appConfig?.wwanDefaults?.personA?.country);
+  push(state.appConfig?.wwanDefaults?.personB?.country);
+  return terms;
 }
 
 function openChronicleDeleteModal() {
