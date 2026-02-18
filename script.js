@@ -3564,6 +3564,8 @@ function renderStoryChapters() {
 
 function createStoryEndShareCta() {
   if (!instagramStoryShareFeature) return null;
+  const isSavedStory = Boolean(state.storySaved || state.activeChronicle?.id);
+  if (!isSavedStory) return null;
   const story = getStoryForInstagramShare();
   if (!story) return null;
 
