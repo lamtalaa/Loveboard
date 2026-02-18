@@ -13,6 +13,10 @@ const STORY_TEXT_TIMEOUT_MS = Number(Deno.env.get('STORY_TEXT_TIMEOUT_MS') ?? '2
 const STORY_IMAGE_TIMEOUT_MS = Number(Deno.env.get('STORY_IMAGE_TIMEOUT_MS') ?? '30000');
 const STORY_IMAGE_SIZE = Deno.env.get('STORY_IMAGE_SIZE') ?? '512x512';
 const STORY_IMAGE_QUALITY = Deno.env.get('STORY_IMAGE_QUALITY') ?? 'low';
+const STORY_IMAGE_BUCKET = Deno.env.get('STORY_IMAGE_BUCKET') ?? 'loveboard-assets';
+const STORY_IMAGE_FOLDER = Deno.env.get('STORY_IMAGE_FOLDER') ?? 'story-images';
+const STORY_CONFIG_CACHE_TTL_MS = Number(Deno.env.get('STORY_CONFIG_CACHE_TTL_MS') ?? '60000');
+const STORY_UPLOAD_IMAGES = (Deno.env.get('STORY_UPLOAD_IMAGES') ?? 'true').toLowerCase() !== 'false';
 const STORY_TEXT_ATTEMPTS = sanitizeAttempts(Deno.env.get('STORY_TEXT_ATTEMPTS'), 3);
 const STORY_IMAGE_ATTEMPTS = sanitizeAttempts(Deno.env.get('STORY_IMAGE_ATTEMPTS'), 4);
 const STORY_RETRY_BASE_MS = sanitizeDelay(Deno.env.get('STORY_RETRY_BASE_MS'), 450);
@@ -53,6 +57,9 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
 const supabase = SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
   ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
   : null;
+
+const promptTemplateCache = new Map<string, { value: string; expiresAt: number }>();
+let profileConfigCache: { value: unknown; expiresAt: number } | null = null;
 
 serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
@@ -221,7 +228,14 @@ async function handleImage(
     if (!encoded) {
       return new Response('No image returned', { status: 502, headers: corsHeaders });
     }
-    return new Response(JSON.stringify({ image: `data:image/png;base64,${encoded}` }), {
+    const uploadedImage = STORY_UPLOAD_IMAGES ? await uploadStoryImageToStorage(encoded) : '';
+    if (uploadedImage) {
+      return new Response(JSON.stringify({ image: uploadedImage, source: 'storage' }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+    return new Response(JSON.stringify({ image: `data:image/png;base64,${encoded}`, source: 'inline' }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
@@ -240,6 +254,52 @@ async function handleImage(
       ? error.message
       : 'Failed to generate image';
     return new Response(message, { status: 502, headers: corsHeaders });
+  }
+}
+
+function sanitizeCacheTtlMs(raw: number) {
+  if (!Number.isFinite(raw)) return 60000;
+  return Math.min(300000, Math.max(0, Math.round(raw)));
+}
+
+function getStoryConfigCacheTtlMs() {
+  return sanitizeCacheTtlMs(STORY_CONFIG_CACHE_TTL_MS);
+}
+
+function buildStoryImagePath() {
+  const base = String(STORY_IMAGE_FOLDER || 'story-images').replace(/^\/+|\/+$/g, '') || 'story-images';
+  return `${base}/${crypto.randomUUID()}.png`;
+}
+
+function base64ToBytes(base64: string) {
+  const clean = String(base64 || '').replace(/\s+/g, '');
+  const binary = atob(clean);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
+async function uploadStoryImageToStorage(base64: string) {
+  if (!supabase) return '';
+  try {
+    const bytes = base64ToBytes(base64);
+    const path = buildStoryImagePath();
+    const { error } = await supabase.storage.from(STORY_IMAGE_BUCKET).upload(path, bytes, {
+      upsert: false,
+      contentType: 'image/png',
+      cacheControl: '3600'
+    });
+    if (error) {
+      console.warn('story-mirror image upload failed', error.message || error);
+      return '';
+    }
+    const { data } = supabase.storage.from(STORY_IMAGE_BUCKET).getPublicUrl(path);
+    return data?.publicUrl || '';
+  } catch (error) {
+    console.warn('story-mirror image upload failed', error);
+    return '';
   }
 }
 
@@ -555,17 +615,28 @@ function formatPerspective(perspective: string, nameA: string, nameB: string) {
 }
 
 async function loadPromptTemplate(key: string, fallback: string) {
+  const cached = promptTemplateCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.value;
+  }
   if (!supabase) return fallback;
   try {
     const { data, error } = await supabase.from('app_config').select('value').eq('key', key).maybeSingle();
-    if (error || !data?.value) return fallback;
-    return typeof data.value === 'string' ? data.value : fallback;
+    const value = !error && typeof data?.value === 'string' ? data.value : fallback;
+    promptTemplateCache.set(key, {
+      value,
+      expiresAt: Date.now() + getStoryConfigCacheTtlMs()
+    });
+    return value;
   } catch {
     return fallback;
   }
 }
 
 async function loadProfileConfig() {
+  if (profileConfigCache && profileConfigCache.expiresAt > Date.now()) {
+    return profileConfigCache.value;
+  }
   if (!supabase) return null;
   try {
     const { data, error } = await supabase
@@ -573,8 +644,12 @@ async function loadProfileConfig() {
       .select('value')
       .eq('key', PROFILE_CONFIG_KEY)
       .maybeSingle();
-    if (error) return null;
-    return data?.value || null;
+    const value = error ? null : data?.value || null;
+    profileConfigCache = {
+      value,
+      expiresAt: Date.now() + getStoryConfigCacheTtlMs()
+    };
+    return value;
   } catch {
     return null;
   }

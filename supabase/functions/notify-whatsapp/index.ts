@@ -10,6 +10,7 @@ const TWILIO_MESSAGING_SERVICE_SID = Deno.env.get('TWILIO_MESSAGING_SERVICE_SID'
 const TWILIO_WHATSAPP_TEMPLATE_SID = Deno.env.get('TWILIO_WHATSAPP_TEMPLATE_SID') ?? '';
 const WHATSAPP_ALLOWED_ORIGINS = Deno.env.get('WHATSAPP_ALLOWED_ORIGINS') ?? '';
 const CONFIG_KEY = 'loveboard_private';
+const APP_CONFIG_CACHE_TTL_MS = Number(Deno.env.get('WHATSAPP_CONFIG_CACHE_TTL_MS') ?? '60000');
 
 const DEFAULT_ALLOWED_ORIGINS = ['https://yani.love'];
 const ALLOWED_ORIGINS = new Set(
@@ -32,6 +33,8 @@ if (!TWILIO_WHATSAPP_FROM && !TWILIO_MESSAGING_SERVICE_SID) {
 const supabase = SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
   ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
   : null;
+
+let appConfigCache: { value: unknown; expiresAt: number } | null = null;
 
 serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
@@ -147,6 +150,9 @@ function isOriginAllowed(req: Request) {
 }
 
 async function loadAppConfig() {
+  if (appConfigCache && appConfigCache.expiresAt > Date.now()) {
+    return appConfigCache.value;
+  }
   if (!supabase) return null;
   try {
     const { data, error } = await supabase
@@ -154,11 +160,20 @@ async function loadAppConfig() {
       .select('value')
       .eq('key', CONFIG_KEY)
       .maybeSingle();
-    if (error) return null;
-    return data?.value || null;
+    const value = error ? null : data?.value || null;
+    appConfigCache = {
+      value,
+      expiresAt: Date.now() + getAppConfigCacheTtlMs()
+    };
+    return value;
   } catch {
     return null;
   }
+}
+
+function getAppConfigCacheTtlMs() {
+  if (!Number.isFinite(APP_CONFIG_CACHE_TTL_MS)) return 60000;
+  return Math.min(300000, Math.max(0, Math.round(APP_CONFIG_CACHE_TTL_MS)));
 }
 
 function buildMessage({

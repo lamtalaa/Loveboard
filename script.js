@@ -76,6 +76,8 @@ const MOOD_TIMES_KEY = 'loveboard-moodTimes';
 const STORY_DRAFT_KEY = 'loveboard-storymirror-draft-v1';
 const DEFAULT_NOTE_IMG = './assets/default-note.svg';
 const DEFAULT_POSTCARD_BATCH = 3;
+const DEFAULT_CHRONICLE_BATCH = 6;
+const BACKGROUND_SYNC_MS = 60000;
 const STORY_MIN_CHAPTERS = 3;
 const STORY_MAX_CHAPTERS = 10;
 const STORY_STEP_COUNT = 4;
@@ -150,6 +152,8 @@ const state = {
     chunks: [],
     timer: null
   },
+  syncTimer: null,
+  syncInFlight: false,
   audioBlob: null,
   started: false,
   reactions: {},
@@ -158,6 +162,7 @@ const state = {
   commentReactions: {},
   commentUserReactions: {},
   postcardLimit: DEFAULT_POSTCARD_BATCH,
+  postcardHasMore: true,
   moodTimes: readStoredJSON(MOOD_TIMES_KEY, {}),
   activeOptions: new Set(['message']),
   moodMenuListener: null,
@@ -208,6 +213,7 @@ const state = {
     profileN: ''
   },
   chronicles: [],
+  chronicleHasMore: true,
   chronicleLoading: false,
   chroniclePlaceholderCount: 4,
   activeChronicle: null,
@@ -221,6 +227,7 @@ const state = {
   storyCommentActionsOpenId: null,
   storyCommentUpdatedAtSupported: true,
   storyCommentReplySupported: true,
+  storyCoverImageSupported: true,
   pendingStoryCommentAnchor: null,
   pendingStoryShareSnippet: '',
   pendingStoryCommentReplyTo: null,
@@ -2918,13 +2925,23 @@ async function saveStoryChronicle() {
     },
     chapters: state.storyChapters,
     images: state.storyImages,
-    user: state.user || 'Unknown'
+    user: state.user || 'Unknown',
+    cover_image_url: getStoryCoverImageUrl(state.storyImages) || null
   };
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('story_chronicles')
     .insert(payload)
     .select('*')
     .single();
+  if (error && state.storyCoverImageSupported && isCoverImageColumnMissing(error)) {
+    state.storyCoverImageSupported = false;
+    delete payload.cover_image_url;
+    ({ data, error } = await supabase
+      .from('story_chronicles')
+      .insert(payload)
+      .select('*')
+      .single());
+  }
   if (error) {
     console.error('chronicle save', error);
     showToast(`Couldn't save story: ${error.message}`, 'error');
@@ -3704,19 +3721,84 @@ async function requestStoryImage(prompt) {
   if (error) {
     throw new Error(formatStoryFunctionError(error, 'Image request failed'));
   }
-  return data?.image || '';
+  const value = typeof data?.image === 'string' ? data.image : '';
+  if (!value) return '';
+  if (!value.startsWith('data:image/')) {
+    return value;
+  }
+  const uploaded = await uploadStoryImageDataUrl(value);
+  return uploaded || value;
+}
+
+function dataUrlToBlob(dataUrl) {
+  if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) return null;
+  const match = dataUrl.match(/^data:([^;,]+)?(;base64)?,(.*)$/);
+  if (!match) return null;
+  const mime = match[1] || 'application/octet-stream';
+  const isBase64 = Boolean(match[2]);
+  const body = match[3] || '';
+  try {
+    if (isBase64) {
+      const binary = atob(body);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i += 1) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      return new Blob([bytes], { type: mime });
+    }
+    const decoded = decodeURIComponent(body);
+    return new Blob([decoded], { type: mime });
+  } catch {
+    return null;
+  }
+}
+
+async function uploadStoryImageDataUrl(dataUrl) {
+  const blob = dataUrlToBlob(dataUrl);
+  if (!blob) return '';
+  const ext = blob.type.includes('jpeg') ? 'jpg' : blob.type.includes('webp') ? 'webp' : 'png';
+  const safeUser = String(state.user || 'loveboard').replace(/[^a-z0-9_-]/gi, '').toLowerCase() || 'loveboard';
+  const path = `story-images/${safeUser}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  try {
+    const { error } = await supabase.storage.from(BUCKET).upload(path, blob, {
+      cacheControl: '3600',
+      upsert: false,
+      contentType: blob.type || 'image/png'
+    });
+    if (error) return '';
+    const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
+    return data?.publicUrl || '';
+  } catch {
+    return '';
+  }
 }
 
 async function persistActiveChronicleImages() {
   const storyId = state.activeChronicle?.id;
   if (!storyId) return;
+  let updates = { images: state.storyImages };
+  if (state.storyCoverImageSupported) {
+    updates = {
+      ...updates,
+      cover_image_url: getStoryCoverImageUrl(state.storyImages) || null
+    };
+  }
   try {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('story_chronicles')
-      .update({ images: state.storyImages })
+      .update(updates)
       .eq('id', storyId)
       .select('*')
       .single();
+    if (error && state.storyCoverImageSupported && isCoverImageColumnMissing(error)) {
+      state.storyCoverImageSupported = false;
+      ({ data, error } = await supabase
+        .from('story_chronicles')
+        .update({ images: state.storyImages })
+        .eq('id', storyId)
+        .select('*')
+        .single());
+    }
     if (error) throw error;
     applyChronicleRemoteUpdate(data);
   } catch (error) {
@@ -3977,6 +4059,7 @@ function showAuthGate() {
   state.user = null;
   state.userDisplay = null;
   state.started = false;
+  stopBackgroundSync();
   setAuthPending(false);
   ui.authGate.style.display = 'flex';
   ui.app.setAttribute('aria-hidden', 'true');
@@ -4060,8 +4143,7 @@ async function startApp() {
   if (state.started) return;
   state.started = true;
   await Promise.all([loadPostcards(), loadMoods(), loadChronicles()]);
-  subscribeRealtime();
-  subscribeCommentBroadcast();
+  startBackgroundSync();
 }
 
 async function restoreSession() {
@@ -4070,23 +4152,127 @@ async function restoreSession() {
   await applySessionUser(data.session);
 }
 
-async function loadPostcards() {
+function stopBackgroundSync() {
+  if (state.syncTimer) {
+    clearInterval(state.syncTimer);
+    state.syncTimer = null;
+  }
+  state.syncInFlight = false;
+}
+
+function startBackgroundSync() {
+  if (state.syncTimer) return;
+  state.syncTimer = setInterval(() => {
+    void runBackgroundSync();
+  }, BACKGROUND_SYNC_MS);
+}
+
+async function runBackgroundSync() {
+  if (!state.started || !state.user || state.syncInFlight) return;
+  state.syncInFlight = true;
+  const postcardCount = Math.max(state.postcards.length || DEFAULT_POSTCARD_BATCH, DEFAULT_POSTCARD_BATCH);
+  const chronicleCount = Math.max(state.chronicles.length || DEFAULT_CHRONICLE_BATCH, DEFAULT_CHRONICLE_BATCH);
+  try {
+    await Promise.all([
+      loadPostcards({ targetCount: postcardCount, silent: true }),
+      loadMoods({ silent: true }),
+      loadChronicles({ targetCount: chronicleCount, silent: true, reveal: false })
+    ]);
+  } finally {
+    state.syncInFlight = false;
+  }
+}
+
+function mergeRowsById(existingRows, incomingRows) {
+  const map = new Map();
+  (existingRows || []).forEach((row) => {
+    if (!row?.id) return;
+    map.set(row.id, row);
+  });
+  (incomingRows || []).forEach((row) => {
+    if (!row?.id) return;
+    map.set(row.id, { ...(map.get(row.id) || {}), ...row });
+  });
+  return Array.from(map.values());
+}
+
+function buildChronicleSummaryColumns() {
+  const parts = [
+    'id',
+    'title',
+    'user',
+    'created_at',
+    'opened_by_a_at',
+    'opened_by_b_at',
+    'finished_by_a_at',
+    'finished_by_b_at'
+  ];
+  if (state.storyCoverImageSupported) {
+    parts.push('cover_image_url');
+  }
+  return parts.join(',');
+}
+
+function buildChronicleDetailColumns() {
+  const parts = [
+    'id',
+    'title',
+    'user',
+    'created_at',
+    'inputs',
+    'chapters',
+    'images',
+    'opened_by_a_at',
+    'opened_by_b_at',
+    'finished_by_a_at',
+    'finished_by_b_at'
+  ];
+  if (state.storyCoverImageSupported) {
+    parts.push('cover_image_url');
+  }
+  return parts.join(',');
+}
+
+async function loadPostcards(options = {}) {
+  const {
+    append = false,
+    targetCount = DEFAULT_POSTCARD_BATCH,
+    silent = false
+  } = options;
+  const requestedCount = append
+    ? DEFAULT_POSTCARD_BATCH
+    : Math.max(DEFAULT_POSTCARD_BATCH, Number(targetCount) || DEFAULT_POSTCARD_BATCH);
+  const queryCount = requestedCount + 1;
+  const from = append ? state.postcards.length : 0;
+  const to = from + queryCount - 1;
   const { data, error } = await supabase
     .from('postcards')
-    .select('*')
-    .order('created_at', { ascending: false });
+    .select('id,created_at,user,type,message,asset_url')
+    .order('created_at', { ascending: false })
+    .range(from, to);
   if (error) {
     console.error('postcards load', error);
-    showToast(`Couldn't load postcards: ${error.message}`, 'error');
-    return;
+    if (!silent) {
+      showToast(`Couldn't load postcards: ${error.message}`, 'error');
+    }
+    return 0;
   }
-  state.postcards = data || [];
-  state.postcardLimit = Math.min(
-    Math.max(state.postcardLimit || DEFAULT_POSTCARD_BATCH, DEFAULT_POSTCARD_BATCH),
-    state.postcards.length || DEFAULT_POSTCARD_BATCH
-  );
-  await Promise.all([loadReactions(), loadComments(), loadCommentReactions()]);
-  renderBoard();
+  const incomingRaw = data || [];
+  const incoming = incomingRaw.slice(0, requestedCount);
+  if (append) {
+    state.postcards = mergeRowsById(state.postcards, incoming);
+  } else {
+    state.postcards = incoming;
+  }
+  state.postcardLimit = Math.max(DEFAULT_POSTCARD_BATCH, state.postcards.length || DEFAULT_POSTCARD_BATCH);
+  state.postcardHasMore = incomingRaw.length > requestedCount;
+  const postcardIds = state.postcards.map((card) => card.id).filter(Boolean);
+  await Promise.all([
+    loadReactions(postcardIds, { silent: true }),
+    loadComments(postcardIds, { silent: true }),
+    loadCommentReactions(postcardIds, { silent: true })
+  ]);
+  renderBoard({ revealFromIndex: append ? from : undefined });
   if (state.constellationOpen) {
     renderConstellation();
   }
@@ -4103,34 +4289,126 @@ async function loadPostcards() {
               ? 'valentine'
               : 'loveboard'
   );
+  return incoming.length;
 }
 
-async function loadChronicles() {
+async function loadChronicles(options = {}) {
+  const {
+    append = false,
+    targetCount = DEFAULT_CHRONICLE_BATCH,
+    silent = false,
+    reveal = true
+  } = options;
   state.chronicleLoading = true;
-  renderChronicles();
-  const { data, error } = await supabase
+  if (!silent) {
+    renderChronicles();
+  }
+  const requestedCount = append
+    ? DEFAULT_CHRONICLE_BATCH
+    : Math.max(DEFAULT_CHRONICLE_BATCH, Number(targetCount) || DEFAULT_CHRONICLE_BATCH);
+  const queryCount = requestedCount + 1;
+  const from = append ? state.chronicles.length : 0;
+  const to = from + queryCount - 1;
+  let { data, error } = await supabase
     .from('story_chronicles')
-    .select('*')
-    .order('created_at', { ascending: false });
+    .select(buildChronicleSummaryColumns())
+    .order('created_at', { ascending: false })
+    .range(from, to);
+  if (error && state.storyCoverImageSupported && isCoverImageColumnMissing(error)) {
+    state.storyCoverImageSupported = false;
+    ({ data, error } = await supabase
+      .from('story_chronicles')
+      .select(buildChronicleSummaryColumns())
+      .order('created_at', { ascending: false })
+      .range(from, to));
+  }
   state.chronicleLoading = false;
   if (error) {
     console.error('chronicles load', error);
-    renderChronicles();
-    return;
+    if (!silent) {
+      renderChronicles();
+    }
+    return 0;
   }
-  state.chronicles = data || [];
-  await Promise.all([loadStoryReactions(), loadStoryComments(), loadStoryCommentReactions()]);
-  renderChronicles({ reveal: true });
+  const incomingRaw = data || [];
+  const incoming = incomingRaw.slice(0, requestedCount);
+  if (append) {
+    state.chronicles = mergeRowsById(state.chronicles, incoming);
+  } else {
+    state.chronicles = incoming;
+  }
+  state.chronicleHasMore = incomingRaw.length > requestedCount;
+  const storyIds = state.chronicles.map((story) => story.id).filter(Boolean);
+  await Promise.all([
+    loadStoryReactions(storyIds, { silent: true }),
+    loadStoryComments(storyIds, { silent: true }),
+    loadStoryCommentReactions(storyIds, { silent: true })
+  ]);
+  renderChronicles({ reveal: reveal && !append });
   refreshStorySocialSummary();
+  return incoming.length;
 }
 
-async function loadStoryReactions() {
+async function ensureChronicleDetails(storyId, options = {}) {
+  const { silent = false } = options;
+  if (!storyId) return null;
+  const index = state.chronicles.findIndex((entry) => entry.id === storyId);
+  if (index < 0) return null;
+  const cached = state.chronicles[index];
+  const hasDetails =
+    Array.isArray(cached?.chapters) &&
+    cached?.inputs &&
+    typeof cached.inputs === 'object';
+  if (hasDetails) return cached;
+  let { data, error } = await supabase
+    .from('story_chronicles')
+    .select(buildChronicleDetailColumns())
+    .eq('id', storyId)
+    .maybeSingle();
+  if (error && state.storyCoverImageSupported && isCoverImageColumnMissing(error)) {
+    state.storyCoverImageSupported = false;
+    ({ data, error } = await supabase
+      .from('story_chronicles')
+      .select(buildChronicleDetailColumns())
+      .eq('id', storyId)
+      .maybeSingle());
+  }
+  if (error || !data) {
+    if (error) {
+      console.error('chronicle detail load', error);
+    }
+    if (!silent) {
+      showToast('Could not load this story right now.', 'error');
+    }
+    return null;
+  }
+  const merged = { ...cached, ...data };
+  state.chronicles[index] = merged;
+  if (state.activeChronicle?.id === storyId) {
+    state.activeChronicle = merged;
+  }
+  return merged;
+}
+
+async function loadStoryReactions(storyIds = null, options = {}) {
+  const ids = Array.isArray(storyIds)
+    ? storyIds.filter(Boolean)
+    : state.chronicles.map((entry) => entry.id).filter(Boolean);
+  if (!ids.length) {
+    state.storyReactions = {};
+    state.storyUserReactions = {};
+    return;
+  }
   const { data, error } = await supabase
     .from('story_reactions')
-    .select('story_id,reaction,user');
+    .select('story_id,reaction,user')
+    .in('story_id', ids);
   if (error) {
     if (!isMissingTableError(error)) {
       console.error('story reactions load', error);
+      if (!options?.silent) {
+        showToast('Could not load story reactions.', 'error');
+      }
     }
     state.storyReactions = {};
     state.storyUserReactions = {};
@@ -4141,10 +4419,18 @@ async function loadStoryReactions() {
   (data || []).forEach(applyStoryReactionRow);
 }
 
-async function loadStoryComments() {
+async function loadStoryComments(storyIds = null, options = {}) {
+  const ids = Array.isArray(storyIds)
+    ? storyIds.filter(Boolean)
+    : state.chronicles.map((entry) => entry.id).filter(Boolean);
+  if (!ids.length) {
+    state.storyComments = {};
+    return;
+  }
   let query = supabase
     .from('story_comments')
     .select('id,story_id,user,comment,created_at,updated_at,chapter_index,start_offset,end_offset,selected_text,reply_to_comment_id')
+    .in('story_id', ids)
     .order('created_at', { ascending: true });
   let { data, error } = await query;
   if (error && isUpdatedAtMissing(error)) {
@@ -4152,6 +4438,7 @@ async function loadStoryComments() {
     ({ data, error } = await supabase
       .from('story_comments')
       .select('id,story_id,user,comment,created_at,chapter_index,start_offset,end_offset,selected_text,reply_to_comment_id')
+      .in('story_id', ids)
       .order('created_at', { ascending: true }));
   }
   if (error && state.storyCommentReplySupported && isStoryReplyColumnMissing(error)) {
@@ -4163,6 +4450,7 @@ async function loadStoryComments() {
           ? 'id,story_id,user,comment,created_at,updated_at,chapter_index,start_offset,end_offset,selected_text'
           : 'id,story_id,user,comment,created_at,chapter_index,start_offset,end_offset,selected_text'
       )
+      .in('story_id', ids)
       .order('created_at', { ascending: true }));
   }
   if (error && isStoryAnchorColumnsMissing(error)) {
@@ -4177,11 +4465,15 @@ async function loadStoryComments() {
             ? 'id,story_id,user,comment,created_at,reply_to_comment_id'
             : 'id,story_id,user,comment,created_at')
       )
+      .in('story_id', ids)
       .order('created_at', { ascending: true }));
   }
   if (error) {
     if (!isMissingTableError(error)) {
       console.error('story comments load', error);
+      if (!options?.silent) {
+        showToast('Could not load story comments.', 'error');
+      }
     }
     state.storyComments = {};
     return;
@@ -4190,13 +4482,25 @@ async function loadStoryComments() {
   (data || []).forEach(applyStoryCommentRow);
 }
 
-async function loadStoryCommentReactions() {
+async function loadStoryCommentReactions(storyIds = null, options = {}) {
+  const ids = Array.isArray(storyIds)
+    ? storyIds.filter(Boolean)
+    : state.chronicles.map((entry) => entry.id).filter(Boolean);
+  if (!ids.length) {
+    state.storyCommentReactions = {};
+    state.storyCommentUserReactions = {};
+    return;
+  }
   const { data, error } = await supabase
     .from('story_comment_reactions')
-    .select('story_id,comment_id,reaction,user');
+    .select('story_id,comment_id,reaction,user')
+    .in('story_id', ids);
   if (error) {
     if (!isMissingTableError(error)) {
       console.error('story comment reactions load', error);
+      if (!options?.silent) {
+        showToast('Could not load story comment reactions.', 'error');
+      }
     }
     state.storyCommentReactions = {};
     state.storyCommentUserReactions = {};
@@ -4246,9 +4550,9 @@ function renderChronicles(options = {}) {
     cover.className = 'chronicle-cover';
     const img = document.createElement('img');
     img.alt = story.title || 'Story cover';
-    if (story.images?.[0]) {
-      img.src = story.images[0];
-    }
+    const coverImage = story.cover_image_url || getStoryCoverImageUrl(story.images) || STORY_IMAGE_PLACEHOLDER;
+    img.src = coverImage;
+    img.loading = 'lazy';
     cover.appendChild(img);
     const title = document.createElement('h3');
     title.textContent = story.title || 'Untitled';
@@ -4349,21 +4653,47 @@ function renderChronicles(options = {}) {
         longPressed = false;
         return;
       }
-      openChronicleStory(story);
+      void openChronicleStory(story);
     });
     ui.chronicleGrid.appendChild(card);
   });
+  if (state.chronicleHasMore) {
+    const loadMore = document.createElement('button');
+    loadMore.type = 'button';
+    loadMore.className = 'load-more';
+    const label = document.createElement('span');
+    label.textContent = 'Load more stories';
+    const count = document.createElement('span');
+    count.className = 'load-more-count';
+    count.textContent = 'More';
+    loadMore.append(label, count);
+    loadMore.addEventListener('click', () => {
+      void handleLoadMoreChronicles();
+    });
+    ui.chronicleGrid.appendChild(loadMore);
+  }
 }
 
-function openChronicleStory(story) {
+async function handleLoadMoreChronicles() {
+  if (!state.chronicleHasMore) return;
+  await loadChronicles({ append: true, silent: true, reveal: false });
+}
+
+async function openChronicleStory(story) {
   if (!story) return;
   clearPendingStoryCommentDraftTargets();
   state.activeChronicle = story;
   showStoryMirror();
-  markChronicleOpened(story);
-  state.storyChapters = Array.isArray(story.chapters) ? story.chapters : [];
+  const fullStory = await ensureChronicleDetails(story.id, { silent: false });
+  if (!fullStory) {
+    showChronicle();
+    return;
+  }
+  state.activeChronicle = fullStory;
+  markChronicleOpened(fullStory);
+  state.storyChapters = Array.isArray(fullStory.chapters) ? fullStory.chapters : [];
   state.storyTextByPerspective = {};
-  const storyInputs = story?.inputs && typeof story.inputs === 'object' ? story.inputs : {};
+  const storyInputs = fullStory?.inputs && typeof fullStory.inputs === 'object' ? fullStory.inputs : {};
   state.storyActivePerspective = normalizeStoryPerspective(
     storyInputs.active_perspective || storyInputs.perspective || 'us'
   );
@@ -4376,14 +4706,14 @@ function openChronicleStory(story) {
     });
   }
   if (!getCachedStoryPerspectiveText(state.storyActivePerspective)) {
-    cacheStoryPerspectiveText(state.storyActivePerspective, state.storyChapters, story?.title || '');
+    cacheStoryPerspectiveText(state.storyActivePerspective, state.storyChapters, fullStory?.title || '');
   }
   state.storyEventSpine = ensureStoryEventSpine(
     state.storyChapters,
     Array.isArray(storyInputs.event_spine) ? storyInputs.event_spine : []
   );
   setStoryPerspectiveSelection(state.storyActivePerspective, null);
-  state.storyImages = Array.isArray(story.images) ? story.images.slice(0, state.storyChapters.length) : [];
+  state.storyImages = Array.isArray(fullStory.images) ? fullStory.images.slice(0, state.storyChapters.length) : [];
   while (state.storyImages.length < state.storyChapters.length) {
     state.storyImages.push('');
   }
@@ -4395,7 +4725,7 @@ function openChronicleStory(story) {
     ui.storyMirrorView.classList.add('storymirror-generated');
   }
   setStoryChronicleMode(true);
-  setStoryHeroTitle(story.title || 'Our Future, Soon');
+  setStoryHeroTitle(fullStory.title || 'Our Future, Soon');
   renderStoryChapters();
   updateStorySaveButton();
   updateStoryBackButton();
@@ -4434,7 +4764,7 @@ function handleChronicleActionOpen() {
   const story = state.activeChronicle;
   closeChronicleActionsModal();
   if (!story) return;
-  openChronicleStory(story);
+  void openChronicleStory(story);
 }
 
 function handleChronicleActionDelete() {
@@ -4653,8 +4983,8 @@ function renderBoard(options = {}) {
     const reactionCounts = node.querySelectorAll('.reaction-counts');
     const reactButtons = node.querySelectorAll('.react-btn');
     const reactionPickers = node.querySelectorAll('.reaction-picker');
-  const commentLists = node.querySelectorAll('.comment-list');
-  const commentForms = node.querySelectorAll('.comment-form');
+    const commentLists = node.querySelectorAll('.comment-list');
+    const commentForms = node.querySelectorAll('.comment-form');
 
     visual.hidden = true;
     defaultVisual.hidden = true;
@@ -4734,8 +5064,7 @@ function renderBoard(options = {}) {
     }
   });
 
-  const remaining = state.postcards.length - visible.length;
-  if (remaining > 0) {
+  if (state.postcardHasMore) {
     const loadMore = document.createElement('button');
     loadMore.type = 'button';
     loadMore.className = 'load-more';
@@ -4743,28 +5072,29 @@ function renderBoard(options = {}) {
     label.textContent = 'Load more postcards';
     const count = document.createElement('span');
     count.className = 'load-more-count';
-    count.textContent = `${remaining}`;
+    count.textContent = 'More';
     loadMore.append(label, count);
-    loadMore.addEventListener('click', handleLoadMore);
+    loadMore.addEventListener('click', () => {
+      void handleLoadMore();
+    });
     ui.board.appendChild(loadMore);
   }
 }
 
-function handleLoadMore() {
-  const current = state.postcardLimit || DEFAULT_POSTCARD_BATCH;
-  const nextLimit = Math.min(state.postcards.length, current + DEFAULT_POSTCARD_BATCH);
-  if (nextLimit === current) return;
+async function handleLoadMore() {
+  if (!state.postcardHasMore) return;
   const scrollTop = window.scrollY;
-  state.postcardLimit = nextLimit;
-  renderBoard({ revealFromIndex: current });
+  const added = await loadPostcards({ append: true, silent: true });
+  if (!added) return;
   requestAnimationFrame(() => {
     window.scrollTo({ top: scrollTop, behavior: 'auto' });
   });
 }
 
-async function loadMoods() {
+async function loadMoods(options = {}) {
   Object.keys(state.moodPresets || {}).forEach(updateMoodTimestamp);
   const users = Object.keys(state.moodPresets || {});
+  if (!users.length) return;
   const results = await Promise.all(
     users.map((user) =>
       supabase.from('moods').select('*').eq('user', user).order('date', { ascending: false }).limit(1)
@@ -4774,7 +5104,9 @@ async function loadMoods() {
   const error = results.find((result) => result.error)?.error;
   if (error) {
     console.error('moods load', error);
-    showToast(`Couldn't load moods: ${error.message}`, 'error');
+    if (!options?.silent) {
+      showToast(`Couldn't load moods: ${error.message}`, 'error');
+    }
     return;
   }
   (data || []).forEach((entry) => {
@@ -4783,12 +5115,24 @@ async function loadMoods() {
   });
 }
 
-async function loadReactions() {
+async function loadReactions(postcardIds = null, options = {}) {
+  const ids = Array.isArray(postcardIds)
+    ? postcardIds.filter(Boolean)
+    : state.postcards.map((card) => card.id).filter(Boolean);
+  if (!ids.length) {
+    state.reactions = {};
+    state.userReactions = {};
+    return;
+  }
   const { data, error } = await supabase
     .from('postcard_reactions')
-    .select('postcard_id,reaction,user');
+    .select('postcard_id,reaction,user')
+    .in('postcard_id', ids);
   if (error) {
     console.error('reactions load', error);
+    if (!options?.silent) {
+      showToast('Could not load reactions.', 'error');
+    }
     return;
   }
   state.reactions = {};
@@ -4796,16 +5140,26 @@ async function loadReactions() {
   (data || []).forEach(applyReactionRow);
 }
 
-async function loadComments() {
+async function loadComments(postcardIds = null, options = {}) {
+  const ids = Array.isArray(postcardIds)
+    ? postcardIds.filter(Boolean)
+    : state.postcards.map((card) => card.id).filter(Boolean);
+  if (!ids.length) {
+    state.comments = {};
+    return;
+  }
   let data;
   let error;
-  ({ data, error } = await fetchComments(buildCommentColumns()));
+  ({ data, error } = await fetchComments(buildCommentColumns(), ids));
   if (error && state.commentUpdatedAtSupported && isUpdatedAtMissing(error)) {
     state.commentUpdatedAtSupported = false;
-    ({ data, error } = await fetchComments(buildCommentColumns()));
+    ({ data, error } = await fetchComments(buildCommentColumns(), ids));
   }
   if (error) {
     console.error('comments load', error);
+    if (!options?.silent) {
+      showToast('Could not load comments.', 'error');
+    }
     return;
   }
   state.comments = {};
@@ -4820,19 +5174,32 @@ function buildCommentColumns() {
   return parts.join(',');
 }
 
-function fetchComments(columns) {
+function fetchComments(columns, postcardIds) {
   return supabase
     .from('postcard_comments')
     .select(columns)
+    .in('postcard_id', postcardIds)
     .order('created_at', { ascending: true });
 }
 
-async function loadCommentReactions() {
+async function loadCommentReactions(postcardIds = null, options = {}) {
+  const ids = Array.isArray(postcardIds)
+    ? postcardIds.filter(Boolean)
+    : state.postcards.map((card) => card.id).filter(Boolean);
+  if (!ids.length) {
+    state.commentReactions = {};
+    state.commentUserReactions = {};
+    return;
+  }
   const { data, error } = await supabase
     .from('comment_reactions')
-    .select('comment_id,postcard_id,reaction,user');
+    .select('comment_id,postcard_id,reaction,user')
+    .in('postcard_id', ids);
   if (error) {
     console.error('comment reactions load', error);
+    if (!options?.silent) {
+      showToast('Could not load comment reactions.', 'error');
+    }
     return;
   }
   state.commentReactions = {};
@@ -5860,6 +6227,16 @@ function buildPostcardTeaser(card) {
   return 'A new postcard is waiting.';
 }
 
+function getStoryCoverImageUrl(images) {
+  if (!Array.isArray(images) || !images.length) return '';
+  for (let i = 0; i < images.length; i += 1) {
+    const candidate = String(images[i] || '').trim();
+    if (!candidate || candidate.startsWith('data:')) continue;
+    return candidate;
+  }
+  return '';
+}
+
 function buildStoryTeaser(title) {
   const snippet = clipText(title || '', 120);
   return snippet ? `"${snippet}"` : 'A new story is ready.';
@@ -6142,6 +6519,14 @@ function isStoryReplyColumnMissing(error) {
   const message = String(error.message || '').toLowerCase();
   const hint = String(error.hint || '').toLowerCase();
   return message.includes('reply_to_comment_id') || hint.includes('reply_to_comment_id');
+}
+
+function isCoverImageColumnMissing(error) {
+  if (!error) return false;
+  if (error.code !== '42703') return false;
+  const message = String(error.message || '').toLowerCase();
+  const hint = String(error.hint || '').toLowerCase();
+  return message.includes('cover_image_url') || hint.includes('cover_image_url');
 }
 
 function isMissingTableError(error) {
