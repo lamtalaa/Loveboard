@@ -1356,10 +1356,10 @@ function renderStoryAnchorPreview() {
   label.className = 'story-social-anchor-label';
   if (activeReply?.id) {
     const name = getDisplayName(activeReply.user);
-    const teaser = clipText(activeReply.comment || '', 120);
+    const teaser = clipText(activeReply.comment || '', 84);
     label.textContent = `Replying to ${name}: "${teaser}"`;
   } else {
-    label.textContent = `Selected: "${clipText(anchor.selected_text, 120)}"`;
+    label.textContent = `Selected: "${clipText(anchor.selected_text, 92)}"`;
   }
   const clearBtn = document.createElement('button');
   clearBtn.type = 'button';
@@ -2346,7 +2346,7 @@ function renderStoryComments(storyId) {
       }
       const quote = document.createElement('p');
       quote.className = 'story-social-comment-quote';
-      quote.textContent = `“${clipText(entry.selected_text.trim(), 160)}”`;
+      quote.textContent = `“${clipText(entry.selected_text.trim(), 96)}”`;
       body.prepend(quote);
     }
     row.append(meta, body, inlineActions);
