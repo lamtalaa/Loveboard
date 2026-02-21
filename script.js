@@ -180,6 +180,7 @@ const state = {
   constellationKeyListener: null,
   constellationResizeListener: null,
   constellationActiveId: null,
+  constellationLoadingAll: false,
   valentineOpen: false,
   valentineKeyListener: null,
   chronicleOpen: false,
@@ -5498,6 +5499,7 @@ function showConstellation() {
   state.storyMirrorOpen = false;
   state.chronicleOpen = false;
   renderConstellation();
+  void ensureConstellationFullyLoaded();
   setupConstellationResize();
   updateViewSwitchers('constellation');
   attachConstellationListeners();
@@ -5505,6 +5507,22 @@ function showConstellation() {
   cleanupValentineListeners();
   cleanupStoryMirrorListeners();
   cleanupChronicleListeners();
+}
+
+async function ensureConstellationFullyLoaded() {
+  if (!state.constellationOpen || state.constellationLoadingAll || !state.postcardHasMore) return;
+  state.constellationLoadingAll = true;
+  if (ui.constellationHint) {
+    ui.constellationHint.textContent = 'Loading all memories...';
+  }
+  try {
+    while (state.constellationOpen && state.postcardHasMore) {
+      const added = await loadPostcards({ append: true, silent: true });
+      if (!added) break;
+    }
+  } finally {
+    state.constellationLoadingAll = false;
+  }
 }
 
 function showValentine() {
