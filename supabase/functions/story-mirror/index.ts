@@ -369,10 +369,11 @@ function getErrorMessage(error: unknown) {
 
 function buildSafeImagePromptVariants(prompt: string) {
   const tonedBase = softenImagePrompt(prompt);
+  const contextualBase = tonedBase || 'romantic cinematic scene of two adult partners';
   const variants = [
-    `${tonedBase}. Cinematic romantic scene with two fully clothed adults, tasteful and non-sexual, no nudity, no explicit body focus, dreamy-realistic, no text.`,
-    `Cinematic romantic scene of two fully clothed adult partners in an urban setting, emotional closeness, warm moody lighting, tasteful and non-sexual, no nudity, no text.`,
-    `Dreamy cinematic love scene: two adults holding hands at dusk in a city street, fully clothed, emotional and intimate but non-sexual, no nudity, no text.`
+    `${contextualBase}. Keep the same scene context, setting, and emotional tone. Two fully clothed consenting adults, romantic and tasteful, non-sexual, no nudity, no explicit body focus, dreamy-realistic, no text.`,
+    `Reframe this same scene as PG-13 romance: ${contextualBase}. Preserve location, time-of-day, and atmosphere from the original context. Two fully clothed adults, intimate but non-sexual, no nudity, no explicit anatomy, no text.`,
+    `Use the original scene context from this prompt and keep its visual identity: ${contextualBase}. Show an emotionally close, cinematic romance moment between two fully clothed adults, non-sexual, no nudity, no explicit content, no text.`
   ]
     .map((value) => value.replace(/\s+/g, ' ').trim())
     .filter(Boolean);
