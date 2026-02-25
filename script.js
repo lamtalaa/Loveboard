@@ -349,6 +349,7 @@ const ui = {
   storyChapterHint: document.getElementById('story-chapter-hint'),
   storyExtra: document.getElementById('story-extra'),
   storyOutput: document.getElementById('story-output'),
+  storyOpenPlaceholder: document.getElementById('story-open-placeholder'),
   storyEmpty: document.getElementById('story-empty'),
   storyChapters: document.getElementById('story-chapters'),
   storyFooter: document.getElementById('story-footer'),
@@ -1992,6 +1993,12 @@ function setStoryChronicleMode(enabled) {
   refreshStorySocialSummary();
   updateStoryBackButton();
   updateStoryPerspectiveSwitcher();
+}
+
+function setStoryChronicleOpening(loading) {
+  if (!ui.storyMirrorView || !ui.storyOpenPlaceholder) return;
+  ui.storyMirrorView.classList.toggle('storymirror-opening-chronicle', Boolean(loading));
+  ui.storyOpenPlaceholder.hidden = !loading;
 }
 
 function getActiveStoryId() {
@@ -4684,56 +4691,61 @@ async function handleLoadMoreChronicles() {
 
 async function openChronicleStory(story) {
   if (!story) return;
+  setStoryChronicleOpening(true);
   clearPendingStoryCommentDraftTargets();
-  state.activeChronicle = story;
-  showStoryMirror();
-  const fullStory = await ensureChronicleDetails(story.id, { silent: false });
-  if (!fullStory) {
-    showChronicle();
-    return;
+  try {
+    state.activeChronicle = story;
+    showStoryMirror();
+    const fullStory = await ensureChronicleDetails(story.id, { silent: false });
+    if (!fullStory) {
+      showChronicle();
+      return;
+    }
+    state.activeChronicle = fullStory;
+    markChronicleOpened(fullStory);
+    state.storyChapters = Array.isArray(fullStory.chapters) ? fullStory.chapters : [];
+    state.storyTextByPerspective = {};
+    const storyInputs = fullStory?.inputs && typeof fullStory.inputs === 'object' ? fullStory.inputs : {};
+    state.storyActivePerspective = normalizeStoryPerspective(
+      storyInputs.active_perspective || storyInputs.perspective || 'us'
+    );
+    if (storyInputs.text_by_perspective && typeof storyInputs.text_by_perspective === 'object') {
+      Object.entries(storyInputs.text_by_perspective).forEach(([key, value]) => {
+        if (!value || typeof value !== 'object') return;
+        const cachedChapters = Array.isArray(value.chapters) ? value.chapters : [];
+        const cachedTitle = typeof value.title === 'string' ? value.title : '';
+        cacheStoryPerspectiveText(key, cachedChapters, cachedTitle);
+      });
+    }
+    if (!getCachedStoryPerspectiveText(state.storyActivePerspective)) {
+      cacheStoryPerspectiveText(state.storyActivePerspective, state.storyChapters, fullStory?.title || '');
+    }
+    state.storyEventSpine = ensureStoryEventSpine(
+      state.storyChapters,
+      Array.isArray(storyInputs.event_spine) ? storyInputs.event_spine : []
+    );
+    setStoryPerspectiveSelection(state.storyActivePerspective, null);
+    state.storyImages = Array.isArray(fullStory.images) ? fullStory.images.slice(0, state.storyChapters.length) : [];
+    while (state.storyImages.length < state.storyChapters.length) {
+      state.storyImages.push('');
+    }
+    state.storyImageFailedIndices.clear();
+    pruneStoryImageFailures(state.storyChapters, state.storyImages);
+    state.storyImagesComplete = computeStoryImagesComplete();
+    state.storySaved = true;
+    if (ui.storyMirrorView) {
+      ui.storyMirrorView.classList.add('storymirror-generated');
+    }
+    setStoryChronicleMode(true);
+    setStoryHeroTitle(fullStory.title || 'Our Future, Soon');
+    renderStoryChapters();
+    updateStorySaveButton();
+    updateStoryBackButton();
+    refreshStorySocialSummary();
+    void resumeChronicleMissingImages();
+  } finally {
+    setStoryChronicleOpening(false);
   }
-  state.activeChronicle = fullStory;
-  markChronicleOpened(fullStory);
-  state.storyChapters = Array.isArray(fullStory.chapters) ? fullStory.chapters : [];
-  state.storyTextByPerspective = {};
-  const storyInputs = fullStory?.inputs && typeof fullStory.inputs === 'object' ? fullStory.inputs : {};
-  state.storyActivePerspective = normalizeStoryPerspective(
-    storyInputs.active_perspective || storyInputs.perspective || 'us'
-  );
-  if (storyInputs.text_by_perspective && typeof storyInputs.text_by_perspective === 'object') {
-    Object.entries(storyInputs.text_by_perspective).forEach(([key, value]) => {
-      if (!value || typeof value !== 'object') return;
-      const cachedChapters = Array.isArray(value.chapters) ? value.chapters : [];
-      const cachedTitle = typeof value.title === 'string' ? value.title : '';
-      cacheStoryPerspectiveText(key, cachedChapters, cachedTitle);
-    });
-  }
-  if (!getCachedStoryPerspectiveText(state.storyActivePerspective)) {
-    cacheStoryPerspectiveText(state.storyActivePerspective, state.storyChapters, fullStory?.title || '');
-  }
-  state.storyEventSpine = ensureStoryEventSpine(
-    state.storyChapters,
-    Array.isArray(storyInputs.event_spine) ? storyInputs.event_spine : []
-  );
-  setStoryPerspectiveSelection(state.storyActivePerspective, null);
-  state.storyImages = Array.isArray(fullStory.images) ? fullStory.images.slice(0, state.storyChapters.length) : [];
-  while (state.storyImages.length < state.storyChapters.length) {
-    state.storyImages.push('');
-  }
-  state.storyImageFailedIndices.clear();
-  pruneStoryImageFailures(state.storyChapters, state.storyImages);
-  state.storyImagesComplete = computeStoryImagesComplete();
-  state.storySaved = true;
-  if (ui.storyMirrorView) {
-    ui.storyMirrorView.classList.add('storymirror-generated');
-  }
-  setStoryChronicleMode(true);
-  setStoryHeroTitle(fullStory.title || 'Our Future, Soon');
-  renderStoryChapters();
-  updateStorySaveButton();
-  updateStoryBackButton();
-  refreshStorySocialSummary();
-  void resumeChronicleMissingImages();
 }
 
 function openChronicleModal(story) {
@@ -5441,6 +5453,9 @@ function showStoryMirror(options = {}) {
     setStoryChronicleMode(false);
   }
   const openingChronicleStory = !forceFresh && Boolean(state.activeChronicle);
+  if (!openingChronicleStory) {
+    setStoryChronicleOpening(false);
+  }
   switchView(ui.storyMirrorView, current, null, {
     enterClass: openingChronicleStory ? 'view-enter-match-card' : 'view-enter',
     exitClass: openingChronicleStory ? 'view-exit-match-card' : 'view-exit'
