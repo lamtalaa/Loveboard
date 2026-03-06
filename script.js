@@ -498,6 +498,7 @@ async function init() {
 
 function setupValentine() {
   if (!ui.valentineView) return;
+  syncValentineFeatureAvailability();
   updateOrbitLocations();
   if (ui.orbitHoldBtn) {
     const start = () => startOrbitHold();
@@ -4065,6 +4066,31 @@ function updateValentineCountdown() {
   ui.valentineCountdown.textContent = diff <= 0 ? '0' : String(diff);
 }
 
+function isValentineFeatureAvailable(now = new Date()) {
+  const year = now.getFullYear();
+  const windowStart = new Date(year, 0, 14, 0, 0, 0, 0);
+  const windowEnd = new Date(year, 1, 21, 23, 59, 59, 999);
+  return now >= windowStart && now <= windowEnd;
+}
+
+function syncValentineFeatureAvailability() {
+  const isAvailable = isValentineFeatureAvailable();
+  const valentineButtons = document.querySelectorAll('[data-view="valentine"]');
+  valentineButtons.forEach((btn) => {
+    if (!(btn instanceof HTMLElement)) return;
+    btn.hidden = !isAvailable;
+    btn.style.display = isAvailable ? '' : 'none';
+    btn.setAttribute('aria-hidden', isAvailable ? 'false' : 'true');
+    if (!isAvailable) {
+      btn.removeAttribute('aria-current');
+    }
+  });
+  if (!isAvailable && state.valentineOpen) {
+    showLoveboard();
+  }
+  return isAvailable;
+}
+
 function showAuthGate() {
   state.user = null;
   state.userDisplay = null;
@@ -5372,6 +5398,10 @@ function handleViewSwitch(view) {
     document.activeElement.blur();
   }
   if (!view) return;
+  if (view === 'valentine' && !isValentineFeatureAvailable()) {
+    showLoveboard();
+    return;
+  }
   if (view === 'storymirror' && state.storyMirrorOpen) {
     state.activeChronicle = null;
     resetStoryFlow();
@@ -5542,6 +5572,7 @@ async function ensureConstellationFullyLoaded() {
 
 function showValentine() {
   if (!ui.valentineView) return;
+  if (!syncValentineFeatureAvailability()) return;
   const current = getActiveView();
   if (current === ui.valentineView) return;
   closeStorySocialSheet();
@@ -5677,6 +5708,7 @@ function cleanupValentineListeners() {
 
 function updateViewSwitchers(view) {
   if (!ui.viewSwitchButtons) return;
+  syncValentineFeatureAvailability();
   ui.viewSwitchButtons.forEach((btn) => {
     const isStories = btn.dataset.view === 'stories';
     const isActive = isStories ? view === 'storymirror' || view === 'chronicle' : btn.dataset.view === view;
