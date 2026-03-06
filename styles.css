@@ -114,11 +114,8 @@ html {
   align-items: center;
   flex: 1;
   min-width: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-  padding-bottom: 0.1rem;
+  flex-wrap: nowrap;
+  overflow: visible;
 }
 
 .view-switch-group::-webkit-scrollbar {
@@ -157,6 +154,17 @@ html {
 .story-menu {
   position: relative;
   display: inline-flex;
+}
+
+.story-menu-toggle {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.story-menu-toggle[aria-expanded='true'] {
+  background: linear-gradient(120deg, rgba(245, 181, 197, 0.35), rgba(227, 212, 249, 0.35));
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px rgba(245, 181, 197, 0.45);
 }
 
 .story-menu-panel {

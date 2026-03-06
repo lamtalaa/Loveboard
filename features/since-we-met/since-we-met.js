@@ -1,7 +1,7 @@
 const MODE_KEY = 'loveboard-since-we-met-mode-v1';
 const FALLBACK_MODE = 'simple';
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const BUILD_TAG = '20260305g';
+const BUILD_TAG = '20260305h';
 const MILESTONES = [100, 182, 365, 500, 730, 1000, 1500, 2000];
 
 const MEMORY_LINES = [

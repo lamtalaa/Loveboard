@@ -1,7 +1,7 @@
 import { supabase } from './supabase.js';
 import { setWwanUser, applyRemoteCity, setWwanDefaults } from './wwan.js';
 import { createInstagramStoryShare } from './features/instagram-story-share/instagram-story-share.js';
-import { createSinceWeMetFeature } from './features/since-we-met/since-we-met.js?v=20260305g';
+import { createSinceWeMetFeature } from './features/since-we-met/since-we-met.js?v=20260305h';
 
 
 const DEFAULT_MOOD_PRESETS = {
@@ -5335,6 +5335,11 @@ function closeStoryMenus(exceptMenu) {
 function setupStoryMenus() {
   if (!ui.storyMenus?.length) return;
   ui.storyMenuToggles.forEach((toggle) => {
+    if (toggle instanceof HTMLButtonElement) {
+      toggle.disabled = false;
+      toggle.removeAttribute('disabled');
+      toggle.setAttribute('aria-disabled', 'false');
+    }
     toggle.addEventListener('click', (evt) => {
       evt.stopPropagation();
       const menu = toggle.closest('.story-menu');
@@ -5783,6 +5788,11 @@ function updateViewSwitchers(view) {
   syncValentineFeatureAvailability();
   ui.viewSwitchButtons.forEach((btn) => {
     const isStories = btn.dataset.view === 'stories';
+    if (isStories && btn instanceof HTMLButtonElement) {
+      btn.disabled = false;
+      btn.removeAttribute('disabled');
+      btn.setAttribute('aria-disabled', 'false');
+    }
     const isActive = isStories ? view === 'storymirror' || view === 'chronicle' : btn.dataset.view === view;
     btn.classList.toggle('active', isActive);
     btn.setAttribute('aria-current', isActive ? 'page' : 'false');
