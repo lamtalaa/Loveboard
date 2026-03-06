@@ -1,0 +1,450 @@
+.since-we-met-host {
+  margin: 0;
+}
+
+.since-view.view-panel {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  padding: 1rem 0.82rem 4.8rem;
+  background:
+    radial-gradient(120% 76% at -10% -12%, rgba(255, 220, 224, 0.95), rgba(255, 220, 224, 0) 58%),
+    radial-gradient(110% 74% at 112% -14%, rgba(221, 206, 255, 0.68), rgba(221, 206, 255, 0) 62%),
+    linear-gradient(168deg, #fff9f8 0%, #fff1f4 50%, #fff9fd 100%);
+}
+
+.since-view .view-switcher,
+.since-view-bar,
+.since-view-main {
+  position: relative;
+  z-index: 2;
+}
+
+.since-view-bar {
+  margin: 0.2rem 0 0.65rem;
+}
+
+.since-view-title {
+  margin: 0;
+}
+
+.swm-shell {
+  --swm-a: rgba(247, 162, 145, 0.95);
+  --swm-b: rgba(237, 151, 184, 0.95);
+  --swm-tint: rgba(255, 238, 244, 0.65);
+  position: relative;
+  isolation: isolate;
+}
+
+.swm-glow {
+  position: absolute;
+  border-radius: 999px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.swm-glow-a {
+  width: 215px;
+  height: 215px;
+  right: -64px;
+  top: -44px;
+  background: radial-gradient(circle, rgba(242, 166, 190, 0.33), rgba(242, 166, 190, 0));
+}
+
+.swm-glow-b {
+  width: 200px;
+  height: 200px;
+  left: -66px;
+  bottom: -70px;
+  background: radial-gradient(circle, rgba(248, 175, 143, 0.32), rgba(248, 175, 143, 0));
+}
+
+.swm-card {
+  --swm-tilt-x: 0deg;
+  --swm-tilt-y: 0deg;
+  position: relative;
+  z-index: 1;
+  border-radius: 26px;
+  padding: 0.95rem;
+  border: 1px solid rgba(205, 148, 172, 0.28);
+  background:
+    linear-gradient(140deg, rgba(255, 255, 255, 0.9), rgba(255, 247, 251, 0.82)),
+    linear-gradient(120deg, rgba(255, 244, 236, 0.66), var(--swm-tint));
+  box-shadow:
+    0 20px 44px rgba(120, 76, 94, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  transform: perspective(900px) rotateX(var(--swm-tilt-x)) rotateY(var(--swm-tilt-y));
+  transition: transform 250ms ease, box-shadow 250ms ease;
+}
+
+.swm-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+}
+
+.swm-heading-copy {
+  min-width: 0;
+}
+
+.swm-kicker {
+  margin: 0;
+  font-family: 'Work Sans', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  font-size: 0.64rem;
+  color: rgba(88, 54, 69, 0.6);
+}
+
+.swm-title {
+  margin: 0.18rem 0 0;
+  font-size: 1.46rem;
+  color: rgba(61, 36, 49, 0.96);
+}
+
+.swm-toggle {
+  padding: 0.15rem;
+  border-radius: 999px;
+  border: 1px solid rgba(189, 130, 152, 0.24);
+  background: rgba(255, 255, 255, 0.9);
+  display: inline-flex;
+  gap: 0.15rem;
+}
+
+.swm-toggle-btn {
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(68, 40, 53, 0.78);
+  padding: 0.35rem 0.72rem;
+  font-family: 'Work Sans', sans-serif;
+  font-size: 0.71rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.swm-toggle-btn.is-active {
+  color: #fff;
+  background: linear-gradient(120deg, var(--swm-a), var(--swm-b));
+  box-shadow: 0 6px 12px rgba(225, 126, 160, 0.28);
+}
+
+.swm-toggle-btn:focus-visible,
+.swm-milestone-card:focus-visible,
+.swm-shuffle:focus-visible {
+  outline: 2px solid rgba(242, 150, 177, 0.8);
+  outline-offset: 2px;
+}
+
+.swm-hero {
+  margin-top: 0.74rem;
+  padding: 0.84rem 0.74rem;
+  border-radius: 19px;
+  border: 1px solid rgba(194, 136, 159, 0.16);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.75), rgba(255, 241, 249, 0.67));
+}
+
+.swm-main-count {
+  margin: 0;
+  font-family: 'Cormorant Garamond', serif;
+  font-size: clamp(2.5rem, 13.5vw, 4.2rem);
+  font-weight: 600;
+  line-height: 0.9;
+  letter-spacing: 0.01em;
+  color: #3f2531;
+  text-shadow: 0 9px 20px rgba(204, 124, 157, 0.24);
+}
+
+.swm-subline {
+  margin: 0.42rem 0 0;
+  font-family: 'Work Sans', sans-serif;
+  font-size: 0.84rem;
+  color: rgba(67, 41, 53, 0.76);
+}
+
+.swm-panel {
+  margin-top: 0.72rem;
+}
+
+.swm-panel-label {
+  margin: 0;
+  font-family: 'Work Sans', sans-serif;
+  font-size: 0.71rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: rgba(74, 45, 58, 0.62);
+}
+
+.swm-live-grid,
+.swm-stat-grid {
+  margin-top: 0.44rem;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.42rem;
+}
+
+.swm-live-tile,
+.swm-stat {
+  margin: 0;
+  border-radius: 14px;
+  border: 1px solid rgba(188, 128, 151, 0.2);
+  background: rgba(255, 255, 255, 0.76);
+  padding: 0.58rem 0.42rem;
+  text-align: center;
+}
+
+.swm-live-tile strong,
+.swm-stat strong {
+  display: block;
+  font-family: 'Work Sans', sans-serif;
+  font-size: 1rem;
+  color: rgba(52, 31, 42, 0.92);
+}
+
+.swm-live-tile span,
+.swm-stat span {
+  display: block;
+  margin-top: 0.11rem;
+  font-family: 'Work Sans', sans-serif;
+  font-size: 0.71rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(72, 45, 57, 0.72);
+}
+
+.swm-progress {
+  margin-top: 0.74rem;
+}
+
+.swm-progress-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.65rem;
+}
+
+.swm-progress-label {
+  margin: 0;
+  font-family: 'Work Sans', sans-serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: rgba(74, 45, 58, 0.62);
+}
+
+.swm-progress-value {
+  margin: 0;
+  font-family: 'Work Sans', sans-serif;
+  font-size: 0.85rem;
+  color: rgba(63, 38, 51, 0.9);
+}
+
+.swm-progress-track {
+  margin-top: 0.42rem;
+  height: 0.58rem;
+  border-radius: 999px;
+  border: 1px solid rgba(188, 128, 150, 0.2);
+  background: rgba(255, 255, 255, 0.78);
+  overflow: hidden;
+}
+
+.swm-progress-fill {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--swm-a), var(--swm-b));
+  box-shadow: 0 5px 12px rgba(228, 131, 165, 0.35);
+  transition: width 360ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.swm-progress-note {
+  margin: 0.34rem 0 0;
+  font-family: 'Work Sans', sans-serif;
+  font-size: 0.79rem;
+  color: rgba(70, 44, 56, 0.78);
+}
+
+.swm-milestones {
+  margin-top: 0.82rem;
+}
+
+.swm-milestones-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+.swm-milestones-hint {
+  margin: 0;
+  font-family: 'Work Sans', sans-serif;
+  font-size: 0.72rem;
+  color: rgba(95, 66, 79, 0.68);
+}
+
+.swm-milestone-rail {
+  margin-top: 0.5rem;
+  display: flex;
+  gap: 0.48rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 0.2rem;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
+}
+
+.swm-milestone-rail::-webkit-scrollbar {
+  display: none;
+}
+
+.swm-milestone-card {
+  flex: 0 0 138px;
+  border: 1px solid rgba(188, 128, 151, 0.22);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.8);
+  padding: 0.58rem;
+  text-align: left;
+  cursor: pointer;
+  scroll-snap-align: start;
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.swm-milestone-card:hover {
+  transform: translateY(-2px);
+}
+
+.swm-milestone-card.is-reached {
+  border-color: rgba(233, 135, 166, 0.5);
+  background: linear-gradient(135deg, rgba(247, 161, 144, 0.2), rgba(239, 148, 181, 0.24));
+}
+
+.swm-milestone-card.is-active {
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--swm-a), var(--swm-b));
+  box-shadow: 0 10px 18px rgba(224, 123, 158, 0.32);
+}
+
+.swm-milestone-card.is-forever {
+  cursor: default;
+  border-color: rgba(167, 144, 235, 0.45);
+  background: linear-gradient(135deg, rgba(229, 219, 255, 0.72), rgba(251, 234, 255, 0.8));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.7);
+}
+
+.swm-milestone-card.is-forever .swm-milestone-day {
+  font-size: 1.26rem;
+  color: rgba(90, 56, 115, 0.95);
+}
+
+.swm-milestone-card.is-forever .swm-milestone-unit,
+.swm-milestone-card.is-forever .swm-milestone-date {
+  color: rgba(90, 56, 115, 0.82);
+}
+
+.swm-milestone-day {
+  display: block;
+  font-family: 'Work Sans', sans-serif;
+  font-size: 1.14rem;
+  font-weight: 700;
+  color: rgba(58, 34, 47, 0.95);
+}
+
+.swm-milestone-unit,
+.swm-milestone-date {
+  display: block;
+  font-family: 'Work Sans', sans-serif;
+  font-size: 0.72rem;
+  color: rgba(75, 48, 60, 0.78);
+}
+
+.swm-milestone-date {
+  margin-top: 0.3rem;
+  line-height: 1.25;
+}
+
+.swm-milestone-card.is-active .swm-milestone-day,
+.swm-milestone-card.is-active .swm-milestone-unit,
+.swm-milestone-card.is-active .swm-milestone-date {
+  color: #fff;
+}
+
+.swm-memory {
+  margin-top: 0.84rem;
+  border-radius: 16px;
+  border: 1px solid rgba(188, 128, 150, 0.2);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.84), rgba(255, 245, 250, 0.84));
+  padding: 0.74rem;
+}
+
+.swm-memory-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.swm-shuffle {
+  border: 1px solid rgba(188, 128, 151, 0.28);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  color: rgba(63, 38, 51, 0.88);
+  padding: 0.28rem 0.62rem;
+  font-family: 'Work Sans', sans-serif;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.swm-memory-note {
+  margin: 0.38rem 0 0;
+  font-size: 1.14rem;
+  line-height: 1.34;
+  color: rgba(54, 31, 42, 0.95);
+}
+
+.swm-memory-meta {
+  margin: 0.42rem 0 0;
+  font-family: 'Work Sans', sans-serif;
+  font-size: 0.79rem;
+  color: rgba(72, 45, 58, 0.76);
+}
+
+.swm-footnote {
+  margin: 0.66rem 0 0;
+  text-align: center;
+  font-family: 'Work Sans', sans-serif;
+  font-size: 0.72rem;
+  color: rgba(97, 68, 81, 0.62);
+}
+
+@media (min-width: 760px) {
+  .since-view.view-panel {
+    max-width: 920px;
+    margin: 1rem auto;
+    min-height: calc(100vh - 2rem);
+    padding: 1.14rem 1rem 5rem;
+    border-radius: 30px;
+  }
+
+  .swm-card {
+    padding: 1.08rem;
+  }
+
+  .swm-title {
+    font-size: 1.7rem;
+  }
+
+  .swm-main-count {
+    font-size: clamp(3.1rem, 8.8vw, 5rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .swm-card,
+  .swm-progress-fill,
+  .swm-milestone-card {
+    transition: none;
+  }
+}

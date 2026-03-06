@@ -1,6 +1,7 @@
 import { supabase } from './supabase.js';
 import { setWwanUser, applyRemoteCity, setWwanDefaults } from './wwan.js';
 import { createInstagramStoryShare } from './features/instagram-story-share/instagram-story-share.js';
+import { createSinceWeMetFeature } from './features/since-we-met/since-we-met.js?v=20260305g';
 
 
 const DEFAULT_MOOD_PRESETS = {
@@ -176,6 +177,8 @@ const state = {
   moodUpdatedAtSupported: true,
   ldAppOpen: false,
   ldAppKeyListener: null,
+  sinceViewOpen: false,
+  sinceViewKeyListener: null,
   constellationOpen: false,
   constellationKeyListener: null,
   constellationResizeListener: null,
@@ -284,6 +287,7 @@ const ui = {
   optionButtons: document.querySelectorAll('.option-btn'),
   optionSections: document.querySelectorAll('.option-section'),
   ldAppView: document.getElementById('ldapp-view'),
+  sinceView: document.getElementById('since-view'),
   loveboardView: document.getElementById('loveboard-view'),
   constellationView: document.getElementById('constellation-view'),
   constellationSky: document.getElementById('constellation-sky'),
@@ -391,6 +395,7 @@ const ui = {
 
 const template = document.getElementById('postcard-template');
 let instagramStoryShareFeature = null;
+let sinceWeMetFeature = null;
 
 init().catch((error) => console.error('init error', error));
 
@@ -463,6 +468,10 @@ async function init() {
   instagramStoryShareFeature = createInstagramStoryShare({
     showToast,
     appName: 'Loveboard'
+  });
+  sinceWeMetFeature = createSinceWeMetFeature({
+    root: document.querySelector('[data-swm-root]'),
+    metDate: '2024-08-22'
   });
   ui.moodButtons.forEach((btn) =>
     btn.addEventListener('click', () => openMoodPicker(btn))
@@ -745,6 +754,14 @@ function applyAppConfig() {
   const displayA = users.a.display || users.a.id;
   const displayB = users.b.display || users.b.id;
   const couple = coupleLabel || `${displayA} ❤️ ${displayB}`;
+
+  if (sinceWeMetFeature?.updateContext) {
+    sinceWeMetFeature.updateContext({
+      partnerA: displayA,
+      partnerB: displayB,
+      coupleLabel: couple
+    });
+  }
 
   document.querySelectorAll('[data-couple-tagline]').forEach((el) => {
     el.textContent = couple;
@@ -5412,6 +5429,8 @@ function handleViewSwitch(view) {
     showLoveboard();
   } else if (view === 'ldapp') {
     showLdApp();
+  } else if (view === 'since') {
+    showSinceView();
   } else if (view === 'storymirror') {
     showStoryMirror({ forceFresh: true });
   } else if (view === 'chronicle') {
@@ -5428,6 +5447,7 @@ function getActiveView() {
   if (state.chronicleOpen) return ui.chronicleView;
   if (state.constellationOpen) return ui.constellationView;
   if (state.ldAppOpen) return ui.ldAppView;
+  if (state.sinceViewOpen) return ui.sinceView;
   if (state.valentineOpen) return ui.valentineView;
   return ui.loveboardView;
 }
@@ -5441,11 +5461,13 @@ function showLoveboard() {
   const focusTarget = ui.viewSwitchButtons?.[0];
   switchView(ui.loveboardView, current, () => focusTarget?.focus());
   state.ldAppOpen = false;
+  state.sinceViewOpen = false;
   state.constellationOpen = false;
   state.valentineOpen = false;
   state.storyMirrorOpen = false;
   state.chronicleOpen = false;
   cleanupLdAppListeners();
+  cleanupSinceViewListeners();
   cleanupConstellationListeners();
   cleanupValentineListeners();
   cleanupStoryMirrorListeners();
@@ -5460,6 +5482,7 @@ function showLdApp() {
   closeStorySocialSheet();
   switchView(ui.ldAppView, current);
   state.ldAppOpen = true;
+  state.sinceViewOpen = false;
   state.constellationOpen = false;
   state.valentineOpen = false;
   state.storyMirrorOpen = false;
@@ -5468,8 +5491,31 @@ function showLdApp() {
   cleanupValentineListeners();
   cleanupStoryMirrorListeners();
   cleanupChronicleListeners();
+  cleanupSinceViewListeners();
   updateViewSwitchers('ldapp');
   attachLdAppListeners();
+}
+
+function showSinceView() {
+  if (!ui.sinceView) return;
+  const current = getActiveView();
+  if (current === ui.sinceView) return;
+  closeChronicleActionsModal();
+  closeStorySocialSheet();
+  switchView(ui.sinceView, current);
+  state.sinceViewOpen = true;
+  state.ldAppOpen = false;
+  state.constellationOpen = false;
+  state.valentineOpen = false;
+  state.storyMirrorOpen = false;
+  state.chronicleOpen = false;
+  updateViewSwitchers('since');
+  cleanupLdAppListeners();
+  cleanupConstellationListeners();
+  cleanupValentineListeners();
+  cleanupStoryMirrorListeners();
+  cleanupChronicleListeners();
+  attachSinceViewListeners();
 }
 
 function showStoryMirror(options = {}) {
@@ -5491,6 +5537,7 @@ function showStoryMirror(options = {}) {
     exitClass: openingChronicleStory ? 'view-exit-match-card' : 'view-exit'
   });
   state.storyMirrorOpen = true;
+  state.sinceViewOpen = false;
   state.ldAppOpen = false;
   state.constellationOpen = false;
   state.valentineOpen = false;
@@ -5498,6 +5545,7 @@ function showStoryMirror(options = {}) {
   updateViewSwitchers('storymirror');
   setStoryStep(1);
   cleanupLdAppListeners();
+  cleanupSinceViewListeners();
   cleanupConstellationListeners();
   cleanupValentineListeners();
   cleanupChronicleListeners();
@@ -5521,11 +5569,13 @@ function showChronicle() {
   switchView(ui.chronicleView, current);
   state.chronicleOpen = true;
   state.storyMirrorOpen = false;
+  state.sinceViewOpen = false;
   state.ldAppOpen = false;
   state.constellationOpen = false;
   state.valentineOpen = false;
   updateViewSwitchers('chronicle');
   cleanupLdAppListeners();
+  cleanupSinceViewListeners();
   cleanupConstellationListeners();
   cleanupValentineListeners();
   cleanupStoryMirrorListeners();
@@ -5539,6 +5589,7 @@ function showConstellation() {
   closeStorySocialSheet();
   switchView(ui.constellationView, current);
   state.constellationOpen = true;
+  state.sinceViewOpen = false;
   state.ldAppOpen = false;
   state.valentineOpen = false;
   state.storyMirrorOpen = false;
@@ -5549,6 +5600,7 @@ function showConstellation() {
   updateViewSwitchers('constellation');
   attachConstellationListeners();
   cleanupLdAppListeners();
+  cleanupSinceViewListeners();
   cleanupValentineListeners();
   cleanupStoryMirrorListeners();
   cleanupChronicleListeners();
@@ -5578,12 +5630,14 @@ function showValentine() {
   closeStorySocialSheet();
   switchView(ui.valentineView, current);
   state.valentineOpen = true;
+  state.sinceViewOpen = false;
   state.ldAppOpen = false;
   state.constellationOpen = false;
   state.storyMirrorOpen = false;
   state.chronicleOpen = false;
   updateViewSwitchers('valentine');
   cleanupLdAppListeners();
+  cleanupSinceViewListeners();
   cleanupConstellationListeners();
   cleanupStoryMirrorListeners();
   cleanupChronicleListeners();
@@ -5607,6 +5661,24 @@ function cleanupLdAppListeners() {
   if (state.ldAppKeyListener) {
     document.removeEventListener('keydown', state.ldAppKeyListener, true);
     state.ldAppKeyListener = null;
+  }
+}
+
+function attachSinceViewListeners() {
+  if (!state.sinceViewKeyListener) {
+    state.sinceViewKeyListener = (evt) => {
+      if (evt.key === 'Escape') {
+        showLoveboard();
+      }
+    };
+    document.addEventListener('keydown', state.sinceViewKeyListener, true);
+  }
+}
+
+function cleanupSinceViewListeners() {
+  if (state.sinceViewKeyListener) {
+    document.removeEventListener('keydown', state.sinceViewKeyListener, true);
+    state.sinceViewKeyListener = null;
   }
 }
 

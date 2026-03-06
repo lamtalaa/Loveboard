@@ -112,6 +112,17 @@ html {
   display: flex;
   gap: 0.35rem;
   align-items: center;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 0.1rem;
+}
+
+.view-switch-group::-webkit-scrollbar {
+  display: none;
 }
 
 .view-switch {

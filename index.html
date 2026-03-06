@@ -22,6 +22,7 @@
     <link rel="stylesheet" href="styles.css" />
     <link rel="stylesheet" href="wwan.css" />
     <link rel="stylesheet" href="./features/instagram-story-share/instagram-story-share.css" />
+    <link rel="stylesheet" href="./features/since-we-met/since-we-met.css?v=20260305g" />
     <script>
       const cfg = {
         supabaseUrl: 'https://ijwxlyoxhlmlysfjzksl.supabase.co',
@@ -77,6 +78,9 @@
           </button>
           <button type="button" class="view-switch" data-view="ldapp" aria-label="Where We Are Now">
             🗺️
+          </button>
+          <button type="button" class="view-switch" data-view="since" aria-label="Since We Met">
+            💘
           </button>
           <div class="story-menu">
             <button
@@ -157,6 +161,74 @@
       <button id="create-btn" class="create-btn" disabled>Create Postcard</button>
     </main>
 
+    <section id="since-view" class="since-view view-panel" hidden aria-hidden="true">
+      <nav class="view-switcher" aria-label="Switch view">
+        <div class="view-switch-group">
+          <button type="button" class="view-switch" data-view="loveboard" aria-label="Loveboard">
+            🏠
+          </button>
+          <button type="button" class="view-switch" data-view="ldapp" aria-label="Where We Are Now">
+            🗺️
+          </button>
+          <button type="button" class="view-switch active" data-view="since" aria-label="Since We Met">
+            💘
+          </button>
+          <div class="story-menu">
+            <button
+              type="button"
+              class="view-switch story-menu-toggle"
+              data-view="stories"
+              aria-label="Stories"
+              aria-haspopup="true"
+              aria-expanded="false"
+            >
+              📖
+            </button>
+            <div class="story-menu-panel" role="menu" aria-label="Stories">
+              <button type="button" class="story-menu-option" data-view="storymirror" role="menuitem">
+                <span class="story-menu-icon" aria-hidden="true">✨</span>
+                <span class="story-menu-text">
+                  <span class="story-menu-title">Create a new story</span>
+                  <span class="story-menu-note">Generate a fresh future chapter</span>
+                </span>
+              </button>
+              <button type="button" class="story-menu-option" data-view="chronicle" role="menuitem">
+                <span class="story-menu-icon" aria-hidden="true">📚</span>
+                <span class="story-menu-text">
+                  <span class="story-menu-title">Saved stories</span>
+                  <span class="story-menu-note">Revisit your Chronicle</span>
+                </span>
+              </button>
+            </div>
+          </div>
+          <button
+            type="button"
+            class="view-switch"
+            data-view="constellation"
+            aria-label="Time Capsule Constellation"
+          >
+            🌌
+          </button>
+          <button type="button" class="view-switch" data-view="valentine" aria-label="Shared Orbit">
+            💞
+          </button>
+        </div>
+        <button class="nav-logout logout-btn" type="button" aria-label="Log out">
+          ⏻
+        </button>
+      </nav>
+      <header class="since-view-bar">
+        <p class="since-view-title view-title">Since We Met</p>
+      </header>
+      <main class="since-view-main" aria-live="polite">
+        <section
+          class="since-we-met-host since-we-met-view-host"
+          data-swm-root
+          aria-label="Relationship timer and milestones"
+        ></section>
+      </main>
+    </section>
+
     <section id="ldapp-view" class="ldapp-view view-panel" hidden aria-hidden="true">
       <nav class="view-switcher" aria-label="Switch view">
         <div class="view-switch-group">
@@ -165,6 +237,9 @@
           </button>
           <button type="button" class="view-switch active" data-view="ldapp" aria-label="Where We Are Now">
             🗺️
+          </button>
+          <button type="button" class="view-switch" data-view="since" aria-label="Since We Met">
+            💘
           </button>
           <div class="story-menu">
             <button
@@ -325,6 +400,9 @@
           <button type="button" class="view-switch" data-view="ldapp" aria-label="Where We Are Now">
             🗺️
           </button>
+          <button type="button" class="view-switch" data-view="since" aria-label="Since We Met">
+            💘
+          </button>
           <div class="story-menu">
             <button
               type="button"
@@ -407,6 +485,9 @@
           </button>
           <button type="button" class="view-switch" data-view="ldapp" aria-label="Where We Are Now">
             🗺️
+          </button>
+          <button type="button" class="view-switch" data-view="since" aria-label="Since We Met">
+            💘
           </button>
           <div class="story-menu">
             <button
@@ -548,6 +629,9 @@
           </button>
           <button type="button" class="view-switch" data-view="ldapp" aria-label="Where We Are Now">
             🗺️
+          </button>
+          <button type="button" class="view-switch" data-view="since" aria-label="Since We Met">
+            💘
           </button>
           <div class="story-menu">
             <button
@@ -875,6 +959,9 @@ Our home at night felt soft and safe…"
           <button type="button" class="view-switch" data-view="ldapp" aria-label="Where We Are Now">
             🗺️
           </button>
+          <button type="button" class="view-switch" data-view="since" aria-label="Since We Met">
+            💘
+          </button>
           <div class="story-menu">
             <button
               type="button"
@@ -1096,6 +1183,6 @@ Our home at night felt soft and safe…"
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script type="module" src="supabase.js"></script>
     <script type="module" src="wwan.js"></script>
-    <script type="module" src="script.js"></script>
+    <script type="module" src="script.js?v=20260305g"></script>
   </body>
 </html>
